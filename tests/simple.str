@@ -1,0 +1,20 @@
+int->int pipeline TestPipeline {
+    add TestFilter();
+    add TestFilter2();
+}
+
+int->int filter TestFilter {
+    int foo = 1, bar = 2;
+    work push 1 {
+        int x = foo, y = 43;
+        x = 42;
+        push(x);
+    }
+}
+
+int->int filter TestFilter2 {
+    work pop 1 {
+        int x = pop();
+    }
+}
+

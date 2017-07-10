@@ -1,0 +1,457 @@
+#pragma once
+#include <list>
+#include <string>
+#include <vector>
+
+class ASTPrinter;
+class CodeGenerator;
+class ParserState;
+class SymbolTable;
+class Type;
+
+namespace AST
+{
+class Node;
+class NodeList;
+class Statement;
+class Declaration;
+class Expression;
+class PipelineDeclaration;
+class PipelineAddStatement;
+class FilterDeclaration;
+class FilterWorkBlock;
+class VariableDeclaration;
+
+class StringList
+{
+public:
+  using ListType = std::vector<std::string>;
+
+  StringList() = default;
+  ~StringList() = default;
+
+  const std::string& operator[](size_t index) const
+  {
+    return m_values[index];
+  }
+  ListType::const_iterator begin() const
+  {
+    return m_values.begin();
+  }
+  ListType::const_iterator end() const
+  {
+    return m_values.end();
+  }
+
+  std::string& operator[](size_t index)
+  {
+    return m_values[index];
+  }
+  ListType::iterator begin()
+  {
+    return m_values.begin();
+  }
+  ListType::iterator end()
+  {
+    return m_values.end();
+  }
+
+  void AddString(const char* str)
+  {
+    m_values.emplace_back(str);
+  }
+  void AddString(const std::string& str)
+  {
+    m_values.push_back(str);
+  }
+
+private:
+  ListType m_values;
+};
+
+class Node
+{
+public:
+  virtual ~Node() = default;
+  virtual void Dump(ASTPrinter* printer) const = 0;
+  virtual bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) = 0;
+};
+
+class NodeList final : public Node
+{
+public:
+  using ListType = std::vector<Node*>;
+
+  NodeList() = default;
+  ~NodeList() final = default;
+
+  const Node* operator[](size_t index) const
+  {
+    return m_nodes[index];
+  }
+  ListType::const_iterator begin() const
+  {
+    return m_nodes.begin();
+  }
+  ListType::const_iterator end() const
+  {
+    return m_nodes.end();
+  }
+
+  Node*& operator[](size_t index)
+  {
+    return m_nodes[index];
+  }
+  ListType::iterator begin()
+  {
+    return m_nodes.begin();
+  }
+  ListType::iterator end()
+  {
+    return m_nodes.end();
+  }
+
+  const ListType& GetNodeList() const
+  {
+    return m_nodes;
+  }
+
+  const Node* GetFirst() const;
+  Node* GetFirst();
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+  void AddNode(Node* node);
+  void AddNodes(NodeList* node_list);
+
+private:
+  ListType m_nodes;
+};
+
+class Program : public Node
+{
+public:
+  Program() = default;
+  ~Program() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+  void AddPipeline(PipelineDeclaration* decl);
+  void AddFilter(FilterDeclaration* decl);
+
+private:
+  std::list<PipelineDeclaration*> m_pipelines;
+  std::list<FilterDeclaration*> m_filters;
+};
+
+class Declaration : public Node
+{
+public:
+  Declaration() = default;
+  virtual ~Declaration() = default;
+};
+
+class Statement : public Node
+{
+public:
+  Statement() = default;
+  virtual ~Statement() = default;
+};
+
+class Expression : public Node
+{
+public:
+  Expression() = default;
+  virtual ~Expression() = default;
+
+  virtual bool IsConstant() const
+  {
+    return false;
+  }
+
+  const Type* GetType() const
+  {
+    return m_type;
+  }
+
+protected:
+  const Type* m_type = nullptr;
+};
+
+class PipelineDeclaration : public Declaration
+{
+public:
+  PipelineDeclaration(const Type* input_type, const Type* output_type, const char* name, NodeList* statements);
+  ~PipelineDeclaration() override;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  const Type* m_input_type;
+  const Type* m_output_type;
+  std::string m_name;
+  NodeList* m_statements;
+};
+
+class PipelineAddStatement : public Statement
+{
+public:
+  PipelineAddStatement(const char* filter_name, const NodeList* parameters);
+  ~PipelineAddStatement();
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  std::string m_filter_name;
+  const NodeList* m_filter_parameters;
+  Node* m_filter_declaration = nullptr;
+};
+
+class FilterDeclaration : public Declaration
+{
+public:
+  FilterDeclaration(const Type* input_type, const Type* output_type, const char* name, NodeList* vars,
+                    FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work);
+  ~FilterDeclaration() = default;
+
+  const Type* GetInputType() const
+  {
+    return m_input_type;
+  }
+  const Type* GetOutputType() const
+  {
+    return m_output_type;
+  }
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  const Type* m_input_type;
+  const Type* m_output_type;
+  std::string m_name;
+  NodeList* m_vars;
+  FilterWorkBlock* m_init;
+  FilterWorkBlock* m_prework;
+  FilterWorkBlock* m_work;
+};
+
+struct FilterWorkParts
+{
+  NodeList* vars = nullptr;
+  FilterWorkBlock* init = nullptr;
+  FilterWorkBlock* prework = nullptr;
+  FilterWorkBlock* work = nullptr;
+};
+
+class FilterWorkBlock final
+{
+public:
+  FilterWorkBlock() = default;
+  ~FilterWorkBlock() = default;
+
+  void Dump(ASTPrinter* printer) const;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table);
+
+  int GetPeekRate() const
+  {
+    return m_peek_rate;
+  }
+  int GetPopRate() const
+  {
+    return m_pop_rate;
+  }
+  int GetPushRate() const
+  {
+    return m_push_rate;
+  }
+  const NodeList* GetStatements() const
+  {
+    return m_stmts;
+  }
+  NodeList* GetStatements()
+  {
+    return m_stmts;
+  }
+
+  void SetPeekRate(int rate)
+  {
+    m_peek_rate = rate;
+  }
+  void SetPopRate(int rate)
+  {
+    m_pop_rate = rate;
+  }
+  void SetPushRate(int rate)
+  {
+    m_push_rate = rate;
+  }
+  void SetStatements(NodeList* stmts)
+  {
+    m_stmts = stmts;
+  }
+
+private:
+  int m_peek_rate = -1;
+  int m_pop_rate = -1;
+  int m_push_rate = -1;
+  NodeList* m_stmts = nullptr;
+};
+
+class IdentifierExpression : public Expression
+{
+public:
+  IdentifierExpression(const char* identifier);
+  ~IdentifierExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  std::string m_identifier;
+  VariableDeclaration* m_identifier_declaration = nullptr;
+};
+
+class BinaryExpression : public Expression
+{
+public:
+  enum Operator : unsigned int
+  {
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    BitwiseNot
+  };
+
+  BinaryExpression(Expression* lhs, Operator op, Expression* rhs);
+  ~BinaryExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  Expression* m_lhs;
+  Expression* m_rhs;
+  Operator m_op;
+};
+
+class AssignmentExpression : public Expression
+{
+public:
+  AssignmentExpression(const char* identifier, Expression* rhs);
+  ~AssignmentExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  std::string m_identifier;
+  VariableDeclaration* m_identifier_declaration = nullptr;
+  Expression* m_rhs;
+};
+
+class IntegerLiteralExpression : public Expression
+{
+public:
+  IntegerLiteralExpression(int value);
+  ~IntegerLiteralExpression() = default;
+
+  bool IsConstant() const override
+  {
+    return true;
+  }
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  int m_value;
+};
+
+class PeekExpression : public Expression
+{
+public:
+  PeekExpression(Expression* expr);
+  ~PeekExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  Expression* m_expr;
+};
+
+class PopExpression : public Expression
+{
+public:
+  PopExpression();
+  ~PopExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+};
+
+class PushExpression : public Expression
+{
+public:
+  PushExpression(Expression* expr);
+  ~PushExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  Expression* m_expr;
+};
+
+class VariableDeclaration final : public Declaration
+{
+public:
+  VariableDeclaration(const Type* type, const char* name, Expression* initializer);
+  ~VariableDeclaration() override final = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+  const Type* GetType() const
+  {
+    return m_type;
+  }
+  const std::string& GetName() const
+  {
+    return m_name;
+  }
+  const Expression* GetInitializer() const
+  {
+    return m_initializer;
+  }
+
+private:
+  const Type* m_type;
+  std::string m_name;
+  Expression* m_initializer;
+};
+
+class ExpressionStatement : public Statement
+{
+public:
+  ExpressionStatement(Expression* expr) : m_expr(expr)
+  {
+  }
+  ~ExpressionStatement() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+
+private:
+  Expression* m_expr;
+};
+}

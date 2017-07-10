@@ -1,0 +1,20 @@
+.vs
+*.VC.db
+*.VC.VC.opendb
+*.vcxproj.user
+
+/bin/
+/obj/
+/build/
+
+# Executables
+JavaScriptCompiler
+
+# CMake
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+
+# System Files Mac OS X
+.DS_Store
