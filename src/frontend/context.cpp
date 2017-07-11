@@ -3,7 +3,7 @@
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
 #include "parser/type.h"
-//#include "llvm/Analysis/Verifier.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
@@ -61,6 +61,10 @@ bool Context::GenerateCode(AST::Program* program)
   llvm::legacy::PassManager pm;
   pm.add(llvm::createPrintModulePass(llvm::outs()));
   pm.run(*m_module);
+
+  // validate module, should this be here or elsewhere?
+  if (!llvm::verifyModule(*m_module, &llvm::outs()))
+    return false;
 
   return true;
 }
