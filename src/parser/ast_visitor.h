@@ -30,6 +30,7 @@ class IfStatement;
 class ForStatement;
 class BreakStatement;
 class ContinueStatement;
+class ReturnStatement;
 
 class Visitor
 {
@@ -60,5 +61,6 @@ public:
   virtual bool Visit(ForStatement* node);
   virtual bool Visit(BreakStatement* node);
   virtual bool Visit(ContinueStatement* node);
+  virtual bool Visit(ReturnStatement* node);
 };
 }

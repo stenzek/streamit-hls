@@ -289,4 +289,9 @@ void ContinueStatement::Dump(ASTPrinter* printer) const
   printer->WriteLine("ContinueStatement");
 }
 
+void ReturnStatement::Dump(ASTPrinter* printer) const
+{
+  printer->WriteLine("ReturnStatement");
+}
+
 } // namespace AST

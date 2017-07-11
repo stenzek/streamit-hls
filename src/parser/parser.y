@@ -29,7 +29,7 @@ using namespace AST;
 %token TK_INCREMENT TK_DECREMENT TK_LSHIFT TK_RSHIFT
 %token TK_LTE TK_GTE
 
-%token TK_IF TK_ELSE TK_FOR TK_DO TK_WHILE TK_CONTINUE TK_BREAK
+%token TK_IF TK_ELSE TK_FOR TK_DO TK_WHILE TK_CONTINUE TK_BREAK TK_RETURN
 
 %token TK_BOOLEAN_LITERAL TK_INTEGER_LITERAL TK_FLOAT_LITERAL TK_STRING_LITERAL TK_IDENTIFIER
 
@@ -83,6 +83,7 @@ using namespace AST;
 %type <stmt> ExpressionStatement
 %type <stmt> SelectionStatement
 %type <stmt> IterationStatement
+%type <stmt> JumpStatement
 %type <expr> Expression
 %type <expr> Expression_opt
 %type <expr> PrimaryExpression
@@ -225,7 +226,7 @@ Statement
   : ExpressionStatement { $$ = $1; }
   | SelectionStatement { $$ = $1; }
   | IterationStatement { $$ = $1; }
-  /*| JumpStatement { $$ = $1; }*/
+  | JumpStatement { $$ = $1; }
   ;
   
 ExpressionStatement
@@ -241,6 +242,12 @@ SelectionStatement
 IterationStatement
   : TK_FOR '(' StatementListItem Expression_opt ';' ')' StatementListItem { $$ = new ForStatement($3, $4, nullptr, $7); }
   | TK_FOR '(' StatementListItem Expression_opt ';' Expression ')' StatementListItem { $$ = new ForStatement($3, $4, $6, $8); }
+  ;
+
+JumpStatement
+  : TK_BREAK ';' { $$ = new BreakStatement(); }
+  | TK_CONTINUE ';' { $$ = new ContinueStatement(); }
+  | TK_RETURN ';' { $$ = new ReturnStatement(); }
   ;
 
 Expression

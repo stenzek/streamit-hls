@@ -145,4 +145,27 @@ bool StatementBuilder::Visit(AST::ForStatement* node)
   m_func_builder->SwitchBasicBlock(break_bb);
   return true;
 }
+
+bool StatementBuilder::Visit(AST::BreakStatement* node)
+{
+  llvm::BasicBlock* break_block = m_func_builder->GetCurrentBreakBasicBlock();
+  assert(break_block);
+  GetIRBuilder().CreateBr(break_block);
+  return true;
+}
+
+bool StatementBuilder::Visit(AST::ContinueStatement* node)
+{
+  llvm::BasicBlock* continue_block = m_func_builder->GetCurrentContinueBasicBlock();
+  assert(continue_block);
+  GetIRBuilder().CreateBr(continue_block);
+  return true;
+}
+
+bool StatementBuilder::Visit(AST::ReturnStatement* node)
+{
+  assert(!node->HasReturnValue());
+  GetIRBuilder().CreateRetVoid();
+  return true;
+}
 }

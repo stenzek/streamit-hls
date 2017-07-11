@@ -342,4 +342,17 @@ bool ForStatement::HasInnerStatements() const
   return (m_inner != nullptr);
 }
 
+ReturnStatement::ReturnStatement(Expression* expr) : m_expr(expr)
+{
+}
+
+Expression* ReturnStatement::GetInnerExpression() const
+{
+  return m_expr;
+}
+
+bool ReturnStatement::HasReturnValue() const
+{
+  return (m_expr != nullptr);
+}
 }

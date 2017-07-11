@@ -41,6 +41,7 @@ do { return TK_DO; }
 while { return TK_WHILE; }
 continue { return TK_CONTINUE; }
 break { return TK_BREAK; }
+return { return TK_RETURN; }
 
  /* Digraphs */
 "&&" { return TK_LOGICAL_AND; }

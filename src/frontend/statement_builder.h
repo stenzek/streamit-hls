@@ -21,6 +21,9 @@ public:
   bool Visit(AST::ExpressionStatement* node) override;
   bool Visit(AST::IfStatement* node) override;
   bool Visit(AST::ForStatement* node) override;
+  bool Visit(AST::BreakStatement* node) override;
+  bool Visit(AST::ContinueStatement* node) override;
+  bool Visit(AST::ReturnStatement* node) override;
 
 private:
   FilterFunctionBuilder* m_func_builder;

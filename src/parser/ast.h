@@ -692,4 +692,21 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 };
+
+class ReturnStatement : public Statement
+{
+public:
+  ReturnStatement(Expression* expr = nullptr);
+  ~ReturnStatement() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Expression* GetInnerExpression() const;
+  bool HasReturnValue() const;
+
+private:
+  Expression* m_expr;
+};
 }

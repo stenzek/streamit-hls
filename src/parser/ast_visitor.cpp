@@ -29,6 +29,11 @@ bool Visitor::Visit(ContinueStatement* node)
   return Visit(static_cast<Statement*>(node));
 }
 
+bool Visitor::Visit(ReturnStatement* node)
+{
+  return Visit(static_cast<Statement*>(node));
+}
+
 bool Visitor::Visit(VariableDeclaration* node)
 {
   return Visit(static_cast<Declaration*>(node));
@@ -243,6 +248,11 @@ bool BreakStatement::Accept(Visitor* visitor)
 }
 
 bool ContinueStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool ReturnStatement::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

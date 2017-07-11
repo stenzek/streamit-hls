@@ -347,4 +347,12 @@ bool ContinueStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   return true;
 }
 
+bool ReturnStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // TODO: Check if we're in a function, and the return type matches
+  bool result = true;
+  result &= (!m_expr || m_expr->SemanticAnalysis(state, symbol_table));
+  return result;
+}
+
 } // namespace AST
