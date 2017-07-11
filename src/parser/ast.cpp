@@ -1,6 +1,7 @@
-#include "ast.h"
+#include "parser/ast.h"
 #include <cassert>
-#include "type.h"
+#include "parser/ast_visitor.h"
+#include "parser/type.h"
 
 namespace AST
 {
@@ -50,6 +51,11 @@ PipelineDeclaration::~PipelineDeclaration()
 {
 }
 
+bool PipelineDeclaration::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
 PipelineAddStatement::PipelineAddStatement(const char* filter_name, const NodeList* parameters)
   : m_filter_name(filter_name), m_filter_parameters(parameters)
 {
@@ -57,6 +63,11 @@ PipelineAddStatement::PipelineAddStatement(const char* filter_name, const NodeLi
 
 PipelineAddStatement::~PipelineAddStatement()
 {
+}
+
+bool PipelineAddStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
 }
 
 IdentifierExpression::IdentifierExpression(const char* identifier) : m_identifier(identifier)
@@ -78,6 +89,16 @@ AssignmentExpression::AssignmentExpression(const char* identifier, Expression* r
 IntegerLiteralExpression::IntegerLiteralExpression(int value) : m_value(value)
 {
   m_type = Type::GetIntegerType();
+}
+
+int IntegerLiteralExpression::GetValue() const
+{
+  return m_value;
+}
+
+bool IntegerLiteralExpression::IsConstant() const
+{
+  return true;
 }
 
 PeekExpression::PeekExpression(Expression* expr) : m_expr(expr)

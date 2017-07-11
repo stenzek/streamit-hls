@@ -10,6 +10,7 @@ set(SRCS
     ast.cpp
     ast_dump.cpp
     ast_printer.cpp
+    ast_visitor.cpp
     helpers.cpp
     parser_state.cpp
     scanner_helpers.cpp

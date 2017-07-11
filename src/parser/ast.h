@@ -11,6 +11,8 @@ class Type;
 
 namespace AST
 {
+class Visitor;
+class Program;
 class Node;
 class NodeList;
 class Statement;
@@ -20,7 +22,15 @@ class PipelineDeclaration;
 class PipelineAddStatement;
 class FilterDeclaration;
 class FilterWorkBlock;
+class IntegerLiteralExpression;
+class IdentifierExpression;
+class BinaryExpression;
+class AssignmentExpression;
+class PeekExpression;
+class PopExpression;
+class PushExpression;
 class VariableDeclaration;
+class ExpressionStatement;
 
 class StringList
 {
@@ -69,12 +79,31 @@ private:
   ListType m_values;
 };
 
+class Program
+{
+public:
+  Program() = default;
+  ~Program() = default;
+
+  void Dump(ASTPrinter* printer) const;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table);
+  bool Accept(Visitor* visitor);
+
+  void AddPipeline(PipelineDeclaration* decl);
+  void AddFilter(FilterDeclaration* decl);
+
+private:
+  std::list<PipelineDeclaration*> m_pipelines;
+  std::list<FilterDeclaration*> m_filters;
+};
+
 class Node
 {
 public:
   virtual ~Node() = default;
   virtual void Dump(ASTPrinter* printer) const = 0;
   virtual bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) = 0;
+  virtual bool Accept(Visitor* visitor) = 0;
 };
 
 class NodeList final : public Node
@@ -121,29 +150,13 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
   void AddNode(Node* node);
   void AddNodes(NodeList* node_list);
 
 private:
   ListType m_nodes;
-};
-
-class Program : public Node
-{
-public:
-  Program() = default;
-  ~Program() = default;
-
-  void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
-
-  void AddPipeline(PipelineDeclaration* decl);
-  void AddFilter(FilterDeclaration* decl);
-
-private:
-  std::list<PipelineDeclaration*> m_pipelines;
-  std::list<FilterDeclaration*> m_filters;
 };
 
 class Declaration : public Node
@@ -188,6 +201,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   const Type* m_input_type;
@@ -204,6 +218,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   std::string m_filter_name;
@@ -229,6 +244,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   const Type* m_input_type;
@@ -256,6 +272,7 @@ public:
 
   void Dump(ASTPrinter* printer) const;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table);
+  bool Accept(Visitor* visitor);
 
   int GetPeekRate() const
   {
@@ -302,6 +319,23 @@ private:
   NodeList* m_stmts = nullptr;
 };
 
+class IntegerLiteralExpression : public Expression
+{
+public:
+  IntegerLiteralExpression(int value);
+  ~IntegerLiteralExpression() = default;
+
+  bool IsConstant() const override;
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  int GetValue() const;
+
+private:
+  int m_value;
+};
+
 class IdentifierExpression : public Expression
 {
 public:
@@ -310,6 +344,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   std::string m_identifier;
@@ -337,6 +372,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   Expression* m_lhs;
@@ -352,28 +388,12 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   std::string m_identifier;
   VariableDeclaration* m_identifier_declaration = nullptr;
   Expression* m_rhs;
-};
-
-class IntegerLiteralExpression : public Expression
-{
-public:
-  IntegerLiteralExpression(int value);
-  ~IntegerLiteralExpression() = default;
-
-  bool IsConstant() const override
-  {
-    return true;
-  }
-  void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
-
-private:
-  int m_value;
 };
 
 class PeekExpression : public Expression
@@ -384,6 +404,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   Expression* m_expr;
@@ -397,6 +418,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 };
 
 class PushExpression : public Expression
@@ -407,6 +429,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   Expression* m_expr;
@@ -420,6 +443,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
   const Type* GetType() const
   {
@@ -450,6 +474,7 @@ public:
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
 
 private:
   Expression* m_expr;
