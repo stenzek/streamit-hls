@@ -1,10 +1,6 @@
 #pragma once
-
-namespace AST
-{
-class Program;
-class FilterDeclaration;
-}
+#include <memory>
+#include "parser/ast.h"
 
 class ParserState
 {
@@ -16,6 +12,9 @@ public:
 
   // TODO: Move this to private
   AST::Program* program = nullptr;
+
+  // Global lexical scope
+  std::unique_ptr<AST::LexicalScope> global_lexical_scope;
 
   // Filters can't be nested? So this should be sufficient.
   // TODO: Kinda messy though. Maybe would be better placed in the symbol table.

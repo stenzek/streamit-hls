@@ -10,6 +10,7 @@
 #include "parser/symbol_table.h"
 
 extern FILE* yyin;
+extern bool temp_codegenerator_run(AST::Program* program);
 
 int main(int argc, char* argv[])
 {
@@ -42,7 +43,7 @@ int main(int argc, char* argv[])
   }
 
   AST::LexicalScope global_symbol_table(nullptr);
-  if (!state.program->SemanticAnalysis(&state, state.global_lexical_scope.get()))
+  if (!state.program->SemanticAnalysis(&state, &global_symbol_table))
   {
     std::cout << "Semantic analysis failed." << std::endl;
     return EXIT_FAILURE;
@@ -59,6 +60,12 @@ int main(int argc, char* argv[])
   for (const auto& it : global_symbol_table)
     std::cout << "  " << it.first << std::endl;
   std::cout << "End of global symbol table." << std::endl;
+
+  if (!temp_codegenerator_run(state.program))
+  {
+    std::cout << "Generating code failed." << std::endl;
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }

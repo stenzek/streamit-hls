@@ -10,6 +10,7 @@
 
 ParserState::ParserState()
 {
+  global_lexical_scope = std::make_unique<AST::LexicalScope>(nullptr);
 }
 
 ParserState::~ParserState()

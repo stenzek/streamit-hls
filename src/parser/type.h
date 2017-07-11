@@ -28,7 +28,7 @@ public:
   static const Type* GetErrorType();
   static const Type* GetBooleanType();
   static const Type* GetBitType();
-  static const Type* GetIntegerType();
+  static const Type* GetIntType();
   static const Type* GetFloatType();
 
 private:

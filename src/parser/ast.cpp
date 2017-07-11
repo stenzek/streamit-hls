@@ -5,6 +5,12 @@
 
 namespace AST
 {
+
+const std::list<FilterDeclaration*>& Program::GetFilterList() const
+{
+  return m_filters;
+}
+
 void Program::AddPipeline(PipelineDeclaration* decl)
 {
   m_pipelines.push_back(decl);
@@ -75,6 +81,11 @@ IdentifierExpression::IdentifierExpression(const char* identifier) : m_identifie
   m_type = Type::GetErrorType();
 }
 
+VariableDeclaration* IdentifierExpression::GetReferencedVariable() const
+{
+  return m_identifier_declaration;
+}
+
 BinaryExpression::BinaryExpression(Expression* lhs, Operator op, Expression* rhs) : m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
   m_type = Type::GetErrorType();
@@ -86,9 +97,19 @@ AssignmentExpression::AssignmentExpression(const char* identifier, Expression* r
   m_type = Type::GetErrorType();
 }
 
+VariableDeclaration* AssignmentExpression::GetReferencedVariable() const
+{
+  return m_identifier_declaration;
+}
+
+Expression* AssignmentExpression::GetInnerExpression() const
+{
+  return m_rhs;
+}
+
 IntegerLiteralExpression::IntegerLiteralExpression(int value) : m_value(value)
 {
-  m_type = Type::GetIntegerType();
+  m_type = Type::GetIntType();
 }
 
 int IntegerLiteralExpression::GetValue() const
@@ -125,5 +146,10 @@ FilterDeclaration::FilterDeclaration(const Type* input_type, const Type* output_
   : m_input_type(input_type), m_output_type(output_type), m_name(name), m_vars(vars), m_init(init), m_prework(prework),
     m_work(work)
 {
+}
+
+Expression* ExpressionStatement::GetInnerExpression() const
+{
+  return m_expr;
 }
 }

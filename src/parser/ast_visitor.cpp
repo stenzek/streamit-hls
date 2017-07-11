@@ -4,6 +4,96 @@
 namespace AST
 {
 
+bool Visitor::Visit(ExpressionStatement* node)
+{
+  return Visit(static_cast<Statement*>(node));
+}
+
+bool Visitor::Visit(VariableDeclaration* node)
+{
+  return Visit(static_cast<Declaration*>(node));
+}
+
+bool Visitor::Visit(PushExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(PopExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(PeekExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(AssignmentExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(BinaryExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(IdentifierExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(IntegerLiteralExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(FilterWorkBlock* node)
+{
+  return true;
+}
+
+bool Visitor::Visit(FilterDeclaration* node)
+{
+  return Visit(static_cast<Declaration*>(node));
+}
+
+bool Visitor::Visit(PipelineAddStatement* node)
+{
+  return Visit(static_cast<Statement*>(node));
+}
+
+bool Visitor::Visit(PipelineDeclaration* node)
+{
+  return Visit(static_cast<Declaration*>(node));
+}
+
+bool Visitor::Visit(Expression* node)
+{
+  return Visit(static_cast<Node*>(node));
+}
+
+bool Visitor::Visit(Declaration* node)
+{
+  return Visit(static_cast<Node*>(node));
+}
+
+bool Visitor::Visit(Statement* node)
+{
+  return Visit(static_cast<Node*>(node));
+}
+
+bool Visitor::Visit(Node* node)
+{
+  return true;
+}
+
+bool Visitor::Visit(Program* node)
+{
+  return true;
+}
+
 bool Program::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
@@ -74,4 +164,5 @@ bool FilterWorkBlock::Accept(Visitor* visitor)
   if (m_stmts)
     return m_stmts->Accept(visitor);
 }
+
 } // namespace AST

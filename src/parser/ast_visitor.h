@@ -26,77 +26,23 @@ class ExpressionStatement;
 class Visitor
 {
 public:
-  virtual bool Visit(Program* node)
-  {
-    return true;
-  }
-  virtual bool Visit(Node* node)
-  {
-    return true;
-  }
-  virtual bool Visit(Statement* node)
-  {
-    return true;
-  }
-  virtual bool Visit(Declaration* node)
-  {
-    return true;
-  }
-  virtual bool Visit(Expression* node)
-  {
-    return true;
-  }
-  virtual bool Visit(PipelineDeclaration* node)
-  {
-    return true;
-  }
-  virtual bool Visit(PipelineAddStatement* node)
-  {
-    return true;
-  }
-  virtual bool Visit(FilterDeclaration* node)
-  {
-    return true;
-  }
-  virtual bool Visit(FilterWorkBlock* node)
-  {
-    return true;
-  }
-  virtual bool Visit(IntegerLiteralExpression* node)
-  {
-    return true;
-  }
-  virtual bool Visit(IdentifierExpression* node)
-  {
-    return true;
-  }
-  virtual bool Visit(BinaryExpression* node)
-  {
-    return true;
-  }
-  virtual bool Visit(AssignmentExpression* node)
-  {
-    return true;
-  }
-  virtual bool Visit(PeekExpression* node)
-  {
-    return true;
-  }
-  virtual bool Visit(PopExpression* node)
-  {
-    return true;
-  }
-  virtual bool Visit(PushExpression* node)
-  {
-    return true;
-  }
-  virtual bool Visit(VariableDeclaration* node)
-  {
-    return true;
-  }
-  virtual bool Visit(ExpressionStatement* node)
-  {
-    return true;
-  }
+  virtual bool Visit(Program* node);
+  virtual bool Visit(Node* node);
+  virtual bool Visit(Statement* node);
+  virtual bool Visit(Declaration* node);
+  virtual bool Visit(Expression* node);
+  virtual bool Visit(PipelineDeclaration* node);
+  virtual bool Visit(PipelineAddStatement* node);
+  virtual bool Visit(FilterDeclaration* node);
+  virtual bool Visit(FilterWorkBlock* node);
+  virtual bool Visit(IntegerLiteralExpression* node);
+  virtual bool Visit(IdentifierExpression* node);
+  virtual bool Visit(BinaryExpression* node);
+  virtual bool Visit(AssignmentExpression* node);
+  virtual bool Visit(PeekExpression* node);
+  virtual bool Visit(PopExpression* node);
+  virtual bool Visit(PushExpression* node);
+  virtual bool Visit(VariableDeclaration* node);
+  virtual bool Visit(ExpressionStatement* node);
 };
 }

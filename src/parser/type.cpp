@@ -18,7 +18,7 @@ bool Type::CanImplicitlyConvertTo(const Type* type) const
   }
 
   // int->float, int->bit can convert implicitly
-  return (this == GetIntegerType() && (type == GetFloatType() || type == GetBitType()));
+  return (this == GetIntType() && (type == GetFloatType() || type == GetBitType()));
 }
 
 const Type* Type::GetResultType(const Type* lhs, const Type* rhs)
@@ -28,7 +28,7 @@ const Type* Type::GetResultType(const Type* lhs, const Type* rhs)
     return lhs;
 
   // int + float -> float
-  if ((lhs == GetIntegerType() || rhs == GetIntegerType()) && (lhs == GetFloatType() || rhs == GetFloatType()))
+  if ((lhs == GetIntType() || rhs == GetIntType()) && (lhs == GetFloatType() || rhs == GetFloatType()))
   {
     return GetFloatType();
   }
@@ -39,7 +39,7 @@ const Type* Type::GetResultType(const Type* lhs, const Type* rhs)
 static const Type s_error_type{"error", ""};
 static const Type s_boolean_type{"boolean", "boolean"};
 static const Type s_bit_type{"bit", "u8"};
-static const Type s_integer_type{"integer", "i32"};
+static const Type s_int_type{"int", "i32"};
 static const Type s_float_type{"float", "f32"};
 
 const Type* Type::GetErrorType()
@@ -57,9 +57,9 @@ const Type* Type::GetBitType()
   return &s_bit_type;
 }
 
-const Type* Type::GetIntegerType()
+const Type* Type::GetIntType()
 {
-  return &s_integer_type;
+  return &s_int_type;
 }
 
 const Type* Type::GetFloatType()

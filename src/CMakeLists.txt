@@ -1,3 +1,4 @@
 add_subdirectory(parser)
-add_subdirectory(codegen)
+add_subdirectory(frontend)
 add_subdirectory(ast_dump)
+add_subdirectory(compiler)

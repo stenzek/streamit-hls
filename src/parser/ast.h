@@ -87,6 +87,8 @@ public:
   Program() = default;
   ~Program() = default;
 
+  const std::list<FilterDeclaration*>& GetFilterList() const;
+
   void Dump(ASTPrinter* printer) const;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
   bool Accept(Visitor* visitor);
@@ -244,6 +246,38 @@ public:
     return m_output_type;
   }
 
+  const std::string& GetName() const
+  {
+    return m_name;
+  }
+
+  // TODO: Const here, but this is a larger change (e.g. visitor impact)
+  FilterWorkBlock* GetInitBlock() const
+  {
+    return m_init;
+  }
+  FilterWorkBlock* GetPreworkBlock() const
+  {
+    return m_prework;
+  }
+  FilterWorkBlock* GetWorkBlock() const
+  {
+    return m_work;
+  }
+
+  bool HasInitBlock() const
+  {
+    return (m_init != nullptr);
+  }
+  bool HasPreworkBlock() const
+  {
+    return (m_prework != nullptr);
+  }
+  bool HasWorkBlock() const
+  {
+    return (m_work != nullptr);
+  }
+
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
@@ -344,6 +378,8 @@ public:
   IdentifierExpression(const char* identifier);
   ~IdentifierExpression() = default;
 
+  VariableDeclaration* GetReferencedVariable() const;
+
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
@@ -387,6 +423,9 @@ class AssignmentExpression : public Expression
 public:
   AssignmentExpression(const char* identifier, Expression* rhs);
   ~AssignmentExpression() = default;
+
+  VariableDeclaration* GetReferencedVariable() const;
+  Expression* GetInnerExpression() const;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
@@ -455,7 +494,11 @@ public:
   {
     return m_name;
   }
-  const Expression* GetInitializer() const
+  bool HasInitializer() const
+  {
+    return (m_initializer != nullptr);
+  }
+  Expression* GetInitializer() const
   {
     return m_initializer;
   }
@@ -473,6 +516,8 @@ public:
   {
   }
   ~ExpressionStatement() = default;
+
+  Expression* GetInnerExpression() const;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;

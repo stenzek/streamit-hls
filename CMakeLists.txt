@@ -7,10 +7,10 @@ set(TARGET_CXX_FLAGS "")
 
 # Apparently GCC6+ appends ABI-specific function names and gdb doesn't like it.
 # Not being able to set breakpoints is annoying, so let's just turn it off.
-if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6.0)
-    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
-    set(TARGET_CXX_FLAGS "${TARGET_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
-endif()
+#if (CMAKE_COMPILER_IS_GNUCC AND CMAKE_CXX_COMPILER_VERSION VERSION_GREATER 6.0)
+#    add_definitions(-D_GLIBCXX_USE_CXX11_ABI=0)
+#    set(TARGET_CXX_FLAGS "${TARGET_CXX_FLAGS} -D_GLIBCXX_USE_CXX11_ABI=0")
+#endif()
 
 # Detect C++ version support.
 if(CMAKE_COMPILER_IS_GNUCC OR CMAKE_CXX_COMPILER_ID MATCHES "Clang")

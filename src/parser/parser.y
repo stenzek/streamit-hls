@@ -96,7 +96,7 @@ Program
   ;
 
 Type
-  : TK_INT { $$ = Type::GetIntegerType(); }
+  : TK_INT { $$ = Type::GetIntType(); }
   ;
 
 PipelineDeclaration
