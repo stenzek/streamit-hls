@@ -15,7 +15,6 @@ set(SRCS
     parser_state.cpp
     scanner_helpers.cpp
     semantic_analysis.cpp
-    symbol_table.cpp
     type.cpp
 )
 

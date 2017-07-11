@@ -1,8 +1,28 @@
 #pragma once
-#include "parser/ast.h"
 
 namespace AST
 {
+class Visitor;
+class Program;
+class Node;
+class NodeList;
+class Statement;
+class Declaration;
+class Expression;
+class PipelineDeclaration;
+class PipelineAddStatement;
+class FilterDeclaration;
+class FilterWorkBlock;
+class IntegerLiteralExpression;
+class IdentifierExpression;
+class BinaryExpression;
+class AssignmentExpression;
+class PeekExpression;
+class PopExpression;
+class PushExpression;
+class VariableDeclaration;
+class ExpressionStatement;
+
 class Visitor
 {
 public:

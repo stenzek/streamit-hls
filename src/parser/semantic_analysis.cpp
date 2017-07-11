@@ -6,7 +6,7 @@
 
 namespace AST
 {
-bool Program::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool Program::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
 
@@ -20,7 +20,7 @@ bool Program::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
   return result;
 }
 
-bool NodeList::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool NodeList::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
   for (Node* node : m_nodes)
@@ -28,7 +28,7 @@ bool NodeList::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
   return result;
 }
 
-bool PipelineDeclaration::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
   if (m_statements)
@@ -43,7 +43,7 @@ bool PipelineDeclaration::SemanticAnalysis(ParserState* state, SymbolTable* symb
   return result;
 }
 
-bool PipelineAddStatement::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool PipelineAddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO: Create variable declarations for parameters - we can manipulate these when generating code..
   // TODO: Check parameter counts and stuff..
@@ -58,30 +58,30 @@ bool PipelineAddStatement::SemanticAnalysis(ParserState* state, SymbolTable* sym
   return true;
 }
 
-bool FilterDeclaration::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
   assert(!state->current_filter);
   state->current_filter = this;
 
   // Each filter has its own symbol table (stateful stuff), then each part has its own symbol table
-  SymbolTable filter_symbol_table(symbol_table);
+  LexicalScope filter_symbol_table(symbol_table);
   if (m_vars)
     result &= m_vars->SemanticAnalysis(state, &filter_symbol_table);
 
   if (m_init)
   {
-    SymbolTable init_symbol_table(&filter_symbol_table);
+    LexicalScope init_symbol_table(&filter_symbol_table);
     result &= m_init->SemanticAnalysis(state, &init_symbol_table);
   }
   if (m_prework)
   {
-    SymbolTable prework_symbol_table(&filter_symbol_table);
+    LexicalScope prework_symbol_table(&filter_symbol_table);
     result &= m_prework->SemanticAnalysis(state, &prework_symbol_table);
   }
   if (m_work)
   {
-    SymbolTable work_symbol_table(&filter_symbol_table);
+    LexicalScope work_symbol_table(&filter_symbol_table);
     result &= m_work->SemanticAnalysis(state, &work_symbol_table);
   }
 
@@ -97,13 +97,13 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, SymbolTable* symbol
   return result;
 }
 
-bool FilterWorkBlock::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool FilterWorkBlock::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO: Check rates and stuff (e.g. push type matches output type)..
   return m_stmts->SemanticAnalysis(state, symbol_table);
 }
 
-bool IdentifierExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool IdentifierExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // Resolve identifier
   m_identifier_declaration = dynamic_cast<VariableDeclaration*>(symbol_table->GetName(m_identifier));
@@ -117,7 +117,7 @@ bool IdentifierExpression::SemanticAnalysis(ParserState* state, SymbolTable* sym
   return m_type->IsValid();
 }
 
-bool BinaryExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // Resolve any identifiers
   if (!(m_lhs->SemanticAnalysis(state, symbol_table) && m_rhs->SemanticAnalysis(state, symbol_table)))
@@ -135,7 +135,7 @@ bool BinaryExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_
   return m_type->IsValid();
 }
 
-bool AssignmentExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // Resolve identifier
   m_identifier_declaration = dynamic_cast<VariableDeclaration*>(symbol_table->GetName(m_identifier));
@@ -159,12 +159,12 @@ bool AssignmentExpression::SemanticAnalysis(ParserState* state, SymbolTable* sym
   return m_type->IsValid();
 }
 
-bool IntegerLiteralExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool IntegerLiteralExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   return true;
 }
 
-bool PeekExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool PeekExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = m_expr->SemanticAnalysis(state, symbol_table);
   m_type = state->current_filter->GetInputType();
@@ -178,13 +178,13 @@ bool PeekExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_ta
   return result && m_type->IsValid();
 }
 
-bool PopExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool PopExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   m_type = state->current_filter->GetInputType();
   return m_type->IsValid();
 }
 
-bool PushExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool PushExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = m_expr->SemanticAnalysis(state, symbol_table);
 
@@ -199,7 +199,7 @@ bool PushExpression::SemanticAnalysis(ParserState* state, SymbolTable* symbol_ta
   return result && m_type->IsValid();
 }
 
-bool VariableDeclaration::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   if (symbol_table->HasName(m_name))
   {
@@ -229,7 +229,7 @@ bool VariableDeclaration::SemanticAnalysis(ParserState* state, SymbolTable* symb
   return true;
 }
 
-bool ExpressionStatement::SemanticAnalysis(ParserState* state, SymbolTable* symbol_table)
+bool ExpressionStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   return m_expr->SemanticAnalysis(state, symbol_table);
 }

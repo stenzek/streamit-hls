@@ -2,11 +2,11 @@
 #include <list>
 #include <string>
 #include <vector>
+#include "parser/symbol_table.h"
 
 class ASTPrinter;
 class CodeGenerator;
 class ParserState;
-class SymbolTable;
 class Type;
 
 namespace AST
@@ -31,6 +31,8 @@ class PopExpression;
 class PushExpression;
 class VariableDeclaration;
 class ExpressionStatement;
+
+using LexicalScope = SymbolTable<std::string, AST::Node>;
 
 class StringList
 {
@@ -86,7 +88,7 @@ public:
   ~Program() = default;
 
   void Dump(ASTPrinter* printer) const;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table);
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
   bool Accept(Visitor* visitor);
 
   void AddPipeline(PipelineDeclaration* decl);
@@ -102,7 +104,7 @@ class Node
 public:
   virtual ~Node() = default;
   virtual void Dump(ASTPrinter* printer) const = 0;
-  virtual bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) = 0;
+  virtual bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) = 0;
   virtual bool Accept(Visitor* visitor) = 0;
 };
 
@@ -149,7 +151,7 @@ public:
   Node* GetFirst();
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
   void AddNode(Node* node);
@@ -200,7 +202,7 @@ public:
   ~PipelineDeclaration() override;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
@@ -217,7 +219,7 @@ public:
   ~PipelineAddStatement();
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
@@ -243,7 +245,7 @@ public:
   }
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
@@ -271,7 +273,7 @@ public:
   ~FilterWorkBlock() = default;
 
   void Dump(ASTPrinter* printer) const;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table);
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
   bool Accept(Visitor* visitor);
 
   int GetPeekRate() const
@@ -327,7 +329,7 @@ public:
 
   bool IsConstant() const override;
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
   int GetValue() const;
@@ -343,7 +345,7 @@ public:
   ~IdentifierExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
@@ -371,7 +373,7 @@ public:
   ~BinaryExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
@@ -387,7 +389,7 @@ public:
   ~AssignmentExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
@@ -403,7 +405,7 @@ public:
   ~PeekExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
@@ -417,7 +419,7 @@ public:
   ~PopExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 };
 
@@ -428,7 +430,7 @@ public:
   ~PushExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
@@ -442,7 +444,7 @@ public:
   ~VariableDeclaration() override final = default;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
   const Type* GetType() const
@@ -473,7 +475,7 @@ public:
   ~ExpressionStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, SymbolTable* symbol_table) override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:

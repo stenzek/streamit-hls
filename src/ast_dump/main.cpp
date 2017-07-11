@@ -41,7 +41,7 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
-  SymbolTable global_symbol_table(nullptr);
+  AST::LexicalScope global_symbol_table(nullptr);
   if (!state.program->SemanticAnalysis(&state, &global_symbol_table))
   {
     std::cout << "Semantic analysis failed." << std::endl;
