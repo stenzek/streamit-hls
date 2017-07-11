@@ -181,6 +181,17 @@ bool LogicalExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   return true;
 }
 
+bool CommaExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  bool result = true;
+  result &= m_lhs->SemanticAnalysis(state, symbol_table);
+  result &= m_rhs->SemanticAnalysis(state, symbol_table);
+
+  // result is rhs and type of rhs
+  m_type = m_rhs->GetType();
+  return result && m_type->IsValid();
+}
+
 bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))

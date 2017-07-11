@@ -49,6 +49,11 @@ bool Visitor::Visit(PeekExpression* node)
   return Visit(static_cast<Expression*>(node));
 }
 
+bool Visitor::Visit(CommaExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
 bool Visitor::Visit(AssignmentExpression* node)
 {
   return Visit(static_cast<Expression*>(node));
@@ -161,6 +166,11 @@ bool RelationalExpression::Accept(Visitor* visitor)
 }
 
 bool LogicalExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool CommaExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

@@ -56,6 +56,21 @@ bool ExpressionBuilder::Visit(AST::IdentifierExpression* node)
   return IsValid();
 }
 
+bool ExpressionBuilder::Visit(AST::CommaExpression* node)
+{
+  // Evaluate both sides, discard the left, and return the right.
+  ExpressionBuilder eb_lhs(m_func_builder);
+  ExpressionBuilder eb_rhs(m_func_builder);
+  if (!node->GetLHSExpression()->Accept(&eb_lhs) || !eb_lhs.IsValid() || !node->GetLHSExpression()->Accept(&eb_rhs) ||
+      !eb_rhs.IsValid())
+  {
+    return false;
+  }
+
+  m_result_value = eb_rhs.GetResultValue();
+  return IsValid();
+}
+
 bool ExpressionBuilder::Visit(AST::AssignmentExpression* node)
 {
   // Evaluate the expression, and return the result
@@ -65,7 +80,7 @@ bool ExpressionBuilder::Visit(AST::AssignmentExpression* node)
 
   m_func_builder->StoreVariable(node->GetReferencedVariable(), eb.GetResultValue());
   m_result_value = eb.GetResultValue();
-  return m_result_value;
+  return IsValid();
 }
 
 bool ExpressionBuilder::Visit(AST::BinaryExpression* node)

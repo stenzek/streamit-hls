@@ -50,6 +50,9 @@ using namespace AST;
   AST::FilterWorkBlock* filter_work_block;
   AST::StringList* string_list;
 
+  AST::InitDeclarator init_declarator;
+  AST::InitDeclaratorList *init_declarator_list;
+
   char* identifier;
 
   bool boolean_literal;
@@ -67,10 +70,14 @@ using namespace AST;
 %type <filter_work_parts> FilterWorkParts
 %type <filter_work_block> FilterWorkBlock
 %type <node_list> StatementList
-%type <node_list> StatementListItem
-%type <node_list> CompoundStatement
-%type <node_list> VariableDeclarationList
-%type <node_list> VariableDeclarationListPart
+%type <node> StatementListItem
+%type <node> CompoundStatement
+%type <node> Declaration
+%type <type> DeclarationSpecifiers
+%type <init_declarator> InitDeclarator
+%type <init_declarator_list> InitDeclaratorList
+%type <identifier> Declarator
+%type <expr> Initializer
 /*%type <string_list> IdentifierList*/
 %type <stmt> Statement
 %type <stmt> ExpressionStatement
@@ -149,11 +156,11 @@ FilterWorkParts
   : TK_INIT FilterWorkBlock { $$ = new FilterWorkParts(); $$->init = $2; }
   | TK_PREWORK FilterWorkBlock { $$ = new FilterWorkParts(); $$->prework = $2; }
   | TK_WORK FilterWorkBlock { $$ = new FilterWorkParts(); $$->work = $2; }
-  | VariableDeclarationList { $$ = new FilterWorkParts(); $$->vars = $1; }
+  | Declaration { $$ = new FilterWorkParts(); $$->vars = new NodeList(); $$->vars->AddNode($1); }
   | FilterWorkParts TK_INIT FilterWorkBlock { assert(!$1->init); $1->init = $3; }
   | FilterWorkParts TK_PREWORK FilterWorkBlock { assert(!$1->prework); $1->prework = $3; }
   | FilterWorkParts TK_WORK FilterWorkBlock { assert(!$1->work); $1->work = $3; }
-  | FilterWorkParts VariableDeclarationList { if (!$$->vars) { $$->vars = $2; } else { $$->vars->AddNodes($2); } }
+  | FilterWorkParts Declaration { if (!$$->vars) { $$->vars = new NodeList(); } $$->vars->AddNode($2); }
   ;
 
 /* TODO: Raise error on negative peek/push/pop */
@@ -169,54 +176,48 @@ FilterWorkBlock
   ;
 
 StatementList
-  : StatementListItem { $$ = $1; }
-  | StatementList StatementListItem { $1->AddNodes($2); }
+  : StatementListItem { $$ = new NodeList(); $$->AddNode($1); }
+  | StatementList StatementListItem { $1->AddNode($2); }
   ;
 
-VariableDeclarationList
-  : VariableDeclarationListPart ';' { $$ = $1; }
+/* TODO: Rework this */
+DeclarationSpecifiers
+  : Type
   ;
 
-VariableDeclarationListPart
-  : Type Identifier
-  {
-    $$ = new NodeList();
-    $$->AddNode(new VariableDeclaration($1, $2, nullptr));
-  }
-  | Type Identifier '=' Expression
-  {
-    $$ = new NodeList();
-    $$->AddNode(new VariableDeclaration($1, $2, $4));
-  }
-  | VariableDeclarationListPart ',' Identifier
-  {
-    $1->AddNode(
-      new VariableDeclaration(
-        static_cast<VariableDeclaration*>($1->GetFirst())->GetType(),
-        $3, nullptr));
-  }
-  | VariableDeclarationListPart ',' Identifier '=' Expression
-  {
-    $1->AddNode(
-      new VariableDeclaration(
-        static_cast<VariableDeclaration*>($1->GetFirst())->GetType(),
-        $3, $5));
-  }
+Declarator
+  : Identifier
   ;
 
-/*IdentifierList
-  : Identifier { $$ = new StringList(); $$->AddString($1); }
-  | IdentifierList ',' Identifier { $1->AddString($3); }
-  ;*/
+InitDeclarator
+  : Declarator '=' Initializer { $$.name = $1; $$.initializer = $3; }
+  ;
+
+InitDeclaratorList
+  : InitDeclarator { $$ = new InitDeclaratorList(); $$->push_back($1); }
+  | InitDeclaratorList ',' InitDeclarator { $1->push_back($3); }
+  ;
+
+Declaration
+  : DeclarationSpecifiers ';' { $$ = nullptr; }   /* TODO: Is this needed? */
+  | DeclarationSpecifiers InitDeclaratorList ';' { $$ = VariableDeclaration::CreateDeclarations($1, $2); /*delete $2;*/ }
+  ;
+
+/* TODO: Arrays here */
+Initializer
+  : AssignmentExpression
+  ;
 
 StatementListItem
-  : VariableDeclarationListPart ';' { $$ = $1; }
+  : Declaration { $$ = $1; }
   | CompoundStatement { $$ = $1; }
-  | Statement { $$ = new NodeList(); if ($1) { $$->AddNode($1); } }
+  | Statement { $$ = $1; }
   ;
 
+/* TODO: Scope for variable names. */
+/* Currently, it'll eventually get AddNode()'d, which will insert all the children */
 CompoundStatement
-  : '{' '}' { $$ = new NodeList(); }
+  : '{' '}' { $$ = nullptr; }
   | '{' StatementList '}' { $$ = $2; }
   ;
 
@@ -244,6 +245,7 @@ IterationStatement
 
 Expression
   : AssignmentExpression { $$ = $1; }
+  | Expression ',' AssignmentExpression { $$ = new CommaExpression($1, $3); }
   ;
 
 Expression_opt

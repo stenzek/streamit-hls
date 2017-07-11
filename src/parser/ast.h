@@ -110,7 +110,7 @@ public:
   virtual bool Accept(Visitor* visitor) = 0;
 };
 
-class NodeList final : public Node
+class NodeList : public Node
 {
 public:
   using ListType = std::vector<Node*>;
@@ -156,8 +156,9 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
+  // If node is null, does nothing.
+  // If node is a NodeList, adds all the children from it (recursively).
   void AddNode(Node* node);
-  void AddNodes(NodeList* node_list);
 
 private:
   ListType m_nodes;
@@ -469,8 +470,7 @@ public:
   enum Operator : unsigned int
   {
     And,
-    Or,
-    Not
+    Or
   };
 
   LogicalExpression(Expression* lhs, Operator op, Expression* rhs);
@@ -488,6 +488,24 @@ private:
   Expression* m_lhs;
   Expression* m_rhs;
   Operator m_op;
+};
+
+class CommaExpression : public Expression
+{
+public:
+  CommaExpression(Expression* lhs, Expression* rhs);
+  ~CommaExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Expression* GetLHSExpression() const;
+  Expression* GetRHSExpression() const;
+
+private:
+  Expression* m_lhs;
+  Expression* m_rhs;
 };
 
 class AssignmentExpression : public Expression
@@ -548,6 +566,13 @@ private:
   Expression* m_expr;
 };
 
+struct InitDeclarator
+{
+  const char* name;
+  Expression* initializer;
+};
+using InitDeclaratorList = std::vector<InitDeclarator>;
+
 class VariableDeclaration final : public Declaration
 {
 public:
@@ -575,6 +600,8 @@ public:
     return m_initializer;
   }
 
+  static Node* CreateDeclarations(const Type* type, const InitDeclaratorList* declarator_list);
+
 private:
   const Type* m_type;
   std::string m_name;
@@ -600,12 +627,12 @@ private:
 class IfStatement : public Statement
 {
 public:
-  IfStatement(Expression* expr, NodeList* then_stmts, NodeList* else_stmts);
+  IfStatement(Expression* expr, Node* then_stmts, Node* else_stmts);
   ~IfStatement() = default;
 
   Expression* GetInnerExpression() const;
-  NodeList* GetThenStatements() const;
-  NodeList* GetElseStatements() const;
+  Node* GetThenStatements() const;
+  Node* GetElseStatements() const;
   bool HasElseStatements() const;
 
   void Dump(ASTPrinter* printer) const override;
@@ -614,20 +641,20 @@ public:
 
 private:
   Expression* m_expr;
-  NodeList* m_then;
-  NodeList* m_else;
+  Node* m_then;
+  Node* m_else;
 };
 
 class ForStatement : public Statement
 {
 public:
-  ForStatement(NodeList* init, Expression* cond, Expression* loop, NodeList* inner);
+  ForStatement(Node* init, Expression* cond, Expression* loop, Node* inner);
   ~ForStatement() = default;
 
-  NodeList* GetInitStatements() const;
+  Node* GetInitStatements() const;
   Expression* GetConditionExpression() const;
   Expression* GetLoopExpression() const;
-  NodeList* GetInnerStatements() const;
+  Node* GetInnerStatements() const;
   bool HasInitStatements() const;
   bool HasConditionExpression() const;
   bool HasLoopExpression() const;
@@ -638,10 +665,10 @@ public:
   bool Accept(Visitor* visitor) override;
 
 private:
-  NodeList* m_init;
+  Node* m_init;
   Expression* m_cond;
   Expression* m_loop;
-  NodeList* m_inner;
+  Node* m_inner;
 };
 
 class BreakStatement : public Statement

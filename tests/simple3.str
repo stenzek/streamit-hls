@@ -15,10 +15,15 @@ int->int filter TestFilter {
 int->int filter TestFilter2 {
     work pop 1 {
         int z = 0;
-        for (int i = 0; i < 10; i = i + 1)
+        for (int i = 0, j = 0; i < 10; i = i + 1)
         {
             z = i;
         }
+
+        for (z = 1, z = 0; z < 10; z = z + 1)
+        {
+        }
+
     }
 }
 

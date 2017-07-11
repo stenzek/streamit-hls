@@ -123,6 +123,16 @@ void LogicalExpression::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
+void CommaExpression::Dump(ASTPrinter* printer) const
+{
+  printer->BeginBlock("CommaExpression");
+  printer->Write("lhs (ignored): ");
+  m_lhs->Dump(printer);
+  printer->Write("rhs: ");
+  m_rhs->Dump(printer);
+  printer->EndBlock();
+}
+
 void AssignmentExpression::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("AssignmentExpression(%s -> %s)", m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());

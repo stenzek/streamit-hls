@@ -19,6 +19,7 @@ class IdentifierExpression;
 class BinaryExpression;
 class RelationalExpression;
 class LogicalExpression;
+class CommaExpression;
 class AssignmentExpression;
 class PeekExpression;
 class PopExpression;
@@ -48,6 +49,7 @@ public:
   virtual bool Visit(BinaryExpression* node);
   virtual bool Visit(RelationalExpression* node);
   virtual bool Visit(LogicalExpression* node);
+  virtual bool Visit(CommaExpression* node);
   virtual bool Visit(AssignmentExpression* node);
   virtual bool Visit(PeekExpression* node);
   virtual bool Visit(PopExpression* node);

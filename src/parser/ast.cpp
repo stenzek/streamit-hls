@@ -35,16 +35,20 @@ AST::Node* NodeList::GetFirst()
 
 void NodeList::AddNode(Node* li)
 {
-  m_nodes.push_back(li);
-}
+  if (!li)
+    return;
 
-void NodeList::AddNodes(NodeList* node_list)
-{
+  // Automatically merge child nodes
+  NodeList* node_list = dynamic_cast<NodeList*>(li);
   if (node_list)
   {
     for (Node* node : node_list->m_nodes)
-      m_nodes.push_back(node);
+      AddNode(node);
+
+    return;
   }
+
+  m_nodes.push_back(li);
 }
 
 PipelineDeclaration::PipelineDeclaration(const Type* input_type, const Type* output_type, const char* name,
@@ -163,6 +167,20 @@ LogicalExpression::Operator LogicalExpression::GetOperator() const
   return m_op;
 }
 
+CommaExpression::CommaExpression(Expression* lhs, Expression* rhs) : m_lhs(lhs), m_rhs(rhs)
+{
+}
+
+Expression* CommaExpression::GetLHSExpression() const
+{
+  return m_lhs;
+}
+
+Expression* CommaExpression::GetRHSExpression() const
+{
+  return m_rhs;
+}
+
 AssignmentExpression::AssignmentExpression(Expression* lhs, Expression* rhs) : m_lhs(lhs), m_rhs(rhs)
 {
 }
@@ -226,6 +244,18 @@ VariableDeclaration::VariableDeclaration(const Type* type, const char* name, Exp
   // if (!m_initializer)
 }
 
+Node* VariableDeclaration::CreateDeclarations(const Type* type, const InitDeclaratorList* declarator_list)
+{
+  // Optimization for single declaration case
+  if (declarator_list->size() == 1)
+    return new VariableDeclaration(type, declarator_list->front().name, declarator_list->front().initializer);
+
+  NodeList* decl_list = new NodeList();
+  for (const InitDeclarator& decl : *declarator_list)
+    decl_list->AddNode(new VariableDeclaration(type, decl.name, decl.initializer));
+  return decl_list;
+}
+
 FilterDeclaration::FilterDeclaration(const Type* input_type, const Type* output_type, const char* name, NodeList* vars,
                                      FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work)
   : m_input_type(input_type), m_output_type(output_type), m_name(name), m_vars(vars), m_init(init), m_prework(prework),
@@ -242,7 +272,7 @@ Expression* ExpressionStatement::GetInnerExpression() const
   return m_expr;
 }
 
-IfStatement::IfStatement(Expression* expr, NodeList* then_stmts, NodeList* else_stmts)
+IfStatement::IfStatement(Expression* expr, Node* then_stmts, Node* else_stmts)
   : m_expr(expr), m_then(then_stmts), m_else(else_stmts)
 {
 }
@@ -252,12 +282,12 @@ Expression* IfStatement::GetInnerExpression() const
   return m_expr;
 }
 
-NodeList* IfStatement::GetThenStatements() const
+Node* IfStatement::GetThenStatements() const
 {
   return m_then;
 }
 
-NodeList* IfStatement::GetElseStatements() const
+Node* IfStatement::GetElseStatements() const
 {
   return m_else;
 }
@@ -267,12 +297,12 @@ bool IfStatement::HasElseStatements() const
   return (m_else != nullptr);
 }
 
-ForStatement::ForStatement(NodeList* init, Expression* cond, Expression* loop, NodeList* inner)
+ForStatement::ForStatement(Node* init, Expression* cond, Expression* loop, Node* inner)
   : m_init(init), m_cond(cond), m_loop(loop), m_inner(inner)
 {
 }
 
-NodeList* ForStatement::GetInitStatements() const
+Node* ForStatement::GetInitStatements() const
 {
   return m_init;
 }
@@ -287,7 +317,7 @@ Expression* ForStatement::GetLoopExpression() const
   return m_loop;
 }
 
-NodeList* ForStatement::GetInnerStatements() const
+Node* ForStatement::GetInnerStatements() const
 {
   return m_inner;
 }
@@ -311,4 +341,5 @@ bool ForStatement::HasInnerStatements() const
 {
   return (m_inner != nullptr);
 }
+
 }

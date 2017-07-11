@@ -30,6 +30,7 @@ public:
   bool Visit(AST::IntegerLiteralExpression* node) override;
   bool Visit(AST::BooleanLiteralExpression* node) override;
   bool Visit(AST::IdentifierExpression* node) override;
+  bool Visit(AST::CommaExpression* node) override;
   bool Visit(AST::AssignmentExpression* node) override;
   bool Visit(AST::BinaryExpression* node) override;
   bool Visit(AST::RelationalExpression* node) override;
