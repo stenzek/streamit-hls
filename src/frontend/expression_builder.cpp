@@ -171,4 +171,59 @@ bool ExpressionBuilder::Visit(AST::RelationalExpression* node)
 
   return IsValid();
 }
+
+bool ExpressionBuilder::Visit(AST::LogicalExpression* node)
+{
+  // Evaluate left-hand side first, always, in the parent block
+  ExpressionBuilder eb_lhs(m_func_builder);
+  if (!node->GetLHSExpression()->Accept(&eb_lhs) || !eb_lhs.IsValid())
+    return false;
+
+  // Both should be boolean types.
+  assert(node->GetLHSExpression()->GetType() == Type::GetBooleanType() &&
+         node->GetRHSExpression()->GetType() == Type::GetBooleanType());
+
+  // Create a new block for the right-hand side of the expression
+  llvm::BasicBlock* lhs_end_bb = m_func_builder->NewBasicBlock();
+  ExpressionBuilder eb_rhs(m_func_builder);
+  if (!node->GetLHSExpression()->Accept(&eb_rhs) || !eb_rhs.IsValid())
+    return false;
+
+  llvm::BasicBlock* rhs_end_bb = m_func_builder->NewBasicBlock();
+  llvm::BasicBlock* merge_bb = m_func_builder->GetCurrentBasicBlock();
+
+  // Logical AND
+  if (node->GetOperator() == AST::LogicalExpression::And)
+  {
+    // Branch to right-hand side if the left-hand side is true, otherwise branch to end
+    llvm::IRBuilder<>(lhs_end_bb).CreateCondBr(eb_lhs.GetResultValue(), rhs_end_bb, merge_bb);
+
+    // Branch to merge point after evaluating the right-hand side
+    llvm::IRBuilder<>(rhs_end_bb).CreateBr(merge_bb);
+
+    // Create phi node from result
+    llvm::PHINode* phi = GetIRBuilder().CreatePHI(GetContext()->GetLLVMType(Type::GetBooleanType()), 2, "");
+    phi->addIncoming(GetIRBuilder().getInt1(0), lhs_end_bb);
+    phi->addIncoming(eb_rhs.GetResultValue(), rhs_end_bb);
+    m_result_value = phi;
+  }
+
+  // Logical OR
+  else if (node->GetOperator() == AST::LogicalExpression::Or)
+  {
+    // Branch to merge point if left-hand side is true, otherwise branch to right-hand side
+    llvm::IRBuilder<>(lhs_end_bb).CreateCondBr(eb_lhs.GetResultValue(), merge_bb, rhs_end_bb);
+
+    // Branch to merge point after evaluating the right-hand side
+    llvm::IRBuilder<>(rhs_end_bb).CreateBr(merge_bb);
+
+    // Create phi node from result
+    llvm::PHINode* phi = GetIRBuilder().CreatePHI(GetContext()->GetLLVMType(Type::GetBooleanType()), 2, "");
+    phi->addIncoming(GetIRBuilder().getInt1(1), lhs_end_bb);
+    phi->addIncoming(eb_rhs.GetResultValue(), rhs_end_bb);
+    m_result_value = phi;
+  }
+
+  return IsValid();
+}
 }

@@ -33,6 +33,7 @@ public:
   bool Visit(AST::AssignmentExpression* node) override;
   bool Visit(AST::BinaryExpression* node) override;
   bool Visit(AST::RelationalExpression* node) override;
+  bool Visit(AST::LogicalExpression* node) override;
 
 private:
   FilterFunctionBuilder* m_func_builder;

@@ -14,7 +14,6 @@ FilterFunctionBuilder::FilterFunctionBuilder(Context* ctx, const std::string& na
     m_current_ir_builder(m_entry_basic_block)
 {
   m_current_basic_block = m_entry_basic_block;
-  m_basic_block_stack.push(m_current_basic_block);
 }
 
 FilterFunctionBuilder::~FilterFunctionBuilder()
@@ -77,23 +76,12 @@ void FilterFunctionBuilder::StoreVariable(const AST::VariableDeclaration* var, l
   m_current_ir_builder.CreateStore(val, it->second);
 }
 
-llvm::BasicBlock* FilterFunctionBuilder::PushBasicBlock(const std::string& name)
+llvm::BasicBlock* FilterFunctionBuilder::NewBasicBlock(const std::string& name)
 {
   llvm::BasicBlock* old_bb = m_current_basic_block;
   m_current_basic_block = llvm::BasicBlock::Create(m_ctx->GetLLVMContext(), name, m_func);
-  m_basic_block_stack.push(m_current_basic_block);
   m_current_ir_builder.SetInsertPoint(m_current_basic_block);
   return old_bb;
-}
-
-llvm::BasicBlock* FilterFunctionBuilder::PopBasicBlock()
-{
-  assert(m_basic_block_stack.size() > 1);
-
-  llvm::BasicBlock* popped_bb = m_current_basic_block;
-  m_basic_block_stack.pop();
-  m_current_basic_block = m_basic_block_stack.top();
-  return popped_bb;
 }
 
 bool FilterFunctionBuilder::Visit(AST::Node* node)
