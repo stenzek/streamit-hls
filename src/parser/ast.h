@@ -584,9 +584,7 @@ private:
 class ExpressionStatement : public Statement
 {
 public:
-  ExpressionStatement(Expression* expr) : m_expr(expr)
-  {
-  }
+  ExpressionStatement(Expression* expr);
   ~ExpressionStatement() = default;
 
   Expression* GetInnerExpression() const;
@@ -597,5 +595,26 @@ public:
 
 private:
   Expression* m_expr;
+};
+
+class IfStatement : public Statement
+{
+public:
+  IfStatement(Expression* expr, NodeList* then_stmts, NodeList* else_stmts);
+  ~IfStatement() = default;
+
+  Expression* GetInnerExpression() const;
+  NodeList* GetThenStatements() const;
+  NodeList* GetElseStatements() const;
+  bool HasElseStatements() const;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+private:
+  Expression* m_expr;
+  NodeList* m_then;
+  NodeList* m_else;
 };
 }

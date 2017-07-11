@@ -228,4 +228,19 @@ void ExpressionStatement::Dump(ASTPrinter* printer) const
   m_expr->Dump(printer);
 }
 
+void IfStatement::Dump(ASTPrinter* printer) const
+{
+  printer->BeginBlock("IfStatement");
+  printer->Write("expr: ");
+  m_expr->Dump(printer);
+  printer->Write("then: ");
+  m_then->Dump(printer);
+  if (m_else)
+  {
+    printer->Write("else: ");
+    m_else->Dump(printer);
+  }
+  printer->EndBlock();
+}
+
 } // namespace AST

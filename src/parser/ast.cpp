@@ -233,8 +233,37 @@ FilterDeclaration::FilterDeclaration(const Type* input_type, const Type* output_
 {
 }
 
+ExpressionStatement::ExpressionStatement(Expression* expr) : m_expr(expr)
+{
+}
+
 Expression* ExpressionStatement::GetInnerExpression() const
 {
   return m_expr;
+}
+
+IfStatement::IfStatement(Expression* expr, NodeList* then_stmts, NodeList* else_stmts)
+  : m_expr(expr), m_then(then_stmts), m_else(else_stmts)
+{
+}
+
+Expression* IfStatement::GetInnerExpression() const
+{
+  return m_expr;
+}
+
+NodeList* IfStatement::GetThenStatements() const
+{
+  return m_then;
+}
+
+NodeList* IfStatement::GetElseStatements() const
+{
+  return m_else;
+}
+
+bool IfStatement::HasElseStatements() const
+{
+  return (m_else != nullptr);
 }
 }

@@ -67,10 +67,14 @@ using namespace AST;
 %type <filter_work_parts> FilterWorkParts
 %type <filter_work_block> FilterWorkBlock
 %type <node_list> StatementList
+%type <node_list> StatementListItem
+%type <node_list> CompoundStatement
 %type <node_list> VariableDeclarationList
 %type <node_list> VariableDeclarationListPart
 /*%type <string_list> IdentifierList*/
 %type <stmt> Statement
+%type <stmt> ExpressionStatement
+%type <stmt> SelectionStatement
 %type <expr> Expression
 %type <expr> PrimaryExpression
 %type <expr> PostfixExpression
@@ -92,6 +96,10 @@ using namespace AST;
 %type <integer_literal> IntegerLiteral TK_INTEGER_LITERAL
 %type <boolean_literal> BooleanLiteral TK_BOOLEAN_LITERAL
 %type <type> Type
+
+/* Tie the else branch of an if to the outer-most if */
+%nonassoc IF_THEN
+%nonassoc TK_ELSE
 
 %%
 
@@ -159,10 +167,8 @@ FilterWorkBlock
   ;
 
 StatementList
-  : VariableDeclarationList { $$ = new NodeList(); $$->AddNodes($1); }
-  | Statement { $$ = new NodeList(); $$->AddNode($1); }
-  | StatementList VariableDeclarationList { $1->AddNodes($2); }
-  | StatementList Statement { $1->AddNode($2); }
+  : StatementListItem { $$ = $1; }
+  | StatementList StatementListItem { $1->AddNodes($2); }
   ;
 
 VariableDeclarationList
@@ -201,8 +207,31 @@ VariableDeclarationListPart
   | IdentifierList ',' Identifier { $1->AddString($3); }
   ;*/
 
+StatementListItem
+  : VariableDeclarationListPart ';' { $$ = $1; }
+  | CompoundStatement { $$ = $1; }
+  | Statement { $$ = new NodeList(); $$->AddNode($1); }
+  ;
+
+CompoundStatement
+  : '{' '}' { $$ = new NodeList(); }
+  | '{' StatementList '}' { $$ = $2; }
+  ;
+
 Statement
+  : ExpressionStatement { $$ = $1; }
+  | SelectionStatement { $$ = $1; }
+  /*| IterationStatement { $$ = $1; }*/
+  /*| JumpStatement { $$ = $1; }*/
+  ;
+  
+ExpressionStatement
   : Expression ';' { $$ = new ExpressionStatement($1); }
+  ;
+
+SelectionStatement
+  : TK_IF '(' Expression ')' StatementListItem %prec IF_THEN { $$ = new IfStatement($3, $5, nullptr); }
+  | TK_IF '(' Expression ')' StatementListItem TK_ELSE StatementListItem { $$ = new IfStatement($3, $5, $7); }
   ;
 
 Expression

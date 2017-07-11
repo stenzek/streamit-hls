@@ -289,4 +289,20 @@ bool ExpressionStatement::SemanticAnalysis(ParserState* state, LexicalScope* sym
 {
   return m_expr->SemanticAnalysis(state, symbol_table);
 }
+
+bool IfStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  bool result = true;
+  result &= m_expr->SemanticAnalysis(state, symbol_table);
+  result &= m_then->SemanticAnalysis(state, symbol_table);
+  result &= (!m_else || m_else->SemanticAnalysis(state, symbol_table));
+
+  if (m_expr->GetType() != Type::GetBooleanType())
+  {
+    state->ReportError("If expression must be a boolean type");
+    return false;
+  }
+
+  return result;
+}
 } // namespace AST

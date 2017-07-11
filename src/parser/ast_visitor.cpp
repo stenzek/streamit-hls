@@ -9,6 +9,11 @@ bool Visitor::Visit(ExpressionStatement* node)
   return Visit(static_cast<Statement*>(node));
 }
 
+bool Visitor::Visit(IfStatement* node)
+{
+  return Visit(static_cast<Statement*>(node));
+}
+
 bool Visitor::Visit(VariableDeclaration* node)
 {
   return Visit(static_cast<Declaration*>(node));
@@ -185,6 +190,11 @@ bool FilterDeclaration::Accept(Visitor* visitor)
 }
 
 bool ExpressionStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool IfStatement::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }
