@@ -180,18 +180,11 @@ public:
 class Expression : public Node
 {
 public:
-  Expression() = default;
+  Expression();
   virtual ~Expression() = default;
 
-  virtual bool IsConstant() const
-  {
-    return false;
-  }
-
-  const Type* GetType() const
-  {
-    return m_type;
-  }
+  virtual bool IsConstant() const;
+  const Type* GetType() const;
 
 protected:
   const Type* m_type = nullptr;
@@ -372,6 +365,23 @@ private:
   int m_value;
 };
 
+class BooleanLiteralExpression : public Expression
+{
+public:
+  BooleanLiteralExpression(bool value);
+  ~BooleanLiteralExpression() = default;
+
+  bool IsConstant() const override;
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  bool GetValue() const;
+
+private:
+  bool m_value;
+};
+
 class IdentifierExpression : public Expression
 {
 public:
@@ -406,6 +416,65 @@ public:
 
   BinaryExpression(Expression* lhs, Operator op, Expression* rhs);
   ~BinaryExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Expression* GetLHSExpression() const;
+  Expression* GetRHSExpression() const;
+  Operator GetOperator() const;
+
+private:
+  Expression* m_lhs;
+  Expression* m_rhs;
+  Operator m_op;
+};
+
+class RelationalExpression : public Expression
+{
+public:
+  enum Operator : unsigned int
+  {
+    Less,
+    LessEqual,
+    Greater,
+    GreaterEqual,
+    Equal,
+    NotEqual
+  };
+
+  RelationalExpression(Expression* lhs, Operator op, Expression* rhs);
+  ~RelationalExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Expression* GetLHSExpression() const;
+  Expression* GetRHSExpression() const;
+  const Type* GetIntermediateType() const;
+  Operator GetOperator() const;
+
+private:
+  Expression* m_lhs;
+  Expression* m_rhs;
+  const Type* m_intermediate_type;
+  Operator m_op;
+};
+
+class LogicalExpression : public Expression
+{
+public:
+  enum Operator : unsigned int
+  {
+    And,
+    Or,
+    Not
+  };
+
+  LogicalExpression(Expression* lhs, Operator op, Expression* rhs);
+  ~LogicalExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;

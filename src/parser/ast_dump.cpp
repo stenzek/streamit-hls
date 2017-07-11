@@ -99,6 +99,30 @@ void BinaryExpression::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
+void RelationalExpression::Dump(ASTPrinter* printer) const
+{
+  std::array<const char*, 6> op_names = {{"Less", "LessEqual", "Greater", "GreaterEqual", "Equal", "NotEqual"}};
+  printer->BeginBlock("RelationalExpression(%s %s %s -> %s)", m_lhs->GetType()->GetName().c_str(), op_names[m_op],
+                      m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
+  printer->Write("lhs: ");
+  m_lhs->Dump(printer);
+  printer->Write("rhs: ");
+  m_rhs->Dump(printer);
+  printer->EndBlock();
+}
+
+void LogicalExpression::Dump(ASTPrinter* printer) const
+{
+  std::array<const char*, 3> op_names = {{"And", "Or", "Not"}};
+  printer->BeginBlock("LogicalExpression(%s %s %s -> %s)", m_lhs->GetType()->GetName().c_str(), op_names[m_op],
+                      m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
+  printer->Write("lhs: ");
+  m_lhs->Dump(printer);
+  printer->Write("rhs: ");
+  m_rhs->Dump(printer);
+  printer->EndBlock();
+}
+
 void AssignmentExpression::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("AssignmentExpression(%s -> %s)", m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
@@ -111,6 +135,11 @@ void AssignmentExpression::Dump(ASTPrinter* printer) const
 void IntegerLiteralExpression::Dump(ASTPrinter* printer) const
 {
   printer->WriteLine("IntegerLiteralExpression(%d)", m_value);
+}
+
+void BooleanLiteralExpression::Dump(ASTPrinter* printer) const
+{
+  printer->WriteLine("BooleanLiteralExpression(%s)", m_value ? "true" : "false");
 }
 
 void PeekExpression::Dump(ASTPrinter* printer) const

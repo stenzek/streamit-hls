@@ -135,6 +135,52 @@ bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol
   return m_type->IsValid();
 }
 
+bool RelationalExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // Resolve any identifiers
+  if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
+    return false;
+
+  // Implicit conversions..
+  m_intermediate_type = Type::GetResultType(m_lhs->GetType(), m_rhs->GetType());
+  if (!m_intermediate_type)
+  {
+    state->ReportError("Cannot determine comparison type of relational expression between %s and %s",
+                       m_lhs->GetType()->GetName().c_str(), m_rhs->GetType()->GetName().c_str());
+    return false;
+  }
+
+  // Less/Greater are only valid on numeric types
+  if (m_op >= Less && m_op <= GreaterEqual &&
+      (m_intermediate_type != Type::GetIntType() && m_intermediate_type != Type::GetFloatType()))
+  {
+    state->ReportError("Relational operators are only valid on numeric types");
+    return false;
+  }
+
+  // Result is a boolean type
+  m_type = Type::GetBooleanType();
+  return true;
+}
+
+bool LogicalExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // Resolve any identifiers
+  if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
+    return false;
+
+  // TODO: Can you use C-like if (1) ?
+  if (m_lhs->GetType() != Type::GetBooleanType() || m_rhs->GetType() != Type::GetBooleanType())
+  {
+    state->ReportError("Logical expression must be boolean types on both sides");
+    return false;
+  }
+
+  // Result is also a boolean type
+  m_type = Type::GetBooleanType();
+  return true;
+}
+
 bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
@@ -165,6 +211,11 @@ bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
 }
 
 bool IntegerLiteralExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  return true;
+}
+
+bool BooleanLiteralExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   return true;
 }

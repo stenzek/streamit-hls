@@ -1,15 +1,14 @@
 #include "frontend/expression_builder.h"
 #include <cassert>
-#include "frontend/filter_function_builder.h"
 #include "frontend/context.h"
+#include "frontend/filter_function_builder.h"
 #include "llvm/IR/Constants.h"
 #include "parser/ast.h"
 #include "parser/type.h"
 
 namespace Frontend
 {
-ExpressionBuilder::ExpressionBuilder(FilterFunctionBuilder* func_builder)
-  : m_func_builder(func_builder)
+ExpressionBuilder::ExpressionBuilder(FilterFunctionBuilder* func_builder) : m_func_builder(func_builder)
 {
 }
 
@@ -42,6 +41,15 @@ bool ExpressionBuilder::Visit(AST::IntegerLiteralExpression* node)
   return IsValid();
 }
 
+bool ExpressionBuilder::Visit(AST::BooleanLiteralExpression* node)
+{
+  llvm::Type* llvm_type = GetContext()->GetLLVMType(node->GetType());
+  assert(llvm_type);
+
+  m_result_value = llvm::ConstantInt::get(llvm_type, node->GetValue() ? 1 : 0);
+  return IsValid();
+}
+
 bool ExpressionBuilder::Visit(AST::IdentifierExpression* node)
 {
   m_result_value = m_func_builder->LoadVariable(node->GetReferencedVariable());
@@ -65,8 +73,8 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
   // Evaluate both lhs and rhs first (left-to-right?)
   ExpressionBuilder eb_lhs(m_func_builder);
   ExpressionBuilder eb_rhs(m_func_builder);
-  if (!node->GetLHSExpression()->Accept(&eb_lhs) || !eb_lhs.IsValid() ||
-      !node->GetRHSExpression()->Accept(&eb_rhs) || !eb_rhs.IsValid())
+  if (!node->GetLHSExpression()->Accept(&eb_lhs) || !eb_lhs.IsValid() || !node->GetRHSExpression()->Accept(&eb_rhs) ||
+      !eb_rhs.IsValid())
   {
     return false;
   }
@@ -75,7 +83,8 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
   if (node->GetType() == Type::GetIntType())
   {
     // TODO: Type conversion where LHS type != RHS type
-    assert(node->GetLHSExpression()->GetType() == node->GetType() && node->GetRHSExpression()->GetType() == node->GetType());
+    assert(node->GetLHSExpression()->GetType() == node->GetType() &&
+           node->GetRHSExpression()->GetType() == node->GetType());
 
     llvm::Value* lhs_val = eb_lhs.GetResultValue();
     llvm::Value* rhs_val = eb_rhs.GetResultValue();
@@ -114,4 +123,52 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
   return IsValid();
 }
 
+bool ExpressionBuilder::Visit(AST::RelationalExpression* node)
+{
+  // Evaluate both lhs and rhs first (left-to-right?)
+  ExpressionBuilder eb_lhs(m_func_builder);
+  ExpressionBuilder eb_rhs(m_func_builder);
+  if (!node->GetLHSExpression()->Accept(&eb_lhs) || !eb_lhs.IsValid() || !node->GetRHSExpression()->Accept(&eb_rhs) ||
+      !eb_rhs.IsValid())
+  {
+    return false;
+  }
+
+  // TODO: Float operands
+  if (node->GetIntermediateType() == Type::GetIntType())
+  {
+    // TODO: Type conversion where LHS type != RHS type
+    assert(node->GetLHSExpression()->GetType() == node->GetIntermediateType() &&
+           node->GetRHSExpression()->GetType() == node->GetIntermediateType());
+
+    llvm::Value* lhs_val = eb_lhs.GetResultValue();
+    llvm::Value* rhs_val = eb_rhs.GetResultValue();
+    switch (node->GetOperator())
+    {
+    case AST::RelationalExpression::Less:
+      m_result_value = GetIRBuilder().CreateICmpSLT(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::LessEqual:
+      m_result_value = GetIRBuilder().CreateICmpSLE(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::Greater:
+      m_result_value = GetIRBuilder().CreateICmpSGT(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::GreaterEqual:
+      m_result_value = GetIRBuilder().CreateICmpSGE(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::Equal:
+      m_result_value = GetIRBuilder().CreateICmpEQ(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::NotEqual:
+      m_result_value = GetIRBuilder().CreateICmpNE(lhs_val, rhs_val);
+      break;
+    default:
+      assert(0 && "not reachable");
+      break;
+    }
+  }
+
+  return IsValid();
+}
 }

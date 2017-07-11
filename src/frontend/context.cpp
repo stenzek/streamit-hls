@@ -37,6 +37,8 @@ llvm::Type* Context::CreateLLVMType(const Type* type)
   // TODO: Improve this, support arrays.
   if (type->GetName() == "int")
     return llvm::Type::getInt32Ty(m_llvm_context);
+  if (type->GetName() == "boolean")
+    return llvm::Type::getInt1Ty(m_llvm_context);
   // return llvm::Type::getPrimitiveType(&m_llvm_context, llvm::Type::IntTyID);
 
   assert(0 && "unknown type");

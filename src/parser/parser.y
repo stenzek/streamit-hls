@@ -90,6 +90,7 @@ using namespace AST;
 %type <expr> AssignmentExpression
 %type <identifier> Identifier TK_IDENTIFIER
 %type <integer_literal> IntegerLiteral TK_INTEGER_LITERAL
+%type <boolean_literal> BooleanLiteral TK_BOOLEAN_LITERAL
 %type <type> Type
 
 %%
@@ -97,6 +98,7 @@ using namespace AST;
 /*empty : ;*/
 Identifier : TK_IDENTIFIER ;
 IntegerLiteral : TK_INTEGER_LITERAL ;
+BooleanLiteral : TK_BOOLEAN_LITERAL ;
 
 Program
   : PipelineDeclaration { $$ = state->program = new Program(); state->program->AddPipeline($1); }
@@ -107,6 +109,7 @@ Program
 
 Type
   : TK_INT { $$ = Type::GetIntType(); }
+  | TK_BOOLEAN { $$ = Type::GetBooleanType(); }
   ;
 
 PipelineDeclaration
@@ -209,6 +212,7 @@ Expression
 PrimaryExpression
   : Identifier { $$ = new IdentifierExpression($1); }
   | IntegerLiteral { $$ = new IntegerLiteralExpression($1); }
+  | BooleanLiteral { $$ = new BooleanLiteralExpression($1); }
   | '(' Expression ')' { $$ = $2; }
   ;
 
@@ -258,16 +262,16 @@ ShiftExpression
 
 RelationalExpression
   : ShiftExpression { $$ = $1; }
-  /*| RelationalExpression '<' ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::Less, $3); }*/
-  /*| RelationalExpression '<' ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::Greater, $3); }*/
-  /*| RelationalExpression TK_LTE ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::LessEqual, $3); }*/
-  /*| RelationalExpression TK_GTE ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::GreaterEqual, $3); }*/
+  | RelationalExpression '<' ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::Less, $3); }
+  | RelationalExpression '>' ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::Greater, $3); }
+  | RelationalExpression TK_LTE ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::LessEqual, $3); }
+  | RelationalExpression TK_GTE ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::GreaterEqual, $3); }
   ;
 
 EqualityExpression
   : RelationalExpression { $$ = $1; }
-  /*| EqualityExpression TK_EQUALS RelationalExpression { $$ = new RelationalExpression($1, RelationalExpression::Equals, $3); }*/
-  /*| EqualityExpression TK_NOT_EQUALS RelationalExpression { $$ = new RelationalExpression($1, RelationalExpression::NotEquals, $3); }*/
+  | EqualityExpression TK_EQUALS RelationalExpression { $$ = new RelationalExpression($1, RelationalExpression::Equal, $3); }
+  | EqualityExpression TK_NOT_EQUALS RelationalExpression { $$ = new RelationalExpression($1, RelationalExpression::NotEqual, $3); }
   ;
 
 BitwiseAndExpression
@@ -287,12 +291,12 @@ BitwiseOrExpression
 
 LogicalAndExpression
   : BitwiseOrExpression
-  /*| LogicalAndExpression TK_LOGICAL_AND BitwiseOrExpression { $$ = new LogicalExpression($1, LogicalExpression::And, $3); }*/
+  | LogicalAndExpression TK_LOGICAL_AND BitwiseOrExpression { $$ = new LogicalExpression($1, LogicalExpression::And, $3); }
   ;
 
 LogicalOrExpression
   : LogicalAndExpression
-  /*| LogicalOrExpression TK_LOGICAL_OR LogicalAndExpression { $$ = new LogicalExpression($1, LogicalExpression::Or, $3); }*/
+  | LogicalOrExpression TK_LOGICAL_OR LogicalAndExpression { $$ = new LogicalExpression($1, LogicalExpression::Or, $3); }
   ;
 
 ConditionalExpression

@@ -39,7 +39,22 @@ bool Visitor::Visit(BinaryExpression* node)
   return Visit(static_cast<Expression*>(node));
 }
 
+bool Visitor::Visit(RelationalExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(LogicalExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
 bool Visitor::Visit(IdentifierExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
+bool Visitor::Visit(BooleanLiteralExpression* node)
 {
   return Visit(static_cast<Expression*>(node));
 }
@@ -120,12 +135,27 @@ bool BinaryExpression::Accept(Visitor* visitor)
   return visitor->Visit(this);
 }
 
+bool RelationalExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool LogicalExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
 bool AssignmentExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }
 
 bool IntegerLiteralExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool BooleanLiteralExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

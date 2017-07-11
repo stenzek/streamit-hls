@@ -86,16 +86,28 @@ VariableDeclaration* IdentifierExpression::GetReferencedVariable() const
   return m_identifier_declaration;
 }
 
+Expression::Expression() : m_type(Type::GetErrorType())
+{
+}
+
+bool Expression::IsConstant() const
+{
+  return false;
+}
+
+const Type* Expression::GetType() const
+{
+  return m_type;
+}
+
 BinaryExpression::BinaryExpression(Expression* lhs, Operator op, Expression* rhs) : m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
-  m_type = Type::GetErrorType();
 }
 
 Expression* BinaryExpression::GetLHSExpression() const
 {
   return m_lhs;
 }
-
 
 Expression* BinaryExpression::GetRHSExpression() const
 {
@@ -107,10 +119,52 @@ BinaryExpression::Operator BinaryExpression::GetOperator() const
   return m_op;
 }
 
-AssignmentExpression::AssignmentExpression(Expression* lhs, Expression* rhs)
-  : m_lhs(lhs), m_rhs(rhs)
+RelationalExpression::RelationalExpression(Expression* lhs, Operator op, Expression* rhs)
+  : m_lhs(lhs), m_rhs(rhs), m_intermediate_type(Type::GetErrorType()), m_op(op)
 {
-  m_type = Type::GetErrorType();
+}
+
+Expression* RelationalExpression::GetLHSExpression() const
+{
+  return m_lhs;
+}
+
+Expression* RelationalExpression::GetRHSExpression() const
+{
+  return m_rhs;
+}
+
+const Type* RelationalExpression::GetIntermediateType() const
+{
+  return m_intermediate_type;
+}
+
+RelationalExpression::Operator RelationalExpression::GetOperator() const
+{
+  return m_op;
+}
+
+LogicalExpression::LogicalExpression(Expression* lhs, Operator op, Expression* rhs) : m_lhs(lhs), m_rhs(rhs), m_op(op)
+{
+}
+
+Expression* LogicalExpression::GetLHSExpression() const
+{
+  return m_lhs;
+}
+
+Expression* LogicalExpression::GetRHSExpression() const
+{
+  return m_rhs;
+}
+
+LogicalExpression::Operator LogicalExpression::GetOperator() const
+{
+  return m_op;
+}
+
+AssignmentExpression::AssignmentExpression(Expression* lhs, Expression* rhs) : m_lhs(lhs), m_rhs(rhs)
+{
 }
 
 VariableDeclaration* AssignmentExpression::GetReferencedVariable() const
@@ -134,6 +188,21 @@ int IntegerLiteralExpression::GetValue() const
 }
 
 bool IntegerLiteralExpression::IsConstant() const
+{
+  return true;
+}
+
+BooleanLiteralExpression::BooleanLiteralExpression(bool value) : m_value(value)
+{
+  m_type = Type::GetBooleanType();
+}
+
+bool BooleanLiteralExpression::GetValue() const
+{
+  return m_value;
+}
+
+bool BooleanLiteralExpression::IsConstant() const
 {
   return true;
 }
