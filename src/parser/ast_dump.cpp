@@ -1,4 +1,5 @@
 #include "parser/ast.h"
+#include <array>
 #include <cassert>
 #include "parser/ast_printer.h"
 #include "parser/type.h"
@@ -87,7 +88,9 @@ void IdentifierExpression::Dump(ASTPrinter* printer) const
 
 void BinaryExpression::Dump(ASTPrinter* printer) const
 {
-  printer->BeginBlock("BinaryExpression(%s -> %s -> %s)", m_lhs->GetType()->GetName().c_str(),
+  std::array<const char*, 8> op_names = {
+                        {"Add", "Subtract", "Multiply", "Divide", "Modulo", "BitwiseAnd", "BitwiseOr", "BitwiseXor"}};
+  printer->BeginBlock("BinaryExpression(%s %s %s -> %s)", m_lhs->GetType()->GetName().c_str(), op_names[m_op],
                       m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
   printer->Write("lhs: ");
   m_lhs->Dump(printer);
@@ -99,7 +102,7 @@ void BinaryExpression::Dump(ASTPrinter* printer) const
 void AssignmentExpression::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("AssignmentExpression(%s -> %s)", m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
-  printer->WriteLine("identifier: %s", m_identifier.c_str());
+  printer->WriteLine("identifier: %s", m_identifier_declaration->GetName().c_str());
   printer->Write("rhs: ");
   m_rhs->Dump(printer);
   printer->EndBlock();

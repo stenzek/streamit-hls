@@ -401,8 +401,7 @@ public:
     Modulo,
     BitwiseAnd,
     BitwiseOr,
-    BitwiseXor,
-    BitwiseNot
+    BitwiseXor
   };
 
   BinaryExpression(Expression* lhs, Operator op, Expression* rhs);
@@ -411,6 +410,10 @@ public:
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
+
+  Expression* GetLHSExpression() const;
+  Expression* GetRHSExpression() const;
+  Operator GetOperator() const;
 
 private:
   Expression* m_lhs;
@@ -421,7 +424,7 @@ private:
 class AssignmentExpression : public Expression
 {
 public:
-  AssignmentExpression(const char* identifier, Expression* rhs);
+  AssignmentExpression(Expression* lhs, Expression* rhs);
   ~AssignmentExpression() = default;
 
   VariableDeclaration* GetReferencedVariable() const;
@@ -432,9 +435,9 @@ public:
   bool Accept(Visitor* visitor) override;
 
 private:
-  std::string m_identifier;
-  VariableDeclaration* m_identifier_declaration = nullptr;
+  Expression* m_lhs;
   Expression* m_rhs;
+  VariableDeclaration* m_identifier_declaration = nullptr;
 };
 
 class PeekExpression : public Expression

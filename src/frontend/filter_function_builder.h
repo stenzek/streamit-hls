@@ -1,9 +1,9 @@
 #pragma once
+#include <stack>
 #include <unordered_map>
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/IRBuilder.h"
 #include "parser/ast_visitor.h"
-#include <stack>
 
 namespace Frontend
 {
@@ -31,9 +31,9 @@ public:
   void StoreVariable(const AST::VariableDeclaration* var, llvm::Value* val);
 
 private:
-  // Returns the old basic block pointer 
+  // Returns the old basic block pointer
   llvm::BasicBlock* PushBasicBlock(const std::string& name = {});
-  
+
   // Returns the new basic block pointer
   llvm::BasicBlock* PopBasicBlock();
 

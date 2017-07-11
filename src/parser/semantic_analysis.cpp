@@ -120,7 +120,7 @@ bool IdentifierExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
 bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // Resolve any identifiers
-  if (!(m_lhs->SemanticAnalysis(state, symbol_table) && m_rhs->SemanticAnalysis(state, symbol_table)))
+  if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
     return false;
 
   // Calculate type of expression
@@ -137,15 +137,20 @@ bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol
 
 bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
-  // Resolve identifier
-  m_identifier_declaration = dynamic_cast<VariableDeclaration*>(symbol_table->GetName(m_identifier));
-  if (!m_identifier_declaration)
+  if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
+    return false;
+
+  // Left hand side should be an identifier
+  IdentifierExpression* lhs_identifier_expression = dynamic_cast<IdentifierExpression*>(m_lhs);
+  if (!lhs_identifier_expression)
   {
-    state->ReportError("Unknown identifier '%s'", m_identifier.c_str());
+    state->ReportError("Left hand side of expression must be an identifier");
     return false;
   }
 
-  if (!m_rhs->SemanticAnalysis(state, symbol_table))
+  // Just grab the identifier straight from the expression
+  m_identifier_declaration = lhs_identifier_expression->GetReferencedVariable();
+  if (!m_identifier_declaration)
     return false;
 
   if (!m_rhs->GetType()->CanImplicitlyConvertTo(m_identifier_declaration->GetType()))

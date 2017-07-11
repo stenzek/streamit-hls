@@ -1,7 +1,7 @@
 #include "frontend/filter_builder.h"
 #include <cassert>
-#include "frontend/filter_function_builder.h"
 #include "frontend/context.h"
+#include "frontend/filter_function_builder.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"

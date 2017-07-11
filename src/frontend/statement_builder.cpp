@@ -1,15 +1,14 @@
 #include "frontend/statement_builder.h"
 #include <cassert>
-#include "frontend/filter_function_builder.h"
 #include "frontend/context.h"
 #include "frontend/expression_builder.h"
+#include "frontend/filter_function_builder.h"
 #include "llvm/IR/Constants.h"
 #include "parser/ast.h"
 
 namespace Frontend
 {
-StatementBuilder::StatementBuilder(FilterFunctionBuilder* bb_builder)
-  : m_func_builder(bb_builder)
+StatementBuilder::StatementBuilder(FilterFunctionBuilder* bb_builder) : m_func_builder(bb_builder)
 {
 }
 

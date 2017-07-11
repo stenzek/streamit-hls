@@ -9,7 +9,9 @@ namespace Frontend
 {
 
 FilterFunctionBuilder::FilterFunctionBuilder(Context* ctx, const std::string& name, llvm::Function* func)
-  : m_ctx(ctx), m_name(name), m_func(func), m_entry_basic_block(llvm::BasicBlock::Create(m_ctx->GetLLVMContext(), name, func)), m_current_ir_builder(m_entry_basic_block)
+  : m_ctx(ctx), m_name(name), m_func(func),
+    m_entry_basic_block(llvm::BasicBlock::Create(m_ctx->GetLLVMContext(), name, func)),
+    m_current_ir_builder(m_entry_basic_block)
 {
   m_current_basic_block = m_entry_basic_block;
   m_basic_block_stack.push(m_current_basic_block);
@@ -131,5 +133,4 @@ bool FilterFunctionBuilder::Visit(AST::Statement* node)
   StatementBuilder stmt_builder(this);
   return node->Accept(&stmt_builder);
 }
-
 }

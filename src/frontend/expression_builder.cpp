@@ -4,6 +4,7 @@
 #include "frontend/context.h"
 #include "llvm/IR/Constants.h"
 #include "parser/ast.h"
+#include "parser/type.h"
 
 namespace Frontend
 {
@@ -58,4 +59,59 @@ bool ExpressionBuilder::Visit(AST::AssignmentExpression* node)
   m_result_value = eb.GetResultValue();
   return m_result_value;
 }
+
+bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
+{
+  // Evaluate both lhs and rhs first (left-to-right?)
+  ExpressionBuilder eb_lhs(m_func_builder);
+  ExpressionBuilder eb_rhs(m_func_builder);
+  if (!node->GetLHSExpression()->Accept(&eb_lhs) || !eb_lhs.IsValid() ||
+      !node->GetRHSExpression()->Accept(&eb_rhs) || !eb_rhs.IsValid())
+  {
+    return false;
+  }
+
+  // TODO: Float operands
+  if (node->GetType() == Type::GetIntType())
+  {
+    // TODO: Type conversion where LHS type != RHS type
+    assert(node->GetLHSExpression()->GetType() == node->GetType() && node->GetRHSExpression()->GetType() == node->GetType());
+
+    llvm::Value* lhs_val = eb_lhs.GetResultValue();
+    llvm::Value* rhs_val = eb_rhs.GetResultValue();
+    switch (node->GetOperator())
+    {
+    case AST::BinaryExpression::Add:
+      m_result_value = GetIRBuilder().CreateAdd(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::Subtract:
+      m_result_value = GetIRBuilder().CreateSub(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::Multiply:
+      m_result_value = GetIRBuilder().CreateMul(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::Divide:
+      m_result_value = GetIRBuilder().CreateSDiv(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::Modulo:
+      m_result_value = GetIRBuilder().CreateSRem(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::BitwiseAnd:
+      m_result_value = GetIRBuilder().CreateAnd(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::BitwiseOr:
+      m_result_value = GetIRBuilder().CreateOr(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::BitwiseXor:
+      m_result_value = GetIRBuilder().CreateXor(lhs_val, rhs_val);
+      break;
+    default:
+      assert(0 && "not reachable");
+      break;
+    }
+  }
+
+  return IsValid();
+}
+
 }

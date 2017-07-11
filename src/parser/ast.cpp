@@ -91,8 +91,24 @@ BinaryExpression::BinaryExpression(Expression* lhs, Operator op, Expression* rhs
   m_type = Type::GetErrorType();
 }
 
-AssignmentExpression::AssignmentExpression(const char* identifier, Expression* rhs)
-  : m_identifier(identifier), m_rhs(rhs)
+Expression* BinaryExpression::GetLHSExpression() const
+{
+  return m_lhs;
+}
+
+
+Expression* BinaryExpression::GetRHSExpression() const
+{
+  return m_rhs;
+}
+
+BinaryExpression::Operator BinaryExpression::GetOperator() const
+{
+  return m_op;
+}
+
+AssignmentExpression::AssignmentExpression(Expression* lhs, Expression* rhs)
+  : m_lhs(lhs), m_rhs(rhs)
 {
   m_type = Type::GetErrorType();
 }

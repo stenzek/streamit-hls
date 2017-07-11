@@ -26,7 +26,7 @@ using namespace AST;
 
 %token TK_LOGICAL_AND TK_LOGICAL_OR
 %token TK_EQUALS TK_NOT_EQUALS
-%token TK_INCREMENT TK_DECREMENT
+%token TK_INCREMENT TK_DECREMENT TK_LSHIFT TK_RSHIFT
 %token TK_LTE TK_GTE
 
 %token TK_IF TK_ELSE TK_FOR TK_DO TK_WHILE TK_CONTINUE TK_BREAK
@@ -72,15 +72,25 @@ using namespace AST;
 /*%type <string_list> IdentifierList*/
 %type <stmt> Statement
 %type <expr> Expression
+%type <expr> PrimaryExpression
+%type <expr> PostfixExpression
+%type <expr> UnaryExpression
+%type <expr> CastExpression
+%type <expr> MultiplicativeExpression
+%type <expr> AdditiveExpression
+%type <expr> ShiftExpression
+%type <expr> RelationalExpression
+%type <expr> EqualityExpression
+%type <expr> BitwiseAndExpression
+%type <expr> BitwiseOrExpression
+%type <expr> BitwiseXorExpression
+%type <expr> LogicalAndExpression
+%type <expr> LogicalOrExpression
+%type <expr> ConditionalExpression
+%type <expr> AssignmentExpression
 %type <identifier> Identifier TK_IDENTIFIER
 %type <integer_literal> IntegerLiteral TK_INTEGER_LITERAL
 %type <type> Type
-
-%left '+'
-%left '-'
-%left '*'
-%left '/'
-%left '='
 
 %%
 
@@ -193,13 +203,106 @@ Statement
   ;
 
 Expression
-  : Expression '+' Expression { $$ = new BinaryExpression($1, BinaryExpression::Add, $3); }
-  | Identifier '=' Expression { $$ = new AssignmentExpression($1, $3); }
+  : AssignmentExpression
+  ;
+
+PrimaryExpression
+  : Identifier { $$ = new IdentifierExpression($1); }
+  | IntegerLiteral { $$ = new IntegerLiteralExpression($1); }
+  | '(' Expression ')' { $$ = $2; }
+  ;
+
+PostfixExpression
+  : PrimaryExpression { $$ = $1; }
+  /*| PostfixExpression '[' Expression ']'*/
+  /*| PostfixExpression '(' ')'*/
+  /*| PostfixExpression '(' ArgumentExpressionList ')'*/
+  /*| PostfixExpression TK_INCREMENT*/
+  /*| PostfixExpression TK_DECREMENT*/
   | TK_PEEK '(' Expression ')' { $$ = new PeekExpression($3); }
   | TK_POP '(' ')' { $$ = new PopExpression(); }
   | TK_PUSH '(' Expression ')' { $$ = new PushExpression($3); }
-  | Identifier { $$ = new IdentifierExpression($1); }
-  | IntegerLiteral { $$ = new IntegerLiteralExpression($1); }
+  ;
+
+UnaryExpression
+  : PostfixExpression { $$ = $1; }
+  /*| '+' UnaryExpression { $$ = new UnaryExpression($2, UnaryExpression::Positive); }*/
+  /*| '-' UnaryExpression { $$ = new UnaryExpression($2, UnaryExpression::Negative); }*/
+  /*| '!' UnaryExpression { $$ = new UnaryExpression($2, UnaryExpression::LogicalNot); }*/
+  /*| '~' UnaryExpression { $$ = new UnaryExpression($2, UnaryExpression::BitwiseNot); }*/
+  ;
+
+CastExpression
+  : UnaryExpression { $$ = $1; }
+  /*| '(' Type ')' CastExpression*/
+  ;
+
+MultiplicativeExpression
+  : CastExpression { $$ = $1; }
+  | MultiplicativeExpression '*' CastExpression { $$ = new BinaryExpression($1, BinaryExpression::Multiply, $3); }
+  | MultiplicativeExpression '/' CastExpression { $$ = new BinaryExpression($1, BinaryExpression::Divide, $3); }
+  | MultiplicativeExpression '%' CastExpression { $$ = new BinaryExpression($1, BinaryExpression::Modulo, $3); }
+  ;
+
+AdditiveExpression
+  : MultiplicativeExpression { $$ = $1; }
+  | AdditiveExpression '+' MultiplicativeExpression { $$ = new BinaryExpression($1, BinaryExpression::Add, $3); }
+  | AdditiveExpression '-' MultiplicativeExpression { $$ = new BinaryExpression($1, BinaryExpression::Subtract, $3); }
+  ;
+
+ShiftExpression
+  : AdditiveExpression { $$ = $1; }
+  /*| ShiftExpression TK_LSHIFT AdditiveExpression { $$ = new BinaryExpression($1, BinaryExpression::LeftShift, $3); }*/
+  /*| ShiftExpression TK_RSHIFT AdditiveExpression { $$ = new BinaryExpression($1, BinaryExpression::RightShift, $3); }*/
+  ;
+
+RelationalExpression
+  : ShiftExpression { $$ = $1; }
+  /*| RelationalExpression '<' ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::Less, $3); }*/
+  /*| RelationalExpression '<' ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::Greater, $3); }*/
+  /*| RelationalExpression TK_LTE ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::LessEqual, $3); }*/
+  /*| RelationalExpression TK_GTE ShiftExpression { $$ = new RelationalExpression($1, RelationalExpression::GreaterEqual, $3); }*/
+  ;
+
+EqualityExpression
+  : RelationalExpression { $$ = $1; }
+  /*| EqualityExpression TK_EQUALS RelationalExpression { $$ = new RelationalExpression($1, RelationalExpression::Equals, $3); }*/
+  /*| EqualityExpression TK_NOT_EQUALS RelationalExpression { $$ = new RelationalExpression($1, RelationalExpression::NotEquals, $3); }*/
+  ;
+
+BitwiseAndExpression
+  : EqualityExpression
+  | BitwiseAndExpression '&' EqualityExpression { $$ = new BinaryExpression($1, BinaryExpression::BitwiseAnd, $3); }
+  ;
+
+BitwiseXorExpression
+  : BitwiseAndExpression
+  | BitwiseXorExpression '^' BitwiseAndExpression { $$ = new BinaryExpression($1, BinaryExpression::BitwiseXor, $3); }
+  ;
+
+BitwiseOrExpression
+  : BitwiseXorExpression
+  | BitwiseOrExpression '|' BitwiseXorExpression { $$ = new BinaryExpression($1, BinaryExpression::BitwiseOr, $3); }
+  ;
+
+LogicalAndExpression
+  : BitwiseOrExpression
+  /*| LogicalAndExpression TK_LOGICAL_AND BitwiseOrExpression { $$ = new LogicalExpression($1, LogicalExpression::And, $3); }*/
+  ;
+
+LogicalOrExpression
+  : LogicalAndExpression
+  /*| LogicalOrExpression TK_LOGICAL_OR LogicalAndExpression { $$ = new LogicalExpression($1, LogicalExpression::Or, $3); }*/
+  ;
+
+ConditionalExpression
+  : LogicalOrExpression
+  /*| LogicalOrExpression '?' Expression ':' ConditionalExpression { $$ = new ConditionalExpression($1, $3, $5); }*/
+  ;
+
+AssignmentExpression
+  : ConditionalExpression
+  | UnaryExpression '=' AssignmentExpression { $$ = new AssignmentExpression($1, $3); }
   ;
 
 %%

@@ -77,6 +77,14 @@ false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
 "," { return ','; }
 "?" { return '?'; }
 ":" { return ':'; }
+"+" { return '+'; }
+"-" { return '-'; }
+"*" { return '*'; }
+"/" { return '/'; }
+"%" { return '%'; }
+"&" { return '&'; }
+"|" { return '|'; }
+"^" { return '^'; }
 
  /* Whitespace/comments */
 [ \r\n\t]       /* skip whitespace */
