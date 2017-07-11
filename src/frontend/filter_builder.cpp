@@ -1,7 +1,7 @@
 #include "frontend/filter_builder.h"
 #include <cassert>
-#include "frontend/context.h"
 #include "frontend/filter_function_builder.h"
+#include "frontend/context.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
@@ -62,6 +62,8 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   if (!block->Accept(&entry_bb_builder))
     return nullptr;
 
+  // Final return instruction.
+  entry_bb_builder.GetCurrentIRBuilder().CreateRetVoid();
   return func;
 }
 
