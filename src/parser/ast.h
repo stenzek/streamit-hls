@@ -34,6 +34,15 @@ class ExpressionStatement;
 
 using LexicalScope = SymbolTable<std::string, AST::Node>;
 
+struct SourceLocation
+{
+  const char* filename;
+  int first_line;
+  int first_column;
+  int last_line;
+  int last_column;
+};
+
 class StringList
 {
 public:
@@ -167,34 +176,48 @@ private:
 class Declaration : public Node
 {
 public:
-  Declaration() = default;
+  Declaration(const SourceLocation& sloc);
   virtual ~Declaration() = default;
+
+  const SourceLocation& GetSourceLocation() const;
+
+protected:
+  SourceLocation m_sloc;
 };
 
 class Statement : public Node
 {
 public:
-  Statement() = default;
+  Statement(const SourceLocation& sloc);
   virtual ~Statement() = default;
+
+  const SourceLocation& GetSourceLocation() const;
+
+protected:
+  SourceLocation m_sloc;
 };
 
 class Expression : public Node
 {
 public:
-  Expression();
+  Expression(const SourceLocation& sloc);
   virtual ~Expression() = default;
+
+  const SourceLocation& GetSourceLocation() const;
 
   virtual bool IsConstant() const;
   const Type* GetType() const;
 
 protected:
+  SourceLocation m_sloc;
   const Type* m_type = nullptr;
 };
 
 class PipelineDeclaration : public Declaration
 {
 public:
-  PipelineDeclaration(const Type* input_type, const Type* output_type, const char* name, NodeList* statements);
+  PipelineDeclaration(const SourceLocation& sloc, const Type* input_type, const Type* output_type, const char* name,
+                      NodeList* statements);
   ~PipelineDeclaration() override;
 
   void Dump(ASTPrinter* printer) const override;
@@ -211,7 +234,7 @@ private:
 class PipelineAddStatement : public Statement
 {
 public:
-  PipelineAddStatement(const char* filter_name, const NodeList* parameters);
+  PipelineAddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters);
   ~PipelineAddStatement();
 
   void Dump(ASTPrinter* printer) const override;
@@ -227,8 +250,8 @@ private:
 class FilterDeclaration : public Declaration
 {
 public:
-  FilterDeclaration(const Type* input_type, const Type* output_type, const char* name, NodeList* vars,
-                    FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work);
+  FilterDeclaration(const SourceLocation& sloc, const Type* input_type, const Type* output_type, const char* name,
+                    NodeList* vars, FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work);
   ~FilterDeclaration() = default;
 
   const Type* GetInputType() const
@@ -352,7 +375,7 @@ private:
 class IntegerLiteralExpression : public Expression
 {
 public:
-  IntegerLiteralExpression(int value);
+  IntegerLiteralExpression(const SourceLocation& sloc, int value);
   ~IntegerLiteralExpression() = default;
 
   bool IsConstant() const override;
@@ -369,7 +392,7 @@ private:
 class BooleanLiteralExpression : public Expression
 {
 public:
-  BooleanLiteralExpression(bool value);
+  BooleanLiteralExpression(const SourceLocation& sloc, bool value);
   ~BooleanLiteralExpression() = default;
 
   bool IsConstant() const override;
@@ -386,7 +409,7 @@ private:
 class IdentifierExpression : public Expression
 {
 public:
-  IdentifierExpression(const char* identifier);
+  IdentifierExpression(const SourceLocation& sloc, const char* identifier);
   ~IdentifierExpression() = default;
 
   VariableDeclaration* GetReferencedVariable() const;
@@ -417,7 +440,7 @@ public:
     RightShift
   };
 
-  BinaryExpression(Expression* lhs, Operator op, Expression* rhs);
+  BinaryExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs);
   ~BinaryExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -447,7 +470,7 @@ public:
     NotEqual
   };
 
-  RelationalExpression(Expression* lhs, Operator op, Expression* rhs);
+  RelationalExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs);
   ~RelationalExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -475,7 +498,7 @@ public:
     Or
   };
 
-  LogicalExpression(Expression* lhs, Operator op, Expression* rhs);
+  LogicalExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs);
   ~LogicalExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -495,7 +518,7 @@ private:
 class CommaExpression : public Expression
 {
 public:
-  CommaExpression(Expression* lhs, Expression* rhs);
+  CommaExpression(const SourceLocation& sloc, Expression* lhs, Expression* rhs);
   ~CommaExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -513,7 +536,7 @@ private:
 class AssignmentExpression : public Expression
 {
 public:
-  AssignmentExpression(Expression* lhs, Expression* rhs);
+  AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Expression* rhs);
   ~AssignmentExpression() = default;
 
   VariableDeclaration* GetReferencedVariable() const;
@@ -532,7 +555,7 @@ private:
 class PeekExpression : public Expression
 {
 public:
-  PeekExpression(Expression* expr);
+  PeekExpression(const SourceLocation& sloc, Expression* expr);
   ~PeekExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -546,7 +569,7 @@ private:
 class PopExpression : public Expression
 {
 public:
-  PopExpression();
+  PopExpression(const SourceLocation& sloc);
   ~PopExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -557,7 +580,7 @@ public:
 class PushExpression : public Expression
 {
 public:
-  PushExpression(Expression* expr);
+  PushExpression(const SourceLocation& sloc, Expression* expr);
   ~PushExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -570,6 +593,7 @@ private:
 
 struct InitDeclarator
 {
+  SourceLocation sloc;
   const char* name;
   Expression* initializer;
 };
@@ -578,7 +602,7 @@ using InitDeclaratorList = std::vector<InitDeclarator>;
 class VariableDeclaration final : public Declaration
 {
 public:
-  VariableDeclaration(const Type* type, const char* name, Expression* initializer);
+  VariableDeclaration(const SourceLocation& sloc, const Type* type, const char* name, Expression* initializer);
   ~VariableDeclaration() override final = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -613,7 +637,7 @@ private:
 class ExpressionStatement : public Statement
 {
 public:
-  ExpressionStatement(Expression* expr);
+  ExpressionStatement(const SourceLocation& sloc, Expression* expr);
   ~ExpressionStatement() = default;
 
   Expression* GetInnerExpression() const;
@@ -629,7 +653,7 @@ private:
 class IfStatement : public Statement
 {
 public:
-  IfStatement(Expression* expr, Node* then_stmts, Node* else_stmts);
+  IfStatement(const SourceLocation& sloc, Expression* expr, Node* then_stmts, Node* else_stmts);
   ~IfStatement() = default;
 
   Expression* GetInnerExpression() const;
@@ -650,7 +674,7 @@ private:
 class ForStatement : public Statement
 {
 public:
-  ForStatement(Node* init, Expression* cond, Expression* loop, Node* inner);
+  ForStatement(const SourceLocation& sloc, Node* init, Expression* cond, Expression* loop, Node* inner);
   ~ForStatement() = default;
 
   Node* GetInitStatements() const;
@@ -676,7 +700,7 @@ private:
 class BreakStatement : public Statement
 {
 public:
-  BreakStatement() = default;
+  BreakStatement(const SourceLocation& sloc);
   ~BreakStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -687,7 +711,7 @@ public:
 class ContinueStatement : public Statement
 {
 public:
-  ContinueStatement() = default;
+  ContinueStatement(const SourceLocation& sloc);
   ~ContinueStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -698,7 +722,7 @@ public:
 class ReturnStatement : public Statement
 {
 public:
-  ReturnStatement(Expression* expr = nullptr);
+  ReturnStatement(const SourceLocation& sloc, Expression* expr = nullptr);
   ~ReturnStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;

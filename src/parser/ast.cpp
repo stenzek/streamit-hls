@@ -51,47 +51,31 @@ void NodeList::AddNode(Node* li)
   m_nodes.push_back(li);
 }
 
-PipelineDeclaration::PipelineDeclaration(const Type* input_type, const Type* output_type, const char* name,
-                                         NodeList* statements)
-  : m_input_type(input_type), m_output_type(output_type), m_name(name), m_statements(statements)
+Declaration::Declaration(const SourceLocation& sloc) : m_sloc(sloc)
 {
 }
 
-PipelineDeclaration::~PipelineDeclaration()
+const SourceLocation& Declaration::GetSourceLocation() const
+{
+  return m_sloc;
+}
+
+Statement::Statement(const SourceLocation& sloc) : m_sloc(sloc)
 {
 }
 
-bool PipelineDeclaration::Accept(Visitor* visitor)
+const SourceLocation& Statement::GetSourceLocation() const
 {
-  return visitor->Visit(this);
+  return m_sloc;
 }
 
-PipelineAddStatement::PipelineAddStatement(const char* filter_name, const NodeList* parameters)
-  : m_filter_name(filter_name), m_filter_parameters(parameters)
-{
-}
-
-PipelineAddStatement::~PipelineAddStatement()
+Expression::Expression(const SourceLocation& sloc) : m_sloc(sloc), m_type(Type::GetErrorType())
 {
 }
 
-bool PipelineAddStatement::Accept(Visitor* visitor)
+const SourceLocation& Expression::GetSourceLocation() const
 {
-  return visitor->Visit(this);
-}
-
-IdentifierExpression::IdentifierExpression(const char* identifier) : m_identifier(identifier)
-{
-  m_type = Type::GetErrorType();
-}
-
-VariableDeclaration* IdentifierExpression::GetReferencedVariable() const
-{
-  return m_identifier_declaration;
-}
-
-Expression::Expression() : m_type(Type::GetErrorType())
-{
+  return m_sloc;
 }
 
 bool Expression::IsConstant() const
@@ -104,7 +88,49 @@ const Type* Expression::GetType() const
   return m_type;
 }
 
-BinaryExpression::BinaryExpression(Expression* lhs, Operator op, Expression* rhs) : m_lhs(lhs), m_rhs(rhs), m_op(op)
+PipelineDeclaration::PipelineDeclaration(const SourceLocation& sloc, const Type* input_type, const Type* output_type,
+                                         const char* name, NodeList* statements)
+  : Declaration(sloc), m_input_type(input_type), m_output_type(output_type), m_name(name), m_statements(statements)
+{
+}
+
+PipelineDeclaration::~PipelineDeclaration()
+{
+}
+
+bool PipelineDeclaration::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+PipelineAddStatement::PipelineAddStatement(const SourceLocation& sloc, const char* filter_name,
+                                           const NodeList* parameters)
+  : Statement(sloc), m_filter_name(filter_name), m_filter_parameters(parameters)
+{
+}
+
+PipelineAddStatement::~PipelineAddStatement()
+{
+}
+
+bool PipelineAddStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+IdentifierExpression::IdentifierExpression(const SourceLocation& sloc, const char* identifier)
+  : Expression(sloc), m_identifier(identifier)
+{
+  m_type = Type::GetErrorType();
+}
+
+VariableDeclaration* IdentifierExpression::GetReferencedVariable() const
+{
+  return m_identifier_declaration;
+}
+
+BinaryExpression::BinaryExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
+  : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
 }
 
@@ -123,8 +149,8 @@ BinaryExpression::Operator BinaryExpression::GetOperator() const
   return m_op;
 }
 
-RelationalExpression::RelationalExpression(Expression* lhs, Operator op, Expression* rhs)
-  : m_lhs(lhs), m_rhs(rhs), m_intermediate_type(Type::GetErrorType()), m_op(op)
+RelationalExpression::RelationalExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
+  : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_intermediate_type(Type::GetErrorType()), m_op(op)
 {
 }
 
@@ -148,7 +174,8 @@ RelationalExpression::Operator RelationalExpression::GetOperator() const
   return m_op;
 }
 
-LogicalExpression::LogicalExpression(Expression* lhs, Operator op, Expression* rhs) : m_lhs(lhs), m_rhs(rhs), m_op(op)
+LogicalExpression::LogicalExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
+  : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
 }
 
@@ -167,7 +194,8 @@ LogicalExpression::Operator LogicalExpression::GetOperator() const
   return m_op;
 }
 
-CommaExpression::CommaExpression(Expression* lhs, Expression* rhs) : m_lhs(lhs), m_rhs(rhs)
+CommaExpression::CommaExpression(const SourceLocation& sloc, Expression* lhs, Expression* rhs)
+  : Expression(sloc), m_lhs(lhs), m_rhs(rhs)
 {
 }
 
@@ -181,7 +209,8 @@ Expression* CommaExpression::GetRHSExpression() const
   return m_rhs;
 }
 
-AssignmentExpression::AssignmentExpression(Expression* lhs, Expression* rhs) : m_lhs(lhs), m_rhs(rhs)
+AssignmentExpression::AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Expression* rhs)
+  : Expression(sloc), m_lhs(lhs), m_rhs(rhs)
 {
 }
 
@@ -195,7 +224,8 @@ Expression* AssignmentExpression::GetInnerExpression() const
   return m_rhs;
 }
 
-IntegerLiteralExpression::IntegerLiteralExpression(int value) : m_value(value)
+IntegerLiteralExpression::IntegerLiteralExpression(const SourceLocation& sloc, int value)
+  : Expression(sloc), m_value(value)
 {
   m_type = Type::GetIntType();
 }
@@ -210,7 +240,8 @@ bool IntegerLiteralExpression::IsConstant() const
   return true;
 }
 
-BooleanLiteralExpression::BooleanLiteralExpression(bool value) : m_value(value)
+BooleanLiteralExpression::BooleanLiteralExpression(const SourceLocation& sloc, bool value)
+  : Expression(sloc), m_value(value)
 {
   m_type = Type::GetBooleanType();
 }
@@ -225,20 +256,21 @@ bool BooleanLiteralExpression::IsConstant() const
   return true;
 }
 
-PeekExpression::PeekExpression(Expression* expr) : m_expr(expr)
+PeekExpression::PeekExpression(const SourceLocation& sloc, Expression* expr) : Expression(sloc), m_expr(expr)
 {
 }
 
-PopExpression::PopExpression()
+PopExpression::PopExpression(const SourceLocation& sloc) : Expression(sloc)
 {
 }
 
-PushExpression::PushExpression(Expression* expr) : m_expr(expr)
+PushExpression::PushExpression(const SourceLocation& sloc, Expression* expr) : Expression(sloc), m_expr(expr)
 {
 }
 
-VariableDeclaration::VariableDeclaration(const Type* type, const char* name, Expression* initializer)
-  : m_type(type), m_name(name), m_initializer(initializer)
+VariableDeclaration::VariableDeclaration(const SourceLocation& sloc, const Type* type, const char* name,
+                                         Expression* initializer)
+  : Declaration(sloc), m_type(type), m_name(name), m_initializer(initializer)
 {
   // TODO: Default initialize ints to 0?
   // if (!m_initializer)
@@ -248,22 +280,24 @@ Node* VariableDeclaration::CreateDeclarations(const Type* type, const InitDeclar
 {
   // Optimization for single declaration case
   if (declarator_list->size() == 1)
-    return new VariableDeclaration(type, declarator_list->front().name, declarator_list->front().initializer);
+    return new VariableDeclaration(declarator_list->front().sloc, type, declarator_list->front().name,
+                                   declarator_list->front().initializer);
 
   NodeList* decl_list = new NodeList();
   for (const InitDeclarator& decl : *declarator_list)
-    decl_list->AddNode(new VariableDeclaration(type, decl.name, decl.initializer));
+    decl_list->AddNode(new VariableDeclaration(decl.sloc, type, decl.name, decl.initializer));
   return decl_list;
 }
 
-FilterDeclaration::FilterDeclaration(const Type* input_type, const Type* output_type, const char* name, NodeList* vars,
-                                     FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work)
-  : m_input_type(input_type), m_output_type(output_type), m_name(name), m_vars(vars), m_init(init), m_prework(prework),
-    m_work(work)
+FilterDeclaration::FilterDeclaration(const SourceLocation& sloc, const Type* input_type, const Type* output_type,
+                                     const char* name, NodeList* vars, FilterWorkBlock* init, FilterWorkBlock* prework,
+                                     FilterWorkBlock* work)
+  : Declaration(sloc), m_input_type(input_type), m_output_type(output_type), m_name(name), m_vars(vars), m_init(init),
+    m_prework(prework), m_work(work)
 {
 }
 
-ExpressionStatement::ExpressionStatement(Expression* expr) : m_expr(expr)
+ExpressionStatement::ExpressionStatement(const SourceLocation& sloc, Expression* expr) : Statement(sloc), m_expr(expr)
 {
 }
 
@@ -272,8 +306,8 @@ Expression* ExpressionStatement::GetInnerExpression() const
   return m_expr;
 }
 
-IfStatement::IfStatement(Expression* expr, Node* then_stmts, Node* else_stmts)
-  : m_expr(expr), m_then(then_stmts), m_else(else_stmts)
+IfStatement::IfStatement(const SourceLocation& sloc, Expression* expr, Node* then_stmts, Node* else_stmts)
+  : Statement(sloc), m_expr(expr), m_then(then_stmts), m_else(else_stmts)
 {
 }
 
@@ -297,8 +331,8 @@ bool IfStatement::HasElseStatements() const
   return (m_else != nullptr);
 }
 
-ForStatement::ForStatement(Node* init, Expression* cond, Expression* loop, Node* inner)
-  : m_init(init), m_cond(cond), m_loop(loop), m_inner(inner)
+ForStatement::ForStatement(const SourceLocation& sloc, Node* init, Expression* cond, Expression* loop, Node* inner)
+  : Statement(sloc), m_init(init), m_cond(cond), m_loop(loop), m_inner(inner)
 {
 }
 
@@ -342,7 +376,15 @@ bool ForStatement::HasInnerStatements() const
   return (m_inner != nullptr);
 }
 
-ReturnStatement::ReturnStatement(Expression* expr) : m_expr(expr)
+BreakStatement::BreakStatement(const SourceLocation& sloc) : Statement(sloc)
+{
+}
+
+ContinueStatement::ContinueStatement(const SourceLocation& sloc) : Statement(sloc)
+{
+}
+
+ReturnStatement::ReturnStatement(const SourceLocation& sloc, Expression* expr) : Statement(sloc), m_expr(expr)
 {
 }
 

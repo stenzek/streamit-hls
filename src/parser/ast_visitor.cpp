@@ -216,7 +216,7 @@ bool VariableDeclaration::Accept(Visitor* visitor)
 
 bool FilterDeclaration::Accept(Visitor* visitor)
 {
-  visitor->Visit(this);
+  return visitor->Visit(this);
 }
 
 bool ExpressionStatement::Accept(Visitor* visitor)

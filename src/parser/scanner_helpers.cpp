@@ -5,8 +5,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <sstream>
-#include "parser/ast.h"
-#include "parser/parser.h"
 
 namespace ScannerHelpers
 {

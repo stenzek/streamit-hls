@@ -36,7 +36,7 @@ bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
 
   if (!symbol_table->AddName(m_name, this))
   {
-    state->ReportError("Pipeline '%s' is already defined", m_name.c_str());
+    state->ReportError(m_sloc, "Pipeline '%s' is already defined", m_name.c_str());
     return false;
   }
 
@@ -51,7 +51,7 @@ bool PipelineAddStatement::SemanticAnalysis(ParserState* state, LexicalScope* sy
   m_filter_declaration = symbol_table->GetName(m_filter_name);
   if (!m_filter_declaration)
   {
-    state->ReportError("Referencing undefined filter/pipeline '%s'", m_filter_name.c_str());
+    state->ReportError(m_sloc, "Referencing undefined filter/pipeline '%s'", m_filter_name.c_str());
     return false;
   }
 
@@ -88,7 +88,7 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   // Add the filter into the global namespace
   if (!symbol_table->AddName(m_name, this))
   {
-    state->ReportError("Filter '%s' already defined", m_name.c_str());
+    state->ReportError(m_sloc, "Filter '%s' already defined", m_name.c_str());
     result = false;
   }
 
@@ -109,7 +109,7 @@ bool IdentifierExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
   m_identifier_declaration = dynamic_cast<VariableDeclaration*>(symbol_table->GetName(m_identifier));
   if (!m_identifier_declaration)
   {
-    state->ReportError("Unknown identifier '%s'", m_identifier.c_str());
+    state->ReportError(m_sloc, "Unknown identifier '%s'", m_identifier.c_str());
     return false;
   }
 
@@ -127,7 +127,7 @@ bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol
   m_type = Type::GetResultType(m_lhs->GetType(), m_rhs->GetType());
   if (!m_type->IsValid())
   {
-    state->ReportError("Cannot determine result type for binary expression of %s and %s",
+    state->ReportError(m_sloc, "Cannot determine result type for binary expression of %s and %s",
                        m_lhs->GetType()->GetName().c_str(), m_rhs->GetType()->GetName().c_str());
     return false;
   }
@@ -145,7 +145,7 @@ bool RelationalExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
   m_intermediate_type = Type::GetResultType(m_lhs->GetType(), m_rhs->GetType());
   if (!m_intermediate_type)
   {
-    state->ReportError("Cannot determine comparison type of relational expression between %s and %s",
+    state->ReportError(m_sloc, "Cannot determine comparison type of relational expression between %s and %s",
                        m_lhs->GetType()->GetName().c_str(), m_rhs->GetType()->GetName().c_str());
     return false;
   }
@@ -154,7 +154,7 @@ bool RelationalExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
   if (m_op >= Less && m_op <= GreaterEqual &&
       (m_intermediate_type != Type::GetIntType() && m_intermediate_type != Type::GetFloatType()))
   {
-    state->ReportError("Relational operators are only valid on numeric types");
+    state->ReportError(m_sloc, "Relational operators are only valid on numeric types");
     return false;
   }
 
@@ -172,7 +172,7 @@ bool LogicalExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   // TODO: Can you use C-like if (1) ?
   if (m_lhs->GetType() != Type::GetBooleanType() || m_rhs->GetType() != Type::GetBooleanType())
   {
-    state->ReportError("Logical expression must be boolean types on both sides");
+    state->ReportError(m_sloc, "Logical expression must be boolean types on both sides");
     return false;
   }
 
@@ -201,7 +201,7 @@ bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
   IdentifierExpression* lhs_identifier_expression = dynamic_cast<IdentifierExpression*>(m_lhs);
   if (!lhs_identifier_expression)
   {
-    state->ReportError("Left hand side of expression must be an identifier");
+    state->ReportError(m_sloc, "Left hand side of expression must be an identifier");
     return false;
   }
 
@@ -212,7 +212,7 @@ bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
 
   if (!m_rhs->GetType()->CanImplicitlyConvertTo(m_identifier_declaration->GetType()))
   {
-    state->ReportError("Cannot implicitly convert from '%s' to '%s'", m_rhs->GetType()->GetName().c_str(),
+    state->ReportError(m_sloc, "Cannot implicitly convert from '%s' to '%s'", m_rhs->GetType()->GetName().c_str(),
                        m_identifier_declaration->GetType()->GetName().c_str());
     return false;
   }
@@ -238,7 +238,7 @@ bool PeekExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_t
 
   if (!m_expr->IsConstant())
   {
-    state->ReportError("Peek offset is not constant.");
+    state->ReportError(m_sloc, "Peek offset is not constant.");
     result = false;
   }
 
@@ -258,7 +258,7 @@ bool PushExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_t
   m_type = state->current_filter->GetOutputType();
   if (!m_expr->GetType()->CanImplicitlyConvertTo(m_type))
   {
-    state->ReportError("Cannot implicitly convert between '%s' and '%s'", m_expr->GetType()->GetName().c_str(),
+    state->ReportError(m_sloc, "Cannot implicitly convert between '%s' and '%s'", m_expr->GetType()->GetName().c_str(),
                        m_type->GetName().c_str());
     result = false;
   }
@@ -270,7 +270,7 @@ bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
 {
   if (symbol_table->HasName(m_name))
   {
-    state->ReportError("Duplicate definition of '%s'", m_name.c_str());
+    state->ReportError(m_sloc, "Duplicate definition of '%s'", m_name.c_str());
     return false;
   }
 
@@ -281,15 +281,15 @@ bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
 
     if (!m_initializer->GetType()->CanImplicitlyConvertTo(m_type))
     {
-      state->ReportError("Cannot implicitly convert from '%s' to '%s'", m_initializer->GetType()->GetName().c_str(),
-                         m_type->GetName().c_str());
+      state->ReportError(m_sloc, "Cannot implicitly convert from '%s' to '%s'",
+                         m_initializer->GetType()->GetName().c_str(), m_type->GetName().c_str());
       return false;
     }
   }
 
   if (!symbol_table->AddName(m_name, this))
   {
-    state->ReportError("Variable '%s' already defined", m_name.c_str());
+    state->ReportError(m_sloc, "Variable '%s' already defined", m_name.c_str());
     return false;
   }
 
@@ -310,7 +310,7 @@ bool IfStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tabl
 
   if (m_expr->GetType() != Type::GetBooleanType())
   {
-    state->ReportError("If expression must be a boolean type");
+    state->ReportError(m_sloc, "If expression must be a boolean type");
     return false;
   }
 
@@ -328,7 +328,7 @@ bool ForStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
   // Condition should be non-existant, or a boolean
   if (m_cond && m_cond->GetType() != Type::GetBooleanType())
   {
-    state->ReportError("Loop condition must be boolean");
+    state->ReportError(m_sloc, "Loop condition must be boolean");
     result = false;
   }
 

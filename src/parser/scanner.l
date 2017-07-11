@@ -4,7 +4,8 @@
 %{
 #include "parser/scanner_helpers.h"
 #include "parser/ast.h"
-#include "parser/parser.h"
+#include "parser/parser_defines.h"
+#include "parser/parser_tokens.h"
 
 // Clear out the line number when resetting.
 // This is due to the global state, when we move to a reentrant scanner this can be dropped.
