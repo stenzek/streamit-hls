@@ -307,8 +307,8 @@ AdditiveExpression
 
 ShiftExpression
   : AdditiveExpression { $$ = $1; }
-  /*| ShiftExpression TK_LSHIFT AdditiveExpression { $$ = new BinaryExpression($1, BinaryExpression::LeftShift, $3); }*/
-  /*| ShiftExpression TK_RSHIFT AdditiveExpression { $$ = new BinaryExpression($1, BinaryExpression::RightShift, $3); }*/
+  | ShiftExpression TK_LSHIFT AdditiveExpression { $$ = new BinaryExpression($1, BinaryExpression::LeftShift, $3); }
+  | ShiftExpression TK_RSHIFT AdditiveExpression { $$ = new BinaryExpression($1, BinaryExpression::RightShift, $3); }
   ;
 
 RelationalExpression

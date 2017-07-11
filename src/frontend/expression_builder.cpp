@@ -129,6 +129,12 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
     case AST::BinaryExpression::BitwiseXor:
       m_result_value = GetIRBuilder().CreateXor(lhs_val, rhs_val);
       break;
+    case AST::BinaryExpression::LeftShift:
+      m_result_value = GetIRBuilder().CreateShl(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::RightShift:
+      m_result_value = GetIRBuilder().CreateAShr(lhs_val, rhs_val);
+      break;
     default:
       assert(0 && "not reachable");
       break;

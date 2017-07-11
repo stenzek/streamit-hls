@@ -53,6 +53,8 @@ return { return TK_RETURN; }
 "<=" { return TK_LTE; }
 ">=" { return TK_GTE; }
 "->" { return TK_ARROW; }
+"<<" { return TK_LSHIFT; }
+">>" { return TK_RSHIFT; }
 
  /* Boolean literal */
 true { yylval.boolean_literal = true; return TK_BOOLEAN_LITERAL; }

@@ -88,8 +88,8 @@ void IdentifierExpression::Dump(ASTPrinter* printer) const
 
 void BinaryExpression::Dump(ASTPrinter* printer) const
 {
-  std::array<const char*, 8> op_names = {
-                        {"Add", "Subtract", "Multiply", "Divide", "Modulo", "BitwiseAnd", "BitwiseOr", "BitwiseXor"}};
+  std::array<const char*, 10> op_names = {{"Add", "Subtract", "Multiply", "Divide", "Modulo", "BitwiseAnd", "BitwiseOr",
+                                           "BitwiseXor", "LeftShift", "RightShift"}};
   printer->BeginBlock("BinaryExpression(%s %s %s -> %s)", m_lhs->GetType()->GetName().c_str(), op_names[m_op],
                       m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
   printer->Write("lhs: ");

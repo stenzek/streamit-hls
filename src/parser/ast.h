@@ -412,7 +412,9 @@ public:
     Modulo,
     BitwiseAnd,
     BitwiseOr,
-    BitwiseXor
+    BitwiseXor,
+    LeftShift,
+    RightShift
   };
 
   BinaryExpression(Expression* lhs, Operator op, Expression* rhs);
