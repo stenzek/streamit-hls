@@ -26,6 +26,9 @@ class PushExpression;
 class VariableDeclaration;
 class ExpressionStatement;
 class IfStatement;
+class ForStatement;
+class BreakStatement;
+class ContinueStatement;
 
 class Visitor
 {
@@ -52,5 +55,8 @@ public:
   virtual bool Visit(VariableDeclaration* node);
   virtual bool Visit(ExpressionStatement* node);
   virtual bool Visit(IfStatement* node);
+  virtual bool Visit(ForStatement* node);
+  virtual bool Visit(BreakStatement* node);
+  virtual bool Visit(ContinueStatement* node);
 };
 }

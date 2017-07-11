@@ -79,9 +79,48 @@ void FilterFunctionBuilder::StoreVariable(const AST::VariableDeclaration* var, l
 llvm::BasicBlock* FilterFunctionBuilder::NewBasicBlock(const std::string& name)
 {
   llvm::BasicBlock* old_bb = m_current_basic_block;
-  m_current_basic_block = llvm::BasicBlock::Create(m_ctx->GetLLVMContext(), name, m_func);
-  m_current_ir_builder.SetInsertPoint(m_current_basic_block);
+  SwitchBasicBlock(llvm::BasicBlock::Create(m_ctx->GetLLVMContext(), name, m_func));
   return old_bb;
+}
+
+void FilterFunctionBuilder::SwitchBasicBlock(llvm::BasicBlock* new_bb)
+{
+  m_current_basic_block = new_bb;
+  m_current_ir_builder.SetInsertPoint(m_current_basic_block);
+}
+
+llvm::BasicBlock* FilterFunctionBuilder::GetCurrentBreakBasicBlock() const
+{
+  assert(!m_break_basic_block_stack.empty());
+  return m_break_basic_block_stack.top();
+}
+
+void FilterFunctionBuilder::PushBreakBasicBlock(llvm::BasicBlock* bb)
+{
+  m_break_basic_block_stack.push(bb);
+}
+
+void FilterFunctionBuilder::PopBreakBasicBlock()
+{
+  assert(!m_break_basic_block_stack.empty());
+  m_break_basic_block_stack.pop();
+}
+
+llvm::BasicBlock* FilterFunctionBuilder::GetCurrentContinueBasicBlock() const
+{
+  assert(!m_continue_basic_block_stack.empty());
+  return m_continue_basic_block_stack.top();
+}
+
+void FilterFunctionBuilder::PushContinueBasicBlock(llvm::BasicBlock* bb)
+{
+  m_continue_basic_block_stack.push(bb);
+}
+
+void FilterFunctionBuilder::PopContinueBasicBlock()
+{
+  assert(!m_continue_basic_block_stack.empty());
+  m_continue_basic_block_stack.pop();
 }
 
 bool FilterFunctionBuilder::Visit(AST::Node* node)

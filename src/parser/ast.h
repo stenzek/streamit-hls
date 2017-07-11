@@ -617,4 +617,52 @@ private:
   NodeList* m_then;
   NodeList* m_else;
 };
+
+class ForStatement : public Statement
+{
+public:
+  ForStatement(NodeList* init, Expression* cond, Expression* loop, NodeList* inner);
+  ~ForStatement() = default;
+
+  NodeList* GetInitStatements() const;
+  Expression* GetConditionExpression() const;
+  Expression* GetLoopExpression() const;
+  NodeList* GetInnerStatements() const;
+  bool HasInitStatements() const;
+  bool HasConditionExpression() const;
+  bool HasLoopExpression() const;
+  bool HasInnerStatements() const;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+private:
+  NodeList* m_init;
+  Expression* m_cond;
+  Expression* m_loop;
+  NodeList* m_inner;
+};
+
+class BreakStatement : public Statement
+{
+public:
+  BreakStatement() = default;
+  ~BreakStatement() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+};
+
+class ContinueStatement : public Statement
+{
+public:
+  ContinueStatement() = default;
+  ~ContinueStatement() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+};
 }

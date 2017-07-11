@@ -14,6 +14,21 @@ bool Visitor::Visit(IfStatement* node)
   return Visit(static_cast<Statement*>(node));
 }
 
+bool Visitor::Visit(ForStatement* node)
+{
+  return Visit(static_cast<Statement*>(node));
+}
+
+bool Visitor::Visit(BreakStatement* node)
+{
+  return Visit(static_cast<Statement*>(node));
+}
+
+bool Visitor::Visit(ContinueStatement* node)
+{
+  return Visit(static_cast<Statement*>(node));
+}
+
 bool Visitor::Visit(VariableDeclaration* node)
 {
   return Visit(static_cast<Declaration*>(node));
@@ -203,6 +218,23 @@ bool FilterWorkBlock::Accept(Visitor* visitor)
 {
   if (m_stmts)
     return m_stmts->Accept(visitor);
+  else
+    return true;
+}
+
+bool ForStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool BreakStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool ContinueStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
 }
 
 } // namespace AST

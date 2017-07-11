@@ -84,4 +84,65 @@ bool StatementBuilder::Visit(AST::IfStatement* node)
   llvm::IRBuilder<>(then_bb).CreateBr(merge_bb);
   return true;
 }
+
+bool StatementBuilder::Visit(AST::ForStatement* node)
+{
+  // We always execute the init statements
+  if (node->HasInitStatements() && !node->GetInitStatements()->Accept(m_func_builder))
+    return false;
+
+  // Assemble the basic block for the condition, and the inner statements
+  auto* before_for_bb = m_func_builder->NewBasicBlock();
+  auto* continue_bb = m_func_builder->NewBasicBlock();
+  auto* condition_bb = m_func_builder->NewBasicBlock();
+  auto* inner_bb = m_func_builder->NewBasicBlock();
+  auto* break_bb = m_func_builder->GetCurrentBasicBlock();
+
+  // Jump to the condition basic block immediately
+  m_func_builder->SwitchBasicBlock(before_for_bb);
+  GetIRBuilder().CreateBr(condition_bb);
+
+  // Set up scope
+  m_func_builder->PushContinueBasicBlock(continue_bb);
+  m_func_builder->PushBreakBasicBlock(break_bb);
+
+  // Build the condition basic block
+  m_func_builder->SwitchBasicBlock(condition_bb);
+  if (node->HasConditionExpression())
+  {
+    assert(node->GetConditionExpression()->GetType() == Type::GetBooleanType());
+    ExpressionBuilder eb(m_func_builder);
+    if (!node->GetConditionExpression()->Accept(&eb) || !eb.IsValid())
+      return false;
+
+    // Jump if true to the inner block, otherwise out
+    GetIRBuilder().CreateCondBr(eb.GetResultValue(), inner_bb, break_bb);
+  }
+  else
+  {
+    // Always jump to the inner block
+    GetIRBuilder().CreateBr(inner_bb);
+  }
+
+  // Build the continue block (runs the increment statement, then checks condition)
+  m_func_builder->SwitchBasicBlock(continue_bb);
+  if (node->HasLoopExpression())
+  {
+    ExpressionBuilder eb(m_func_builder);
+    if (!node->GetLoopExpression()->Accept(&eb) || !eb.IsValid())
+      return false;
+  }
+  GetIRBuilder().CreateBr(condition_bb);
+
+  // Build the inner statement block
+  m_func_builder->SwitchBasicBlock(inner_bb);
+  if (node->HasInnerStatements() && !node->GetInnerStatements()->Accept(m_func_builder))
+    return false;
+  // After the inner statements, jump to the continue block implicitly
+  GetIRBuilder().CreateBr(continue_bb);
+
+  // Restore state back to the end
+  m_func_builder->SwitchBasicBlock(break_bb);
+  return true;
+}
 }

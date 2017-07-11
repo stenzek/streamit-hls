@@ -243,4 +243,40 @@ void IfStatement::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
+void ForStatement::Dump(ASTPrinter* printer) const
+{
+  printer->BeginBlock("ForStatement");
+  if (m_init)
+  {
+    printer->Write("init: ");
+    m_init->Dump(printer);
+  }
+  if (m_cond)
+  {
+    printer->Write("cond: ");
+    m_cond->Dump(printer);
+  }
+  if (m_loop)
+  {
+    printer->Write("loop: ");
+    m_loop->Dump(printer);
+  }
+  if (m_inner)
+  {
+    printer->Write("inner: ");
+    m_init->Dump(printer);
+  }
+  printer->EndBlock();
+}
+
+void BreakStatement::Dump(ASTPrinter* printer) const
+{
+  printer->WriteLine("BreakStatement");
+}
+
+void ContinueStatement::Dump(ASTPrinter* printer) const
+{
+  printer->WriteLine("ContinueStatement");
+}
+
 } // namespace AST

@@ -75,7 +75,9 @@ using namespace AST;
 %type <stmt> Statement
 %type <stmt> ExpressionStatement
 %type <stmt> SelectionStatement
+%type <stmt> IterationStatement
 %type <expr> Expression
+%type <expr> Expression_opt
 %type <expr> PrimaryExpression
 %type <expr> PostfixExpression
 %type <expr> UnaryExpression
@@ -103,7 +105,7 @@ using namespace AST;
 
 %%
 
-/*empty : ;*/
+empty : ;
 Identifier : TK_IDENTIFIER ;
 IntegerLiteral : TK_INTEGER_LITERAL ;
 BooleanLiteral : TK_BOOLEAN_LITERAL ;
@@ -210,7 +212,7 @@ VariableDeclarationListPart
 StatementListItem
   : VariableDeclarationListPart ';' { $$ = $1; }
   | CompoundStatement { $$ = $1; }
-  | Statement { $$ = new NodeList(); $$->AddNode($1); }
+  | Statement { $$ = new NodeList(); if ($1) { $$->AddNode($1); } }
   ;
 
 CompoundStatement
@@ -221,12 +223,13 @@ CompoundStatement
 Statement
   : ExpressionStatement { $$ = $1; }
   | SelectionStatement { $$ = $1; }
-  /*| IterationStatement { $$ = $1; }*/
+  | IterationStatement { $$ = $1; }
   /*| JumpStatement { $$ = $1; }*/
   ;
   
 ExpressionStatement
   : Expression ';' { $$ = new ExpressionStatement($1); }
+  | ';' { $$ = nullptr; }
   ;
 
 SelectionStatement
@@ -234,8 +237,18 @@ SelectionStatement
   | TK_IF '(' Expression ')' StatementListItem TK_ELSE StatementListItem { $$ = new IfStatement($3, $5, $7); }
   ;
 
+IterationStatement
+  : TK_FOR '(' StatementListItem Expression_opt ';' ')' StatementListItem { $$ = new ForStatement($3, $4, nullptr, $7); }
+  | TK_FOR '(' StatementListItem Expression_opt ';' Expression ')' StatementListItem { $$ = new ForStatement($3, $4, $6, $8); }
+  ;
+
 Expression
-  : AssignmentExpression
+  : AssignmentExpression { $$ = $1; }
+  ;
+
+Expression_opt
+  : Expression { $$ = $1; }
+  | empty { $$ = nullptr; }
   ;
 
 PrimaryExpression

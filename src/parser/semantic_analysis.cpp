@@ -305,4 +305,35 @@ bool IfStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tabl
 
   return result;
 }
+
+bool ForStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  bool result = true;
+  result &= (!m_init || m_init->SemanticAnalysis(state, symbol_table));
+  result &= (!m_cond || m_cond->SemanticAnalysis(state, symbol_table));
+  result &= (!m_loop || m_loop->SemanticAnalysis(state, symbol_table));
+  result &= (!m_inner || m_inner->SemanticAnalysis(state, symbol_table));
+
+  // Condition should be non-existant, or a boolean
+  if (m_cond && m_cond->GetType() != Type::GetBooleanType())
+  {
+    state->ReportError("Loop condition must be boolean");
+    result = false;
+  }
+
+  return result;
+}
+
+bool BreakStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // TODO: Check if we're in a loop - otherwise it'll assert in the frontend
+  return true;
+}
+
+bool ContinueStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // TODO: Check if we're in a loop - otherwise it'll assert in the frontend
+  return true;
+}
+
 } // namespace AST

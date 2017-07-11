@@ -14,10 +14,11 @@ int->int filter TestFilter {
 
 int->int filter TestFilter2 {
     work pop 1 {
-        int x = 10 + 11;
-        boolean y = (x > 10);
-        boolean z = (x < 10);
-        boolean w = (y || z);
+        int z = 0;
+        for (int i = 0; i < 10; i = i + 1)
+        {
+            z = i;
+        }
     }
 }
 

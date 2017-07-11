@@ -266,4 +266,49 @@ bool IfStatement::HasElseStatements() const
 {
   return (m_else != nullptr);
 }
+
+ForStatement::ForStatement(NodeList* init, Expression* cond, Expression* loop, NodeList* inner)
+  : m_init(init), m_cond(cond), m_loop(loop), m_inner(inner)
+{
+}
+
+NodeList* ForStatement::GetInitStatements() const
+{
+  return m_init;
+}
+
+Expression* ForStatement::GetConditionExpression() const
+{
+  return m_cond;
+}
+
+Expression* ForStatement::GetLoopExpression() const
+{
+  return m_loop;
+}
+
+NodeList* ForStatement::GetInnerStatements() const
+{
+  return m_inner;
+}
+
+bool ForStatement::HasInitStatements() const
+{
+  return (m_init != nullptr);
+}
+
+bool ForStatement::HasConditionExpression() const
+{
+  return (m_cond != nullptr);
+}
+
+bool ForStatement::HasLoopExpression() const
+{
+  return (m_loop != nullptr);
+}
+
+bool ForStatement::HasInnerStatements() const
+{
+  return (m_inner != nullptr);
+}
 }

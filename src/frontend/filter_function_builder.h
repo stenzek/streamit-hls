@@ -1,4 +1,5 @@
 #pragma once
+#include <stack>
 #include <unordered_map>
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/IRBuilder.h"
@@ -32,6 +33,17 @@ public:
   // Returns the old basic block pointer
   llvm::BasicBlock* NewBasicBlock(const std::string& name = {});
 
+  // Switches to the specific basic block
+  void SwitchBasicBlock(llvm::BasicBlock* new_bb);
+
+  // break/continue basic block points - this is a stack
+  llvm::BasicBlock* GetCurrentBreakBasicBlock() const;
+  void PushBreakBasicBlock(llvm::BasicBlock* bb);
+  void PopBreakBasicBlock();
+  llvm::BasicBlock* GetCurrentContinueBasicBlock() const;
+  void PushContinueBasicBlock(llvm::BasicBlock* bb);
+  void PopContinueBasicBlock();
+
 private:
   Context* m_ctx;
   FilterFunctionBuilder* m_parent;
@@ -41,5 +53,7 @@ private:
   llvm::BasicBlock* m_current_basic_block;
   llvm::IRBuilder<> m_current_ir_builder;
   VariableTable m_vars;
+  std::stack<llvm::BasicBlock*> m_break_basic_block_stack;
+  std::stack<llvm::BasicBlock*> m_continue_basic_block_stack;
 };
 }
