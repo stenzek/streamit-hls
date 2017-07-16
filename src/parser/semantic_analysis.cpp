@@ -195,10 +195,18 @@ void FilterDeclaration::MoveStateAssignmentsToInit()
     var_decl->RemoveInitializer();
   }
 
-  if (!m_init)
-    m_init = new FilterWorkBlock();
+  if (!assign_exprs->HasChildren())
+    return;
 
-  m_init->GetStatements()->PrependNode(assign_exprs.get());
+  if (!m_init)
+  {
+    m_init = new FilterWorkBlock();
+    m_init->SetStatements(assign_exprs.release());
+  }
+  else
+  {
+    m_init->GetStatements()->PrependNode(assign_exprs.get());
+  }
 }
 
 bool FilterWorkBlock::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)

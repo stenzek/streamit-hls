@@ -4,6 +4,7 @@
 namespace llvm
 {
 class Function;
+class GlobalVariable;
 class Module;
 }
 
@@ -11,6 +12,7 @@ namespace AST
 {
 class FilterDeclaration;
 class FilterWorkBlock;
+class VariableDeclaration;
 }
 
 namespace Frontend
@@ -40,10 +42,13 @@ public:
 
 private:
   llvm::Function* GenerateFunction(AST::FilterWorkBlock* block, const std::string& name);
+  bool GenerateGlobals();
 
   Context* m_context;
   llvm::Module* m_module;
   const AST::FilterDeclaration* m_filter_decl;
+  std::string m_name_prefix;
+  std::unordered_map<const AST::VariableDeclaration*, llvm::GlobalVariable*> m_global_variable_map;
 
   llvm::Function* m_init_function = nullptr;
   llvm::Function* m_prework_function = nullptr;

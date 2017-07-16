@@ -369,6 +369,10 @@ public:
   {
     return m_work;
   }
+  NodeList* GetStateVariables() const
+  {
+    return m_vars;
+  }
 
   bool HasInitBlock() const
   {
@@ -381,6 +385,10 @@ public:
   bool HasWorkBlock() const
   {
     return (m_work != nullptr);
+  }
+  bool HasStateVariables() const
+  {
+    return (m_vars != nullptr);
   }
 
   void Dump(ASTPrinter* printer) const override;

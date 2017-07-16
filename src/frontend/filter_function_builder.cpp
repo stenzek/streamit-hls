@@ -40,6 +40,12 @@ llvm::IRBuilder<>& FilterFunctionBuilder::GetCurrentIRBuilder()
   return m_current_ir_builder;
 }
 
+void FilterFunctionBuilder::AddGlobalVariable(const AST::VariableDeclaration* var, llvm::GlobalVariable* gvar)
+{
+  assert(m_vars.find(var) == m_vars.end());
+  m_vars.emplace(var, gvar);
+}
+
 llvm::AllocaInst* FilterFunctionBuilder::CreateVariable(const AST::VariableDeclaration* var)
 {
   llvm::Type* ty = m_ctx->GetLLVMType(var->GetType());
@@ -52,7 +58,7 @@ llvm::AllocaInst* FilterFunctionBuilder::CreateVariable(const AST::VariableDecla
   return ai;
 }
 
-llvm::AllocaInst* FilterFunctionBuilder::GetVariablePtr(const AST::VariableDeclaration* var)
+llvm::Value* FilterFunctionBuilder::GetVariablePtr(const AST::VariableDeclaration* var)
 {
   auto it = m_vars.find(var);
   if (it == m_vars.end())

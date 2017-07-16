@@ -12,7 +12,7 @@ class Context;
 class FilterFunctionBuilder : public AST::Visitor
 {
 public:
-  using VariableTable = std::unordered_map<const AST::VariableDeclaration*, llvm::AllocaInst*>;
+  using VariableTable = std::unordered_map<const AST::VariableDeclaration*, llvm::Value*>;
 
   FilterFunctionBuilder(Context* ctx, const std::string& name, llvm::Function* func);
   ~FilterFunctionBuilder();
@@ -26,8 +26,9 @@ public:
   llvm::BasicBlock* GetCurrentBasicBlock() const;
   llvm::IRBuilder<>& GetCurrentIRBuilder();
 
+  void AddGlobalVariable(const AST::VariableDeclaration* var, llvm::GlobalVariable* gvar);
   llvm::AllocaInst* CreateVariable(const AST::VariableDeclaration* var);
-  llvm::AllocaInst* GetVariablePtr(const AST::VariableDeclaration* var);
+  llvm::Value* GetVariablePtr(const AST::VariableDeclaration* var);
   llvm::Value* LoadVariable(const AST::VariableDeclaration* var);
   void StoreVariable(const AST::VariableDeclaration* var, llvm::Value* val);
 

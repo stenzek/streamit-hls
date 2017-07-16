@@ -3,10 +3,11 @@ if(NOT LLVM_FOUND)
 endif()
 
 set(SRCS
-    filter_function_builder.cpp
+    constant_expression_builder.cpp
     context.cpp
     expression_builder.cpp
     filter_builder.cpp
+    filter_function_builder.cpp
     statement_builder.cpp
 )
 
