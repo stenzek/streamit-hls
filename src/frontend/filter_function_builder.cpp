@@ -52,6 +52,18 @@ llvm::AllocaInst* FilterFunctionBuilder::CreateVariable(const AST::VariableDecla
   return ai;
 }
 
+llvm::AllocaInst* FilterFunctionBuilder::GetVariablePtr(const AST::VariableDeclaration* var)
+{
+  auto it = m_vars.find(var);
+  if (it == m_vars.end())
+  {
+    assert(0 && "unresolved variable");
+    return nullptr;
+  }
+
+  return it->second;
+}
+
 llvm::Value* FilterFunctionBuilder::LoadVariable(const AST::VariableDeclaration* var)
 {
   auto it = m_vars.find(var);

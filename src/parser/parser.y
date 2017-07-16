@@ -145,7 +145,8 @@ PrimitiveTypeName
 
 TypeName
   : PrimitiveTypeName { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }
-  | Identifier { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }
+  /* TODO: This causes a shift/reduce conflict, e.g. some_struct[10] and some_var[10]. */
+  /*| Identifier { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }*/
   | TypeName '[' IntegerLiteral ']' { $1->AddArraySize($3); }
   ;
 
@@ -297,9 +298,10 @@ PrimaryExpression
 
 PostfixExpression
   : PrimaryExpression { $$ = $1; }
-  /*| PostfixExpression '[' Expression ']'*/
+  | PostfixExpression '[' Expression ']' { $$ = new IndexExpression(@1, $1, $3); }
   /*| PostfixExpression '(' ')'*/
   /*| PostfixExpression '(' ArgumentExpressionList ')'*/
+  /*| PostfixExpression '.' Identifier*/
   /*| PostfixExpression TK_INCREMENT*/
   /*| PostfixExpression TK_DECREMENT*/
   | TK_PEEK '(' Expression ')' { $$ = new PeekExpression(@1, $3); }

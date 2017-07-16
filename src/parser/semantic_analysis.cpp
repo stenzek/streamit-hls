@@ -192,6 +192,15 @@ bool IdentifierExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
   return m_type->IsValid();
 }
 
+bool IndexExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  bool result = true;
+  result &= m_array_expression->SemanticAnalysis(state, symbol_table);
+  result &= m_index_expression->SemanticAnalysis(state, symbol_table);
+  m_type = Type::GetArrayElementType(state, m_array_expression->GetType());
+  return result && m_type->IsValid();
+}
+
 bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // Resolve any identifiers
@@ -271,27 +280,14 @@ bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
   if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
     return false;
 
-  // Left hand side should be an identifier
-  IdentifierExpression* lhs_identifier_expression = dynamic_cast<IdentifierExpression*>(m_lhs);
-  if (!lhs_identifier_expression)
-  {
-    state->ReportError(m_sloc, "Left hand side of expression must be an identifier");
-    return false;
-  }
-
-  // Just grab the identifier straight from the expression
-  m_identifier_declaration = lhs_identifier_expression->GetReferencedVariable();
-  if (!m_identifier_declaration)
-    return false;
-
-  if (!m_rhs->GetType()->CanImplicitlyConvertTo(m_identifier_declaration->GetType()))
+  if (!m_rhs->GetType()->CanImplicitlyConvertTo(m_lhs->GetType()))
   {
     state->ReportError(m_sloc, "Cannot implicitly convert from '%s' to '%s'", m_rhs->GetType()->GetName().c_str(),
-                       m_identifier_declaration->GetType()->GetName().c_str());
+                       m_lhs->GetType()->GetName().c_str());
     return false;
   }
 
-  m_type = m_identifier_declaration->GetType();
+  m_type = m_lhs->GetType();
   return m_type->IsValid();
 }
 

@@ -19,6 +19,7 @@ class FilterWorkBlock;
 class IntegerLiteralExpression;
 class BooleanLiteralExpression;
 class IdentifierExpression;
+class IndexExpression;
 class BinaryExpression;
 class RelationalExpression;
 class LogicalExpression;
@@ -53,6 +54,7 @@ public:
   virtual bool Visit(BooleanLiteralExpression* node);
   virtual bool Visit(IntegerLiteralExpression* node);
   virtual bool Visit(IdentifierExpression* node);
+  virtual bool Visit(IndexExpression* node);
   virtual bool Visit(BinaryExpression* node);
   virtual bool Visit(RelationalExpression* node);
   virtual bool Visit(LogicalExpression* node);

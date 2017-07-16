@@ -509,6 +509,24 @@ private:
   VariableDeclaration* m_identifier_declaration = nullptr;
 };
 
+class IndexExpression : public Expression
+{
+public:
+  IndexExpression(const SourceLocation& sloc, Expression* array_expr, Expression* index_expr);
+  ~IndexExpression() = default;
+
+  Expression* GetArrayExpression() const;
+  Expression* GetIndexExpression() const;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+private:
+  Expression* m_array_expression;
+  Expression* m_index_expression;
+};
+
 class BinaryExpression : public Expression
 {
 public:
@@ -625,7 +643,7 @@ public:
   AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Expression* rhs);
   ~AssignmentExpression() = default;
 
-  VariableDeclaration* GetReferencedVariable() const;
+  Expression* GetLValueExpression() const;
   Expression* GetInnerExpression() const;
 
   void Dump(ASTPrinter* printer) const override;
@@ -635,7 +653,6 @@ public:
 private:
   Expression* m_lhs;
   Expression* m_rhs;
-  VariableDeclaration* m_identifier_declaration = nullptr;
 };
 
 class PeekExpression : public Expression

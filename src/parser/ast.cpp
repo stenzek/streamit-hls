@@ -190,6 +190,21 @@ VariableDeclaration* IdentifierExpression::GetReferencedVariable() const
   return m_identifier_declaration;
 }
 
+IndexExpression::IndexExpression(const SourceLocation& sloc, Expression* array_expr, Expression* index_expr)
+  : Expression(sloc), m_array_expression(array_expr), m_index_expression(index_expr)
+{
+}
+
+Expression* IndexExpression::GetArrayExpression() const
+{
+  return m_array_expression;
+}
+
+Expression* IndexExpression::GetIndexExpression() const
+{
+  return m_index_expression;
+}
+
 BinaryExpression::BinaryExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
   : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
@@ -275,9 +290,9 @@ AssignmentExpression::AssignmentExpression(const SourceLocation& sloc, Expressio
 {
 }
 
-VariableDeclaration* AssignmentExpression::GetReferencedVariable() const
+Expression* AssignmentExpression::GetLValueExpression() const
 {
-  return m_identifier_declaration;
+  return m_lhs;
 }
 
 Expression* AssignmentExpression::GetInnerExpression() const

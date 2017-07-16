@@ -108,6 +108,15 @@ void IdentifierExpression::Dump(ASTPrinter* printer) const
   printer->WriteLine("IdentifierExpression(%s -> %s)", m_identifier.c_str(), m_type->GetName().c_str());
 }
 
+void IndexExpression::Dump(ASTPrinter* printer) const
+{
+  printer->Write("IndexExpression(array: ");
+  m_array_expression->Dump(printer);
+  printer->Write(", index: ");
+  m_index_expression->Dump(printer);
+  printer->WriteLine("");
+}
+
 void BinaryExpression::Dump(ASTPrinter* printer) const
 {
   std::array<const char*, 10> op_names = {{"Add", "Subtract", "Multiply", "Divide", "Modulo", "BitwiseAnd", "BitwiseOr",
@@ -158,7 +167,8 @@ void CommaExpression::Dump(ASTPrinter* printer) const
 void AssignmentExpression::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("AssignmentExpression(%s -> %s)", m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
-  printer->WriteLine("identifier: %s", m_identifier_declaration->GetName().c_str());
+  printer->Write("lhs: ");
+  m_lhs->Dump(printer);
   printer->Write("rhs: ");
   m_rhs->Dump(printer);
   printer->EndBlock();

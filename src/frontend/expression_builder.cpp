@@ -26,6 +26,32 @@ llvm::IRBuilder<>& ExpressionBuilder::GetIRBuilder() const
   return m_func_builder->GetCurrentIRBuilder();
 }
 
+bool ExpressionBuilder::IsValid() const
+{
+  return (m_result_ptr || m_result_value);
+}
+
+bool ExpressionBuilder::IsPointer() const
+{
+  return (m_result_ptr != nullptr);
+}
+
+llvm::Value* ExpressionBuilder::GetResultPtr()
+{
+  return m_result_ptr;
+}
+
+llvm::Value* ExpressionBuilder::GetResultValue()
+{
+  if (!m_result_value && m_result_ptr)
+  {
+    // Load pointer
+    m_result_value = GetIRBuilder().CreateLoad(m_result_ptr);
+  }
+
+  return m_result_value;
+}
+
 bool ExpressionBuilder::Visit(AST::Node* node)
 {
   assert(0 && "Fallback handler executed");
@@ -52,7 +78,27 @@ bool ExpressionBuilder::Visit(AST::BooleanLiteralExpression* node)
 
 bool ExpressionBuilder::Visit(AST::IdentifierExpression* node)
 {
-  m_result_value = m_func_builder->LoadVariable(node->GetReferencedVariable());
+  // Delays loads due to arrays - we want to return the pointer, not load the array
+  // m_result_value = m_func_builder->LoadVariable(node->GetReferencedVariable());
+  m_result_ptr = m_func_builder->GetVariablePtr(node->GetReferencedVariable());
+  return IsValid();
+}
+
+bool ExpressionBuilder::Visit(AST::IndexExpression* node)
+{
+  // We could skip this if it is an identifier/constant..
+  // LLVM will probably take care of that, though.
+  ExpressionBuilder array_builder(m_func_builder);
+  ExpressionBuilder index_builder(m_func_builder);
+  if (!node->GetArrayExpression()->Accept(&array_builder) || !array_builder.IsValid() ||
+      !node->GetIndexExpression()->Accept(&index_builder) || !index_builder.IsValid())
+  {
+    return false;
+  }
+
+  llvm::Type* array_llvm_type = GetContext()->GetLLVMType(node->GetArrayExpression()->GetType());
+  m_result_ptr = GetIRBuilder().CreateInBoundsGEP(array_llvm_type, array_builder.GetResultPtr(),
+                                                  {GetIRBuilder().getInt32(0), index_builder.GetResultValue()});
   return IsValid();
 }
 
@@ -67,7 +113,11 @@ bool ExpressionBuilder::Visit(AST::CommaExpression* node)
     return false;
   }
 
-  m_result_value = eb_rhs.GetResultValue();
+  if (eb_rhs.IsPointer())
+    m_result_ptr = eb_rhs.GetResultPtr();
+  else
+    m_result_value = eb_rhs.GetResultValue();
+
   return IsValid();
 }
 
@@ -78,8 +128,15 @@ bool ExpressionBuilder::Visit(AST::AssignmentExpression* node)
   if (!node->GetInnerExpression()->Accept(&eb) || !eb.IsValid())
     return false;
 
-  m_func_builder->StoreVariable(node->GetReferencedVariable(), eb.GetResultValue());
-  m_result_value = eb.GetResultValue();
+  ExpressionBuilder lb(m_func_builder);
+  if (!node->GetLValueExpression()->Accept(&lb) || !lb.IsValid())
+    return false;
+
+  assert(lb.IsPointer() && "assigning to an lvalue/pointer");
+
+  // TODO: Implicit type conversions
+  m_result_ptr = lb.GetResultPtr();
+  GetIRBuilder().CreateStore(eb.GetResultValue(), m_result_ptr);
   return IsValid();
 }
 

@@ -18,6 +18,11 @@ const Type::BaseTypeId Type::GetBaseTypeId() const
   return m_base_type_id;
 }
 
+const std::vector<int>& Type::GetArraySizes() const
+{
+  return m_array_sizes;
+}
+
 bool Type::IsValid() const
 {
   return !IsErrorType();
@@ -51,6 +56,11 @@ bool Type::HasIntBase() const
 bool Type::HasFloatBase() const
 {
   return m_base_type_id == BaseTypeId::Float;
+}
+
+bool Type::HasStructBase() const
+{
+  return m_base_type_id == BaseTypeId::Struct;
 }
 
 bool Type::IsVoid() const
@@ -128,4 +138,19 @@ const Type* Type::GetResultType(ParserState* state, const Type* lhs, const Type*
     return state->GetFloatType();
 
   return state->GetErrorType();
+}
+
+const Type* Type::GetArrayElementType(ParserState* state, const Type* ty)
+{
+  if (ty->m_array_sizes.empty())
+    return state->GetErrorType();
+
+  // Last array index, or single-dimension array
+  if (ty->m_array_sizes.size() == 1)
+    return ty->m_base_type;
+
+  // Drop one of the arrays off, so int[10][11][12] -> int[10][11].
+  std::vector<int> temp = ty->m_array_sizes;
+  temp.pop_back();
+  return state->GetArrayType(ty->m_base_type, temp);
 }

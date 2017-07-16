@@ -25,6 +25,7 @@ public:
   const std::string& GetName() const;
   const Type* GetBaseType() const;
   const BaseTypeId GetBaseTypeId() const;
+  const std::vector<int>& GetArraySizes() const;
   bool IsValid() const;
 
   // Helper methods
@@ -34,6 +35,7 @@ public:
   bool HasBitBase() const;
   bool HasIntBase() const;
   bool HasFloatBase() const;
+  bool HasStructBase() const;
   bool IsVoid() const;
   bool IsBoolean() const;
   bool IsBit() const;
@@ -47,6 +49,7 @@ public:
   static Type* CreateArrayType(const Type* base_type, const std::vector<int>& array_sizes);
 
   static const Type* GetResultType(ParserState* state, const Type* lhs, const Type* rhs);
+  static const Type* GetArrayElementType(ParserState* state, const Type* ty);
 
 private:
   Type() = default;

@@ -84,6 +84,11 @@ bool Visitor::Visit(IdentifierExpression* node)
   return Visit(static_cast<Expression*>(node));
 }
 
+bool Visitor::Visit(IndexExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
 bool Visitor::Visit(BooleanLiteralExpression* node)
 {
   return Visit(static_cast<Expression*>(node));
@@ -181,6 +186,11 @@ bool StructSpecifier::Accept(Visitor* visitor)
 }
 
 bool IdentifierExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool IndexExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

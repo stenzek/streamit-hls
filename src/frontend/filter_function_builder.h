@@ -27,6 +27,7 @@ public:
   llvm::IRBuilder<>& GetCurrentIRBuilder();
 
   llvm::AllocaInst* CreateVariable(const AST::VariableDeclaration* var);
+  llvm::AllocaInst* GetVariablePtr(const AST::VariableDeclaration* var);
   llvm::Value* LoadVariable(const AST::VariableDeclaration* var);
   void StoreVariable(const AST::VariableDeclaration* var, llvm::Value* val);
 
