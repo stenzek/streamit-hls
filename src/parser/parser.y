@@ -94,6 +94,7 @@ using namespace AST;
 %type <stmt> SelectionStatement
 %type <stmt> IterationStatement
 %type <stmt> JumpStatement
+%type <stmt> PushStatement
 %type <expr> Expression
 %type <expr> Expression_opt
 %type <expr> PrimaryExpression
@@ -257,6 +258,7 @@ Statement
   | SelectionStatement { $$ = $1; }
   | IterationStatement { $$ = $1; }
   | JumpStatement { $$ = $1; }
+  | PushStatement { $$ = $1; }
   ;
   
 ExpressionStatement
@@ -279,6 +281,9 @@ JumpStatement
   | TK_CONTINUE ';' { $$ = new ContinueStatement(@1); }
   | TK_RETURN ';' { $$ = new ReturnStatement(@1); }
   ;
+
+PushStatement
+  : TK_PUSH '(' Expression ')' { $$ = new PushStatement(@1, $3); }
 
 Expression
   : AssignmentExpression { $$ = $1; }
@@ -307,7 +312,6 @@ PostfixExpression
   /*| PostfixExpression TK_DECREMENT*/
   | TK_PEEK '(' Expression ')' { $$ = new PeekExpression(@1, $3); }
   | TK_POP '(' ')' { $$ = new PopExpression(@1); }
-  | TK_PUSH '(' Expression ')' { $$ = new PushExpression(@1, $3); }
   ;
 
 UnaryExpression

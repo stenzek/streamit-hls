@@ -28,7 +28,7 @@ class BinaryExpression;
 class AssignmentExpression;
 class PeekExpression;
 class PopExpression;
-class PushExpression;
+class PushStatement;
 class VariableDeclaration;
 class ExpressionStatement;
 
@@ -695,11 +695,11 @@ public:
   bool Accept(Visitor* visitor) override;
 };
 
-class PushExpression : public Expression
+class PushStatement : public Statement
 {
 public:
-  PushExpression(const SourceLocation& sloc, Expression* expr);
-  ~PushExpression() = default;
+  PushStatement(const SourceLocation& sloc, Expression* expr);
+  ~PushStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;

@@ -39,9 +39,9 @@ bool Visitor::Visit(VariableDeclaration* node)
   return Visit(static_cast<Declaration*>(node));
 }
 
-bool Visitor::Visit(PushExpression* node)
+bool Visitor::Visit(PushStatement* node)
 {
-  return Visit(static_cast<Expression*>(node));
+  return Visit(static_cast<Statement*>(node));
 }
 
 bool Visitor::Visit(PopExpression* node)
@@ -239,7 +239,7 @@ bool PopExpression::Accept(Visitor* visitor)
   return visitor->Visit(this);
 }
 
-bool PushExpression::Accept(Visitor* visitor)
+bool PushStatement::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

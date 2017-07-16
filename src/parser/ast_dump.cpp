@@ -195,7 +195,7 @@ void PopExpression::Dump(ASTPrinter* printer) const
   printer->WriteLine("POP");
 }
 
-void PushExpression::Dump(ASTPrinter* printer) const
+void PushStatement::Dump(ASTPrinter* printer) const
 {
   printer->WriteLine("PUSH: ");
   m_expr->Dump(printer);

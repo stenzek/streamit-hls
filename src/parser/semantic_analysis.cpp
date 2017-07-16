@@ -360,19 +360,19 @@ bool PopExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_ta
   return m_type->IsValid();
 }
 
-bool PushExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+bool PushStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = m_expr->SemanticAnalysis(state, symbol_table);
 
-  m_type = state->current_filter->GetOutputType();
-  if (!m_expr->GetType()->CanImplicitlyConvertTo(m_type))
+  const Type* filter_output_type = state->current_filter->GetOutputType();
+  if (!m_expr->GetType()->CanImplicitlyConvertTo(filter_output_type))
   {
     state->ReportError(m_sloc, "Cannot implicitly convert between '%s' and '%s'", m_expr->GetType()->GetName().c_str(),
-                       m_type->GetName().c_str());
+                       filter_output_type->GetName().c_str());
     result = false;
   }
 
-  return result && m_type->IsValid();
+  return result;
 }
 
 bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)

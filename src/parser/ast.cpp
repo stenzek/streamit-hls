@@ -360,7 +360,7 @@ PopExpression::PopExpression(const SourceLocation& sloc) : Expression(sloc)
 {
 }
 
-PushExpression::PushExpression(const SourceLocation& sloc, Expression* expr) : Expression(sloc), m_expr(expr)
+PushStatement::PushStatement(const SourceLocation& sloc, Expression* expr) : Statement(sloc), m_expr(expr)
 {
 }
 
