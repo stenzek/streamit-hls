@@ -20,6 +20,7 @@ class IntegerLiteralExpression;
 class BooleanLiteralExpression;
 class IdentifierExpression;
 class IndexExpression;
+class UnaryExpression;
 class BinaryExpression;
 class RelationalExpression;
 class LogicalExpression;
@@ -56,6 +57,7 @@ public:
   virtual bool Visit(IntegerLiteralExpression* node);
   virtual bool Visit(IdentifierExpression* node);
   virtual bool Visit(IndexExpression* node);
+  virtual bool Visit(UnaryExpression* node);
   virtual bool Visit(BinaryExpression* node);
   virtual bool Visit(RelationalExpression* node);
   virtual bool Visit(LogicalExpression* node);

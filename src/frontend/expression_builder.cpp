@@ -141,6 +141,55 @@ bool ExpressionBuilder::Visit(AST::AssignmentExpression* node)
   return IsValid();
 }
 
+bool ExpressionBuilder::Visit(AST::UnaryExpression* node)
+{
+  // Evaluate both lhs and rhs first (left-to-right?)
+  ExpressionBuilder eb(m_func_builder);
+  if (!node->GetRHSExpression()->Accept(&eb) || !eb.IsValid())
+    return false;
+
+  // Increment ops need a pointer
+  if (node->GetOperator() >= AST::UnaryExpression::PreIncrement &&
+      node->GetOperator() <= AST::UnaryExpression::PostDecrement && !eb.IsPointer())
+  {
+    assert(0 && "Increment/decrement require a pointer");
+    return false;
+  }
+
+  // TODO: Float operands
+  if (node->GetType()->IsInt())
+  {
+    // NSW - overflow handling
+    llvm::Value* temp;
+    switch (node->GetOperator())
+    {
+    case AST::UnaryExpression::PostIncrement:
+      m_result_value = eb.GetResultValue();
+      temp = GetIRBuilder().CreateNSWAdd(m_result_value, GetIRBuilder().getInt32(1));
+      GetIRBuilder().CreateStore(temp, eb.GetResultPtr());
+      break;
+    case AST::UnaryExpression::PostDecrement:
+      m_result_value = eb.GetResultValue();
+      temp = GetIRBuilder().CreateNSWSub(m_result_value, GetIRBuilder().getInt32(1));
+      GetIRBuilder().CreateStore(temp, eb.GetResultPtr());
+      break;
+    case AST::UnaryExpression::PreIncrement:
+      m_result_value = GetIRBuilder().CreateNSWAdd(eb.GetResultValue(), GetIRBuilder().getInt32(1));
+      GetIRBuilder().CreateStore(m_result_value, eb.GetResultPtr());
+      break;
+    case AST::UnaryExpression::PreDecrement:
+      m_result_value = GetIRBuilder().CreateNSWSub(eb.GetResultValue(), GetIRBuilder().getInt32(1));
+      GetIRBuilder().CreateStore(m_result_value, eb.GetResultPtr());
+      break;
+    default:
+      assert(0 && "unknown op");
+      break;
+    }
+  }
+
+  return IsValid();
+}
+
 bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
 {
   // Evaluate both lhs and rhs first (left-to-right?)

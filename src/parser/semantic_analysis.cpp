@@ -240,6 +240,16 @@ bool IndexExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
   return result && m_type->IsValid();
 }
 
+bool UnaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  bool result = true;
+  result &= m_rhs->SemanticAnalysis(state, symbol_table);
+
+  // Same as the rhs in most cases?
+  m_type = m_rhs->GetType();
+  return m_type->IsValid();
+}
+
 bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // Resolve any identifiers

@@ -117,6 +117,17 @@ void IndexExpression::Dump(ASTPrinter* printer) const
   printer->WriteLine("");
 }
 
+void UnaryExpression::Dump(ASTPrinter* printer) const
+{
+  std::array<const char*, 8> op_names = {{"PreIncrement", "PreDecrement", "PostIncrement", "PostDecrement", "Positive",
+                                          "Negative", "LogicalNot", "BitwiseNot"}};
+  printer->BeginBlock("UnaryExpression(%s %s -> %s)", op_names[m_op], m_rhs->GetType()->GetName().c_str(),
+                      m_type->GetName().c_str());
+  printer->Write("rhs: ");
+  m_rhs->Dump(printer);
+  printer->EndBlock();
+}
+
 void BinaryExpression::Dump(ASTPrinter* printer) const
 {
   std::array<const char*, 10> op_names = {{"Add", "Subtract", "Multiply", "Divide", "Modulo", "BitwiseAnd", "BitwiseOr",

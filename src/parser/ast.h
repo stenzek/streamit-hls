@@ -542,6 +542,36 @@ private:
   Expression* m_index_expression;
 };
 
+class UnaryExpression : public Expression
+{
+public:
+  enum Operator : unsigned int
+  {
+    PreIncrement,
+    PreDecrement,
+    PostIncrement,
+    PostDecrement,
+    Positive,
+    Negative,
+    LogicalNot,
+    BitwiseNot
+  };
+
+  UnaryExpression(const SourceLocation& sloc, Operator op, Expression* rhs);
+  ~UnaryExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Operator GetOperator() const;
+  Expression* GetRHSExpression() const;
+
+private:
+  Expression* m_rhs;
+  Operator m_op;
+};
+
 class BinaryExpression : public Expression
 {
 public:

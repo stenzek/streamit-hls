@@ -29,6 +29,7 @@ public:
   bool Visit(AST::IndexExpression* node) override;
   bool Visit(AST::CommaExpression* node) override;
   bool Visit(AST::AssignmentExpression* node) override;
+  bool Visit(AST::UnaryExpression* node) override;
   bool Visit(AST::BinaryExpression* node) override;
   bool Visit(AST::RelationalExpression* node) override;
   bool Visit(AST::LogicalExpression* node) override;

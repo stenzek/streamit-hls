@@ -317,18 +317,18 @@ PostfixExpression
   /*| PostfixExpression '(' ')'*/
   /*| PostfixExpression '(' ArgumentExpressionList ')'*/
   /*| PostfixExpression '.' Identifier*/
-  /*| PostfixExpression TK_INCREMENT*/
-  /*| PostfixExpression TK_DECREMENT*/
+  | PostfixExpression TK_INCREMENT { $$ = new UnaryExpression(@1, UnaryExpression::PostIncrement, $1); }
+  | PostfixExpression TK_DECREMENT { $$ = new UnaryExpression(@1, UnaryExpression::PostDecrement, $1); }
   | TK_PEEK '(' Expression ')' { $$ = new PeekExpression(@1, $3); }
   | TK_POP '(' ')' { $$ = new PopExpression(@1); }
   ;
 
 UnaryExpression
   : PostfixExpression { $$ = $1; }
-  /*| '+' UnaryExpression { $$ = new UnaryExpression(@1, $2, UnaryExpression::Positive); }*/
-  /*| '-' UnaryExpression { $$ = new UnaryExpression(@1, $2, UnaryExpression::Negative); }*/
-  /*| '!' UnaryExpression { $$ = new UnaryExpression(@1, $2, UnaryExpression::LogicalNot); }*/
-  /*| '~' UnaryExpression { $$ = new UnaryExpression(@1, $2, UnaryExpression::BitwiseNot); }*/
+  | '+' UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::Positive, $2); }
+  | '-' UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::Negative, $2); }
+  | '!' UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::LogicalNot, $2); }
+  | '~' UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::BitwiseNot, $2); }
   ;
 
 CastExpression

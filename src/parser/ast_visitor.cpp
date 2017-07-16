@@ -69,6 +69,11 @@ bool Visitor::Visit(AssignmentExpression* node)
   return Visit(static_cast<Expression*>(node));
 }
 
+bool Visitor::Visit(UnaryExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
 bool Visitor::Visit(BinaryExpression* node)
 {
   return Visit(static_cast<Expression*>(node));
@@ -196,6 +201,10 @@ bool IdentifierExpression::Accept(Visitor* visitor)
 }
 
 bool IndexExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+bool UnaryExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

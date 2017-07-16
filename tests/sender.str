@@ -20,7 +20,7 @@ int -> int filter scramble
 	work pop 1 push 8
 	{
 		int input = pop();
-		for (int j = 0; j < 8; j = j + 1)
+		for (int j = 0; j < 8; j++)
 		{
 			int output = ((input & (1 << j)) >> j) ^ (shift[3] ^ shift[6]);
 			shift[6] = shift[5];

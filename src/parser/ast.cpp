@@ -227,6 +227,21 @@ Expression* IndexExpression::GetIndexExpression() const
   return m_index_expression;
 }
 
+UnaryExpression::UnaryExpression(const SourceLocation& sloc, Operator op, Expression* rhs)
+  : Expression(sloc), m_op(op), m_rhs(rhs)
+{
+}
+
+UnaryExpression::Operator UnaryExpression::GetOperator() const
+{
+  return m_op;
+}
+
+Expression* UnaryExpression::GetRHSExpression() const
+{
+  return m_rhs;
+}
+
 BinaryExpression::BinaryExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
   : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
