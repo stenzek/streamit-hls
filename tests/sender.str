@@ -1,3 +1,40 @@
+void -> int filter finput
+{
+	work push 8
+	{
+		push(0x48);
+		push(0x65);
+		push(0x6C);
+		push(0x6C);
+		push(0x6F);
+		push(0x21);
+		push(0x21);
+		push(0x21);
+	}
+}
+
+int -> int filter scramble
+{
+	int[7] shift = {1, 1, 0, 1, 1, 0, 0};
+
+	work pop 1 push 8
+	{
+		int input = pop();
+		for (int j = 0; j < 8; j = j + 1)
+		{
+			int output = ((input & (1 << j)) >> j) ^ (shift[3] ^ shift[6]);
+			shift[6] = shift[5];
+			shift[5] = shift[4];
+			shift[4] = shift[3];
+			shift[3] = shift[2];
+			shift[2] = shift[1];
+			shift[1] = shift[0];
+			shift[0] = output;
+			push(output);
+		}
+	}
+}
+
 int -> int filter diff_encode
 {
 	int last_out = 0;
@@ -6,6 +43,39 @@ int -> int filter diff_encode
 	{
 		last_out = (last_out + pop()) % 2;
 		push(last_out);
+	}
+}
+
+int -> int filter chunk2symbol
+{
+	int[2] bpsk_mod = {741343, -741343};
+
+	work pop 1 push 1
+	{
+		int input = pop();
+		push(bpsk_mod[input]);
+	}
+}
+
+int -> int filter fir_filter_half
+{
+	int[16] rcc_taps = {0, -666, 69361, 157964, 255889, 351141, 430952, 484036, 502648, 484036, 430952, 351141, 255889, 157964, 69361, -666};
+
+	prework pop 0 peek 1 push 8
+	{
+		int previous = 0;
+		int current = peek(0);
+		for (int j = 0; j < 8; j++)
+			push((rcc_taps[j] * (current / 1024) + rcc_taps[j + 8] * (previous / 1024)) / 1024);
+	}
+
+	work pop 1 peek 2 push 8
+	{
+		int previous = peek(0);
+		int current = peek(1);
+		for (int j = 0; j < 8; j++)
+			push((rcc_taps[j] * (current / 1024) + rcc_taps[j + 8] * (previous / 1024)) / 1024);
+		pop();
 	}
 }
 

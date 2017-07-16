@@ -43,6 +43,7 @@ while { return TK_WHILE; }
 continue { return TK_CONTINUE; }
 break { return TK_BREAK; }
 return { return TK_RETURN; }
+void { return TK_VOID; }
 
  /* Digraphs */
 "&&" { return TK_LOGICAL_AND; }

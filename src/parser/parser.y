@@ -31,7 +31,7 @@ using namespace AST;
 %token TK_JOIN TK_ROUNDROBIN
 %token TK_INIT TK_PREWORK TK_WORK
 
-%token TK_BOOLEAN TK_BIT TK_INT TK_FLOAT TK_COMPLEX
+%token TK_BOOLEAN TK_BIT TK_INT TK_FLOAT TK_COMPLEX TK_VOID
 
 %token TK_LOGICAL_AND TK_LOGICAL_OR
 %token TK_EQUALS TK_NOT_EQUALS
@@ -61,7 +61,8 @@ using namespace AST;
   AST::StringList* string_list;
 
   AST::InitDeclarator init_declarator;
-  AST::InitDeclaratorList *init_declarator_list;
+  AST::InitDeclaratorList* init_declarator_list;
+  AST::InitializerListExpression* initializer_list_expr;
 
   const char* identifier;
 
@@ -88,6 +89,7 @@ using namespace AST;
 %type <init_declarator_list> InitDeclaratorList
 %type <identifier> Declarator
 %type <expr> Initializer
+%type <initializer_list_expr> InitializerList
 /*%type <string_list> IdentifierList*/
 %type <stmt> Statement
 %type <stmt> ExpressionStatement
@@ -142,6 +144,7 @@ PrimitiveTypeName
   | TK_BIT { $$ = "bit"; }
   | TK_INT { $$ = "int"; }
   | TK_FLOAT { $$ = "float"; }
+  | TK_VOID { $$ = "void"; }
   ;
 
 TypeName
@@ -235,9 +238,15 @@ Declaration
   : DeclarationSpecifiers InitDeclaratorList ';' { $$ = VariableDeclaration::CreateDeclarations($1, $2); /*delete $2;*/ }
   ;
 
-/* TODO: Arrays here */
 Initializer
-  : AssignmentExpression
+  : AssignmentExpression { $$ = $1; }
+  | '{' InitializerList '}' { $$ = $2; }
+  | '{' InitializerList ',' '}' { $$ = $2; }
+  ;
+
+InitializerList
+  : Initializer { $$ = new InitializerListExpression(@1); $$->AddExpression($1); }
+  | InitializerList ',' Initializer { $1->AddExpression($3); }
   ;
 
 StatementListItem

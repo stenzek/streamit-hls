@@ -133,7 +133,7 @@ public:
 bool FilterBuilder::GenerateGlobals()
 {
   if (!m_filter_decl->HasStateVariables())
-    return false;
+    return true;
 
   // Visit the state variable declarations, generating LLVM variables for them
   GlobalVariableBuilder gvb(m_context, m_name_prefix);
@@ -161,7 +161,7 @@ bool FilterBuilder::GenerateChannelFunctions()
   // Push
   if (!m_filter_decl->GetOutputType()->IsVoid())
   {
-    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
     llvm::Type* ret_ty = llvm::Type::getVoidTy(m_context->GetLLVMContext());
     llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(ret_ty, {llvm_ty}, false);
     m_push_function = m_module->getOrInsertFunction(StringFromFormat("%s_push", m_name_prefix.c_str()), llvm_push_fn);

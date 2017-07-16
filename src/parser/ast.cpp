@@ -374,6 +374,37 @@ Expression* PushStatement::GetValueExpression() const
   return m_expr;
 }
 
+InitializerListExpression::InitializerListExpression(const SourceLocation& sloc) : Expression(sloc)
+{
+}
+
+bool InitializerListExpression::IsConstant() const
+{
+  // The initializer list is constant if everything in it is constant
+  for (Expression* expr : m_expressions)
+  {
+    if (!expr->IsConstant())
+      return false;
+  }
+
+  return true;
+}
+
+void InitializerListExpression::AddExpression(Expression* expr)
+{
+  m_expressions.push_back(expr);
+}
+
+const std::vector<Expression*>& InitializerListExpression::GetExpressionList() const
+{
+  return m_expressions;
+}
+
+size_t InitializerListExpression::GetListSize() const
+{
+  return m_expressions.size();
+}
+
 VariableDeclaration::VariableDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const char* name,
                                          Expression* initializer)
   : Declaration(sloc), m_type_specifier(type_specifier), m_name(name), m_initializer(initializer)

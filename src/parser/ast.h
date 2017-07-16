@@ -713,6 +713,25 @@ private:
   Expression* m_expr;
 };
 
+class InitializerListExpression : public Expression
+{
+public:
+  InitializerListExpression(const SourceLocation& sloc);
+  ~InitializerListExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+  bool IsConstant() const override;
+
+  void AddExpression(Expression* expr);
+  const std::vector<Expression*>& GetExpressionList() const;
+  size_t GetListSize() const;
+
+private:
+  std::vector<Expression*> m_expressions;
+};
+
 struct InitDeclarator
 {
   SourceLocation sloc;

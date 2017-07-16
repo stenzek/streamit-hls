@@ -139,6 +139,10 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   result &= m_output_type_specifier->SemanticAnalysis(state, symbol_table);
   m_output_type = m_output_type_specifier->GetFinalType();
 
+  // For LLVM codegen at least, it's easier to have all the initialization happen in init.
+  if (result)
+    MoveStateAssignmentsToInit();
+
   // Each filter has its own symbol table (stateful stuff), then each part has its own symbol table
   LexicalScope filter_symbol_table(symbol_table);
   if (m_vars)
@@ -167,10 +171,6 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
     result = false;
   }
 
-  // For LLVM codegen at least, it's easier to have all the initialization happen in init.
-  if (result)
-    MoveStateAssignmentsToInit();
-
   assert(state->current_filter == this);
   state->current_filter = nullptr;
   return result;
@@ -178,7 +178,7 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
 
 void FilterDeclaration::MoveStateAssignmentsToInit()
 {
-  if (!m_vars->HasChildren())
+  if (!m_vars || !m_vars->HasChildren())
     return;
 
   std::unique_ptr<NodeList> assign_exprs = std::make_unique<NodeList>();
@@ -188,10 +188,12 @@ void FilterDeclaration::MoveStateAssignmentsToInit()
     if (!var_decl || !var_decl->HasInitializer() || var_decl->GetInitializer()->IsConstant())
       continue;
 
-    assign_exprs->AddNode(new AssignmentExpression(
+    assign_exprs->AddNode(new ExpressionStatement(
                           var_decl->GetSourceLocation(),
-                          new AST::IdentifierExpression(var_decl->GetSourceLocation(), var_decl->GetName().c_str()),
-                          var_decl->GetInitializer()));
+                          new AssignmentExpression(var_decl->GetSourceLocation(),
+                                                   new AST::IdentifierExpression(var_decl->GetSourceLocation(),
+                                                                                 var_decl->GetName().c_str()),
+                                                   var_decl->GetInitializer())));
     var_decl->RemoveInitializer();
   }
 
@@ -314,18 +316,19 @@ bool CommaExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
 
 bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
-  if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
-    return false;
+  bool result = true;
+  result &= m_lhs->SemanticAnalysis(state, symbol_table);
+  result &= m_rhs->SemanticAnalysis(state, symbol_table);
 
-  if (!m_rhs->GetType()->CanImplicitlyConvertTo(m_lhs->GetType()))
+  if (result && !m_rhs->GetType()->CanImplicitlyConvertTo(m_lhs->GetType()))
   {
     state->ReportError(m_sloc, "Cannot implicitly convert from '%s' to '%s'", m_rhs->GetType()->GetName().c_str(),
                        m_lhs->GetType()->GetName().c_str());
-    return false;
+    result = false;
   }
 
-  m_type = m_lhs->GetType();
-  return m_type->IsValid();
+  m_type = result ? m_lhs->GetType() : state->GetErrorType();
+  return result && m_type->IsValid();
 }
 
 bool IntegerLiteralExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
@@ -373,6 +376,35 @@ bool PushStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_ta
   }
 
   return result;
+}
+
+bool InitializerListExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  bool result = true;
+
+  // TODO: Expected type and implicit type conversions based on the left hand side of the expression.
+  // Maybe this would be better off done in frontend, and just leaving all this as abstract expressions..
+  for (size_t i = 0; i < m_expressions.size(); i++)
+  {
+    result &= m_expressions[i]->SemanticAnalysis(state, symbol_table);
+
+    // All elements must be the same type
+    if (i != 0 && m_expressions[i]->GetType() != m_expressions[0]->GetType())
+    {
+      state->ReportError(m_sloc, "Initializer %d does not match the type of the list", static_cast<int>(i));
+      result = false;
+    }
+  }
+
+  if (!result)
+  {
+    m_type = state->GetErrorType();
+    return false;
+  }
+
+  // Result is an array of the specified length.
+  m_type = state->GetArrayType(m_expressions[0]->GetType(), {static_cast<int>(m_expressions.size())});
+  return m_type->IsValid();
 }
 
 bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)

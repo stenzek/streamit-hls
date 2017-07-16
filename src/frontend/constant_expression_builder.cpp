@@ -2,6 +2,7 @@
 #include <cassert>
 #include "frontend/context.h"
 #include "frontend/filter_function_builder.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constants.h"
 #include "parser/ast.h"
 #include "parser/type.h"
@@ -47,6 +48,26 @@ bool ConstantExpressionBuilder::Visit(AST::BooleanLiteralExpression* node)
   assert(llvm_type);
 
   m_result_value = llvm::ConstantInt::get(llvm_type, node->GetValue() ? 1 : 0);
+  return IsValid();
+}
+
+bool ConstantExpressionBuilder::Visit(AST::InitializerListExpression* node)
+{
+  llvm::Type* llvm_type = m_context->GetLLVMType(node->GetType());
+  llvm::ArrayType* llvm_array_type = llvm::cast<llvm::ArrayType>(llvm_type);
+  assert(llvm_type && llvm_array_type);
+
+  llvm::SmallVector<llvm::Constant*, 16> llvm_values;
+  for (AST::Expression* expr : node->GetExpressionList())
+  {
+    ConstantExpressionBuilder element_ceb(m_context);
+    if (!expr->Accept(&element_ceb) || !element_ceb.IsValid())
+      return false;
+
+    llvm_values.push_back(element_ceb.GetResultValue());
+  }
+
+  m_result_value = llvm::ConstantArray::get(llvm_array_type, llvm_values);
   return IsValid();
 }
 }

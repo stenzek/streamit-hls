@@ -34,6 +34,11 @@ bool Visitor::Visit(ReturnStatement* node)
   return Visit(static_cast<Statement*>(node));
 }
 
+bool Visitor::Visit(InitializerListExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
 bool Visitor::Visit(VariableDeclaration* node)
 {
   return Visit(static_cast<Declaration*>(node));
@@ -240,6 +245,11 @@ bool PopExpression::Accept(Visitor* visitor)
 }
 
 bool PushStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool InitializerListExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

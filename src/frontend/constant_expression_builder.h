@@ -20,6 +20,7 @@ public:
   bool Visit(AST::Node* node) override;
   bool Visit(AST::IntegerLiteralExpression* node) override;
   bool Visit(AST::BooleanLiteralExpression* node) override;
+  bool Visit(AST::InitializerListExpression* node) override;
 
 private:
   Context* m_context;

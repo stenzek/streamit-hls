@@ -186,19 +186,39 @@ void BooleanLiteralExpression::Dump(ASTPrinter* printer) const
 
 void PeekExpression::Dump(ASTPrinter* printer) const
 {
-  printer->WriteLine("PEEK: ");
+  printer->Write("PeekExpression[index=");
   m_expr->Dump(printer);
+  printer->WriteLine("]");
 }
 
 void PopExpression::Dump(ASTPrinter* printer) const
 {
-  printer->WriteLine("POP");
+  printer->WriteLine("PopExpression");
 }
 
 void PushStatement::Dump(ASTPrinter* printer) const
 {
-  printer->WriteLine("PUSH: ");
+  printer->Write("PushExpression[value=");
   m_expr->Dump(printer);
+  printer->WriteLine("]");
+}
+
+void InitializerListExpression::Dump(ASTPrinter* printer) const
+{
+  printer->Write("InitializerListExpression[%d] = {", static_cast<int>(m_expressions.size()));
+
+  bool first = true;
+  for (Expression* expr : m_expressions)
+  {
+    if (!first)
+      printer->Write(", ");
+    else
+      first = false;
+
+    expr->Dump(printer);
+  }
+
+  printer->WriteLine("}");
 }
 
 void VariableDeclaration::Dump(ASTPrinter* printer) const
