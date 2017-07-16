@@ -155,7 +155,8 @@ PipelineDeclaration
   ;
 
 PipelineStatement
-  : TK_ADD Identifier '(' ')' ';' { $$ = new PipelineAddStatement(@1, $2, nullptr); }
+  : TK_ADD Identifier ';' { $$ = new PipelineAddStatement(@1, $2, nullptr); }
+  | TK_ADD Identifier '(' ')' ';' { $$ = new PipelineAddStatement(@1, $2, nullptr); }
   ;
 
 PipelineStatementList

@@ -158,6 +158,7 @@ public:
     return m_nodes;
   }
 
+  bool HasChildren() const;
   const Node* GetFirst() const;
   Node* GetFirst();
 
@@ -168,6 +169,9 @@ public:
   // If node is null, does nothing.
   // If node is a NodeList, adds all the children from it (recursively).
   void AddNode(Node* node);
+
+  // Prepends node/nodelist to this nodelist.
+  void PrependNode(Node* node);
 
 private:
   ListType m_nodes;
@@ -384,6 +388,9 @@ public:
   bool Accept(Visitor* visitor) override;
 
 private:
+  // Moves non-constant state initializers to the init function
+  void MoveStateAssignmentsToInit();
+
   TypeName* m_input_type_specifier;
   TypeName* m_output_type_specifier;
   const Type* m_input_type = nullptr;
@@ -727,6 +734,10 @@ public:
   Expression* GetInitializer() const
   {
     return m_initializer;
+  }
+  void RemoveInitializer()
+  {
+    m_initializer = nullptr;
   }
 
   static Node* CreateDeclarations(TypeName* type_specifier, const InitDeclaratorList* declarator_list);

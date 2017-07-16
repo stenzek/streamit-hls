@@ -167,9 +167,38 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
     result = false;
   }
 
+  // For LLVM codegen at least, it's easier to have all the initialization happen in init.
+  if (result)
+    MoveStateAssignmentsToInit();
+
   assert(state->current_filter == this);
   state->current_filter = nullptr;
   return result;
+}
+
+void FilterDeclaration::MoveStateAssignmentsToInit()
+{
+  if (!m_vars->HasChildren())
+    return;
+
+  std::unique_ptr<NodeList> assign_exprs = std::make_unique<NodeList>();
+  for (Node* node : m_vars->GetNodeList())
+  {
+    VariableDeclaration* var_decl = dynamic_cast<VariableDeclaration*>(node);
+    if (!var_decl || !var_decl->HasInitializer() || var_decl->GetInitializer()->IsConstant())
+      continue;
+
+    assign_exprs->AddNode(new AssignmentExpression(
+                          var_decl->GetSourceLocation(),
+                          new AST::IdentifierExpression(var_decl->GetSourceLocation(), var_decl->GetName().c_str()),
+                          var_decl->GetInitializer()));
+    var_decl->RemoveInitializer();
+  }
+
+  if (!m_init)
+    m_init = new FilterWorkBlock();
+
+  m_init->GetStatements()->PrependNode(assign_exprs.get());
 }
 
 bool FilterWorkBlock::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)

@@ -21,6 +21,11 @@ void Program::AddFilter(FilterDeclaration* decl)
   m_filters.push_back(decl);
 }
 
+bool NodeList::HasChildren() const
+{
+  return !m_nodes.empty();
+}
+
 const AST::Node* NodeList::GetFirst() const
 {
   assert(!m_nodes.empty());
@@ -49,6 +54,23 @@ void NodeList::AddNode(Node* li)
   }
 
   m_nodes.push_back(li);
+}
+
+void NodeList::PrependNode(Node* node)
+{
+  if (!node)
+    return;
+
+  NodeList* node_list = dynamic_cast<NodeList*>(node);
+  if (node_list)
+  {
+    if (!node_list->m_nodes.empty())
+      m_nodes.insert(m_nodes.begin(), node_list->m_nodes.begin(), node_list->m_nodes.end());
+
+    return;
+  }
+
+  m_nodes.insert(m_nodes.begin(), node);
 }
 
 Declaration::Declaration(const SourceLocation& sloc) : m_sloc(sloc)
