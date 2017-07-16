@@ -1,6 +1,7 @@
 #include "frontend/expression_builder.h"
 #include <cassert>
 #include "frontend/context.h"
+#include "frontend/filter_builder.h"
 #include "frontend/filter_function_builder.h"
 #include "llvm/IR/Constants.h"
 #include "parser/ast.h"
@@ -301,6 +302,27 @@ bool ExpressionBuilder::Visit(AST::LogicalExpression* node)
     m_result_value = phi;
   }
 
+  return IsValid();
+}
+
+bool ExpressionBuilder::Visit(AST::PeekExpression* node)
+{
+  ExpressionBuilder index_eb(m_func_builder);
+  if (!node->GetIndexExpression()->Accept(&index_eb) || !index_eb.IsValid())
+    return false;
+
+  // TODO: Implicit conversions
+  assert(node->GetIndexExpression()->GetType()->IsInt());
+  assert(m_func_builder->GetFilterBuilder()->GetPeekFunction() != nullptr);
+  m_result_value = GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPeekFunction(),
+                                             {index_eb.GetResultValue()});
+  return IsValid();
+}
+
+bool ExpressionBuilder::Visit(AST::PopExpression* node)
+{
+  assert(m_func_builder->GetFilterBuilder()->GetPopFunction() != nullptr);
+  m_result_value = GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPopFunction());
   return IsValid();
 }
 }

@@ -7,11 +7,12 @@
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
 #include "parser/helpers.h"
+#include "parser/type.h"
 
 namespace Frontend
 {
 
-FilterBuilder::FilterBuilder(Context* context, llvm::Module* module, AST::FilterDeclaration* filter_decl)
+FilterBuilder::FilterBuilder(Context* context, llvm::Module* module, const AST::FilterDeclaration* filter_decl)
   : m_context(context), m_module(module), m_filter_decl(filter_decl)
 {
   // TODO: This should use filter instances, not filters
@@ -24,7 +25,7 @@ FilterBuilder::~FilterBuilder()
 
 bool FilterBuilder::GenerateCode()
 {
-  if (!GenerateGlobals())
+  if (!GenerateGlobals() || !GenerateChannelFunctions())
     return false;
 
   if (m_filter_decl->HasInitBlock())
@@ -64,7 +65,7 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
     return nullptr;
 
   // Start at the entry basic block for the work function.
-  FilterFunctionBuilder entry_bb_builder(m_context, "entry", func);
+  FilterFunctionBuilder entry_bb_builder(this, "entry", func);
 
   // Add global variable references
   for (const auto& it : m_global_variable_map)
@@ -141,6 +142,31 @@ bool FilterBuilder::GenerateGlobals()
 
   // And copy the table, ready to insert to the function builders
   m_global_variable_map = std::move(gvb.global_var_map);
+  return true;
+}
+
+bool FilterBuilder::GenerateChannelFunctions()
+{
+  // Pop/peek
+  if (!m_filter_decl->GetInputType()->IsVoid())
+  {
+    llvm::Type* ret_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+    llvm::Type* llvm_peek_idx_ty = llvm::Type::getInt32Ty(m_context->GetLLVMContext());
+    llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {llvm_peek_idx_ty}, false);
+    llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
+    m_peek_function = m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_name_prefix.c_str()), llvm_peek_fn);
+    m_pop_function = m_module->getOrInsertFunction(StringFromFormat("%s_pop", m_name_prefix.c_str()), llvm_pop_fn);
+  }
+
+  // Push
+  if (!m_filter_decl->GetOutputType()->IsVoid())
+  {
+    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+    llvm::Type* ret_ty = llvm::Type::getVoidTy(m_context->GetLLVMContext());
+    llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(ret_ty, {llvm_ty}, false);
+    m_push_function = m_module->getOrInsertFunction(StringFromFormat("%s_push", m_name_prefix.c_str()), llvm_push_fn);
+  }
+
   return true;
 }
 

@@ -4,9 +4,8 @@ int -> int filter diff_encode
 
 	work push 1 pop 1
 	{
-        last_out = (last_out + 1) % 2;
-		//last_out = (last_out + pop()) % 2;
-		//push(last_out);
+		last_out = (last_out + pop()) % 2;
+		push(last_out);
 	}
 }
 

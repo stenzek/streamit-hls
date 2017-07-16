@@ -680,6 +680,8 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
+  Expression* GetIndexExpression() const;
+
 private:
   Expression* m_expr;
 };
@@ -704,6 +706,8 @@ public:
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
+
+  Expression* GetValueExpression() const;
 
 private:
   Expression* m_expr;

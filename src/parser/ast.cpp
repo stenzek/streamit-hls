@@ -356,12 +356,22 @@ PeekExpression::PeekExpression(const SourceLocation& sloc, Expression* expr) : E
 {
 }
 
+Expression* PeekExpression::GetIndexExpression() const
+{
+  return m_expr;
+}
+
 PopExpression::PopExpression(const SourceLocation& sloc) : Expression(sloc)
 {
 }
 
 PushStatement::PushStatement(const SourceLocation& sloc, Expression* expr) : Statement(sloc), m_expr(expr)
 {
+}
+
+Expression* PushStatement::GetValueExpression() const
+{
+  return m_expr;
 }
 
 VariableDeclaration::VariableDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const char* name,

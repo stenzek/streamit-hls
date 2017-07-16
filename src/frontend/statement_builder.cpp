@@ -2,6 +2,7 @@
 #include <cassert>
 #include "frontend/context.h"
 #include "frontend/expression_builder.h"
+#include "frontend/filter_builder.h"
 #include "frontend/filter_function_builder.h"
 #include "llvm/IR/Constants.h"
 #include "parser/ast.h"
@@ -166,6 +167,20 @@ bool StatementBuilder::Visit(AST::ReturnStatement* node)
 {
   assert(!node->HasReturnValue());
   GetIRBuilder().CreateRetVoid();
+  return true;
+}
+
+bool StatementBuilder::Visit(AST::PushStatement* node)
+{
+  ExpressionBuilder eb(m_func_builder);
+  if (!node->GetValueExpression()->Accept(&eb) || !eb.IsValid())
+    return false;
+
+  // TODO: Implicit type conversion
+  assert(node->GetValueExpression()->GetType() ==
+         m_func_builder->GetFilterBuilder()->GetFilterDeclaration()->GetOutputType());
+  assert(m_func_builder->GetFilterBuilder()->GetPushFunction() != nullptr);
+  GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPushFunction(), {eb.GetResultValue()});
   return true;
 }
 }

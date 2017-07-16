@@ -8,13 +8,14 @@
 namespace Frontend
 {
 class Context;
+class FilterBuilder;
 
 class FilterFunctionBuilder : public AST::Visitor
 {
 public:
   using VariableTable = std::unordered_map<const AST::VariableDeclaration*, llvm::Value*>;
 
-  FilterFunctionBuilder(Context* ctx, const std::string& name, llvm::Function* func);
+  FilterFunctionBuilder(FilterBuilder* fb, const std::string& name, llvm::Function* func);
   ~FilterFunctionBuilder();
 
   bool Visit(AST::Node* node) override;
@@ -22,6 +23,7 @@ public:
   bool Visit(AST::Statement* node) override;
 
   Context* GetContext() const;
+  FilterBuilder* GetFilterBuilder() const;
   llvm::BasicBlock* GetEntryBasicBlock() const;
   llvm::BasicBlock* GetCurrentBasicBlock() const;
   llvm::IRBuilder<>& GetCurrentIRBuilder();
@@ -47,7 +49,7 @@ public:
   void PopContinueBasicBlock();
 
 private:
-  Context* m_ctx;
+  FilterBuilder* m_filter_builder;
   FilterFunctionBuilder* m_parent;
   std::string m_name;
   llvm::Function* m_func;

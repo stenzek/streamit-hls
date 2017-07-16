@@ -2,15 +2,16 @@
 #include <cassert>
 #include "frontend/context.h"
 #include "frontend/expression_builder.h"
+#include "frontend/filter_builder.h"
 #include "frontend/statement_builder.h"
 #include "parser/ast.h"
 
 namespace Frontend
 {
 
-FilterFunctionBuilder::FilterFunctionBuilder(Context* ctx, const std::string& name, llvm::Function* func)
-  : m_ctx(ctx), m_name(name), m_func(func),
-    m_entry_basic_block(llvm::BasicBlock::Create(m_ctx->GetLLVMContext(), name, func)),
+FilterFunctionBuilder::FilterFunctionBuilder(FilterBuilder* fb, const std::string& name, llvm::Function* func)
+  : m_filter_builder(fb), m_name(name), m_func(func),
+    m_entry_basic_block(llvm::BasicBlock::Create(fb->GetContext()->GetLLVMContext(), name, func)),
     m_current_ir_builder(m_entry_basic_block)
 {
   m_current_basic_block = m_entry_basic_block;
@@ -20,9 +21,14 @@ FilterFunctionBuilder::~FilterFunctionBuilder()
 {
 }
 
-Frontend::Context* FilterFunctionBuilder::GetContext() const
+Context* FilterFunctionBuilder::GetContext() const
 {
-  return m_ctx;
+  return m_filter_builder->GetContext();
+}
+
+FilterBuilder* FilterFunctionBuilder::GetFilterBuilder() const
+{
+  return m_filter_builder;
 }
 
 llvm::BasicBlock* FilterFunctionBuilder::GetEntryBasicBlock() const
@@ -48,7 +54,7 @@ void FilterFunctionBuilder::AddGlobalVariable(const AST::VariableDeclaration* va
 
 llvm::AllocaInst* FilterFunctionBuilder::CreateVariable(const AST::VariableDeclaration* var)
 {
-  llvm::Type* ty = m_ctx->GetLLVMType(var->GetType());
+  llvm::Type* ty = GetContext()->GetLLVMType(var->GetType());
   if (!ty)
     return nullptr;
 
@@ -97,7 +103,7 @@ void FilterFunctionBuilder::StoreVariable(const AST::VariableDeclaration* var, l
 llvm::BasicBlock* FilterFunctionBuilder::NewBasicBlock(const std::string& name)
 {
   llvm::BasicBlock* old_bb = m_current_basic_block;
-  SwitchBasicBlock(llvm::BasicBlock::Create(m_ctx->GetLLVMContext(), name, m_func));
+  SwitchBasicBlock(llvm::BasicBlock::Create(GetContext()->GetLLVMContext(), name, m_func));
   return old_bb;
 }
 
