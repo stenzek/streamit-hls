@@ -1,0 +1,22 @@
+int->int pipeline TestPipeline {
+    add TestFilter();
+    add TestFilter2();
+}
+
+int->int filter TestFilter {
+    int foo = 1, bar = 2;
+    work push 1 {
+        int x = 41, y = 43;
+        int z;
+        x = 42;
+        int[10] some_array;
+        
+    }
+}
+
+int->int filter TestFilter2 {
+    work pop 1 {
+        int x = 5;
+    }
+}
+

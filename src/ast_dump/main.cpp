@@ -35,8 +35,7 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
-  AST::LexicalScope global_symbol_table(nullptr);
-  if (!state.program->SemanticAnalysis(&state, state.global_lexical_scope.get()))
+  if (!state.program->SemanticAnalysis(&state, state.GetGlobalLexicalScope()))
   {
     std::cout << "Semantic analysis failed." << std::endl;
     return EXIT_FAILURE;
@@ -50,7 +49,7 @@ int main(int argc, char* argv[])
   std::cout << "End of AST." << std::endl;
 
   std::cout << "Dumping global symbol table: " << std::endl;
-  for (const auto& it : global_symbol_table)
+  for (const auto& it : *state.GetGlobalLexicalScope())
     std::cout << "  " << it.first << std::endl;
   std::cout << "End of global symbol table." << std::endl;
 

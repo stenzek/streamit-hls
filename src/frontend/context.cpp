@@ -1,14 +1,14 @@
 #include "frontend/context.h"
 #include "frontend/filter_builder.h"
-#include "llvm/IR/Module.h"
-#include "parser/ast.h"
-#include "parser/type.h"
-#include "llvm/IR/Verifier.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
 #include "llvm/IR/LegacyPassManager.h"
+#include "llvm/IR/Module.h"
 #include "llvm/IR/PassManager.h"
+#include "llvm/IR/Verifier.h"
 #include "llvm/Support/FormattedStream.h"
+#include "parser/ast.h"
+#include "parser/type.h"
 
 namespace Frontend
 {

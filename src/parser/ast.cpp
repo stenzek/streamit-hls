@@ -69,7 +69,7 @@ const SourceLocation& Statement::GetSourceLocation() const
   return m_sloc;
 }
 
-Expression::Expression(const SourceLocation& sloc) : m_sloc(sloc), m_type(Type::GetErrorType())
+Expression::Expression(const SourceLocation& sloc) : m_sloc(sloc), m_type(nullptr)
 {
 }
 
@@ -88,9 +88,71 @@ const Type* Expression::GetType() const
   return m_type;
 }
 
-PipelineDeclaration::PipelineDeclaration(const SourceLocation& sloc, const Type* input_type, const Type* output_type,
-                                         const char* name, NodeList* statements)
-  : Declaration(sloc), m_input_type(input_type), m_output_type(output_type), m_name(name), m_statements(statements)
+TypeReference::TypeReference(const std::string& name, const Type* type) : m_name(name), m_type(type)
+{
+}
+
+TypeName::TypeName(const SourceLocation& sloc) : m_sloc(sloc)
+{
+}
+
+const std::string& TypeName::GetBaseTypeName() const
+{
+  return m_base_type_name;
+}
+
+const std::vector<int>& TypeName::GetArraySizes() const
+{
+  return m_array_sizes;
+}
+
+const Type* TypeName::GetFinalType() const
+{
+  return m_final_type;
+}
+
+void TypeName::SetBaseTypeName(const char* name)
+{
+  m_base_type_name = name;
+}
+
+void TypeName::AddArraySize(int size)
+{
+  m_array_sizes.push_back(size);
+}
+
+void TypeName::Merge(ParserState* state, TypeName* rhs)
+{
+  if (m_base_type_name.empty() && !rhs->m_base_type_name.empty())
+    m_base_type_name = rhs->m_base_type_name;
+
+  if (!rhs->m_array_sizes.empty())
+    m_array_sizes.insert(m_array_sizes.end(), rhs->m_array_sizes.begin(), rhs->m_array_sizes.end());
+}
+
+StructSpecifier::StructSpecifier(const SourceLocation& sloc, const char* name) : m_sloc(sloc), m_name(name)
+{
+}
+
+const std::string& StructSpecifier::GetName() const
+{
+  return m_name;
+}
+
+const std::vector<std::pair<std::string, TypeName*>>& StructSpecifier::GetFields() const
+{
+  return m_fields;
+}
+
+void StructSpecifier::AddField(const char* name, TypeName* specifier)
+{
+  m_fields.emplace_back(name, specifier);
+}
+
+PipelineDeclaration::PipelineDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
+                                         TypeName* output_type_specifier, const char* name, NodeList* statements)
+  : Declaration(sloc), m_input_type_specifier(input_type_specifier), m_output_type_specifier(output_type_specifier),
+    m_name(name), m_statements(statements)
 {
 }
 
@@ -121,7 +183,6 @@ bool PipelineAddStatement::Accept(Visitor* visitor)
 IdentifierExpression::IdentifierExpression(const SourceLocation& sloc, const char* identifier)
   : Expression(sloc), m_identifier(identifier)
 {
-  m_type = Type::GetErrorType();
 }
 
 VariableDeclaration* IdentifierExpression::GetReferencedVariable() const
@@ -150,7 +211,7 @@ BinaryExpression::Operator BinaryExpression::GetOperator() const
 }
 
 RelationalExpression::RelationalExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
-  : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_intermediate_type(Type::GetErrorType()), m_op(op)
+  : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_intermediate_type(nullptr), m_op(op)
 {
 }
 
@@ -227,7 +288,6 @@ Expression* AssignmentExpression::GetInnerExpression() const
 IntegerLiteralExpression::IntegerLiteralExpression(const SourceLocation& sloc, int value)
   : Expression(sloc), m_value(value)
 {
-  m_type = Type::GetIntType();
 }
 
 int IntegerLiteralExpression::GetValue() const
@@ -243,7 +303,6 @@ bool IntegerLiteralExpression::IsConstant() const
 BooleanLiteralExpression::BooleanLiteralExpression(const SourceLocation& sloc, bool value)
   : Expression(sloc), m_value(value)
 {
-  m_type = Type::GetBooleanType();
 }
 
 bool BooleanLiteralExpression::GetValue() const
@@ -268,32 +327,34 @@ PushExpression::PushExpression(const SourceLocation& sloc, Expression* expr) : E
 {
 }
 
-VariableDeclaration::VariableDeclaration(const SourceLocation& sloc, const Type* type, const char* name,
+VariableDeclaration::VariableDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const char* name,
                                          Expression* initializer)
-  : Declaration(sloc), m_type(type), m_name(name), m_initializer(initializer)
+  : Declaration(sloc), m_type_specifier(type_specifier), m_name(name), m_initializer(initializer)
 {
   // TODO: Default initialize ints to 0?
   // if (!m_initializer)
 }
 
-Node* VariableDeclaration::CreateDeclarations(const Type* type, const InitDeclaratorList* declarator_list)
+Node* VariableDeclaration::CreateDeclarations(TypeName* type_specifier, const InitDeclaratorList* declarator_list)
 {
   // Optimization for single declaration case
   if (declarator_list->size() == 1)
-    return new VariableDeclaration(declarator_list->front().sloc, type, declarator_list->front().name,
+    return new VariableDeclaration(declarator_list->front().sloc, type_specifier, declarator_list->front().name,
                                    declarator_list->front().initializer);
 
+  // We need to clone the type specifier for each declaration, otherwise we'll call SemanticAnalysis etc multiple times
+  // on the same specifier
   NodeList* decl_list = new NodeList();
   for (const InitDeclarator& decl : *declarator_list)
-    decl_list->AddNode(new VariableDeclaration(decl.sloc, type, decl.name, decl.initializer));
+    decl_list->AddNode(new VariableDeclaration(decl.sloc, new TypeName(*type_specifier), decl.name, decl.initializer));
   return decl_list;
 }
 
-FilterDeclaration::FilterDeclaration(const SourceLocation& sloc, const Type* input_type, const Type* output_type,
-                                     const char* name, NodeList* vars, FilterWorkBlock* init, FilterWorkBlock* prework,
-                                     FilterWorkBlock* work)
-  : Declaration(sloc), m_input_type(input_type), m_output_type(output_type), m_name(name), m_vars(vars), m_init(init),
-    m_prework(prework), m_work(work)
+FilterDeclaration::FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
+                                     TypeName* output_type_specifier, const char* name, NodeList* vars,
+                                     FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work)
+  : Declaration(sloc), m_input_type_specifier(input_type_specifier), m_output_type_specifier(output_type_specifier),
+    m_name(name), m_vars(vars), m_init(init), m_prework(prework), m_work(work)
 {
 }
 

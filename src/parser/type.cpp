@@ -1,11 +1,81 @@
 #include "parser/type.h"
+#include <cassert>
+#include "parser/helpers.h"
+#include "parser/parser_state.h"
 
-Type::Type(const char* name, const char* llvm_name) : m_name(name), m_llvm_name(llvm_name)
+const std::string& Type::GetName() const
 {
+  return m_name;
 }
 
-Type::~Type()
+const Type* Type::GetBaseType() const
 {
+  return m_base_type;
+}
+
+const Type::BaseTypeId Type::GetBaseTypeId() const
+{
+  return m_base_type_id;
+}
+
+bool Type::IsValid() const
+{
+  return !IsErrorType();
+}
+
+bool Type::IsErrorType() const
+{
+  return m_base_type_id == BaseTypeId::Error;
+}
+
+bool Type::IsArrayType() const
+{
+  return !m_array_sizes.empty();
+}
+
+bool Type::HasBooleanBase() const
+{
+  return m_base_type_id == BaseTypeId::Boolean;
+}
+
+bool Type::HasBitBase() const
+{
+  return m_base_type_id == BaseTypeId::Bit;
+}
+
+bool Type::HasIntBase() const
+{
+  return m_base_type_id == BaseTypeId::Int;
+}
+
+bool Type::HasFloatBase() const
+{
+  return m_base_type_id == BaseTypeId::Float;
+}
+
+bool Type::IsVoid() const
+{
+  return m_base_type_id == BaseTypeId::Void;
+}
+
+bool Type::IsBoolean() const
+{
+  return HasBooleanBase() && !IsArrayType();
+}
+
+bool Type::IsBit() const
+{
+  return HasBitBase() && !IsArrayType();
+}
+
+bool Type::IsInt() const
+{
+  return HasIntBase() && !IsArrayType();
+}
+
+bool Type::IsFloat() const
+{
+  return HasFloatBase() && !IsArrayType();
 }
 
 bool Type::CanImplicitlyConvertTo(const Type* type) const
@@ -14,55 +84,48 @@ bool Type::CanImplicitlyConvertTo(const Type* type) const
   if (type == this)
   {
     // Except error->error, just fail early here
-    return (type != GetErrorType());
+    return IsValid();
   }
 
   // int->float, int->bit can convert implicitly
-  return (this == GetIntType() && (type == GetFloatType() || type == GetBitType()));
+  return (IsInt() && (type->IsFloat() || type->IsBit()));
 }
 
-const Type* Type::GetResultType(const Type* lhs, const Type* rhs)
+bool Type::HasSameArrayTraits(const Type* type) const
+{
+  return m_array_sizes == type->m_array_sizes;
+}
+
+Type* Type::CreatePrimitiveType(const std::string& name, BaseTypeId base)
+{
+  Type* ty = new Type();
+  ty->m_name = name;
+  ty->m_base_type_id = base;
+  return ty;
+}
+
+Type* Type::CreateArrayType(const Type* base_type, const std::vector<int>& array_sizes)
+{
+  Type* ty = new Type();
+  assert(base_type && !array_sizes.empty() && base_type->IsValid() && !base_type->IsVoid());
+  ty->m_base_type = base_type;
+  ty->m_base_type_id = base_type->m_base_type_id;
+  ty->m_array_sizes = array_sizes;
+  ty->m_name = base_type->GetName();
+  for (int sz : array_sizes)
+    ty->m_name += StringFromFormat("[%d]", sz);
+  return ty;
+}
+
+const Type* Type::GetResultType(ParserState* state, const Type* lhs, const Type* rhs)
 {
   // same type -> same type
   if (lhs == rhs)
     return lhs;
 
   // int + float -> float
-  if ((lhs == GetIntType() || rhs == GetIntType()) && (lhs == GetFloatType() || rhs == GetFloatType()))
-  {
-    return GetFloatType();
-  }
+  if ((lhs->IsInt() || rhs->IsInt()) && (lhs->IsFloat() || rhs->IsFloat()))
+    return state->GetFloatType();
 
-  return GetErrorType();
-}
-
-static const Type s_error_type{"error", ""};
-static const Type s_boolean_type{"boolean", "boolean"};
-static const Type s_bit_type{"bit", "u8"};
-static const Type s_int_type{"int", "i32"};
-static const Type s_float_type{"float", "f32"};
-
-const Type* Type::GetErrorType()
-{
-  return &s_error_type;
-}
-
-const Type* Type::GetBooleanType()
-{
-  return &s_boolean_type;
-}
-
-const Type* Type::GetBitType()
-{
-  return &s_bit_type;
-}
-
-const Type* Type::GetIntType()
-{
-  return &s_int_type;
-}
-
-const Type* Type::GetFloatType()
-{
-  return &s_float_type;
+  return state->GetErrorType();
 }

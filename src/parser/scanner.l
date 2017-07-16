@@ -66,7 +66,7 @@ false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
 [\+\-]?[0-9]+ { yylval.integer_literal = ScannerHelpers::ParseIntegerLiteral(yytext, 10); return TK_INTEGER_LITERAL; }
 
  /* Identifier */
-[a-zA-Z][a-zA-Z0-9]* { yylval.identifier = strdup(yytext); return TK_IDENTIFIER; }
+[a-zA-Z][a-zA-Z0-9_]* { yylval.identifier = strdup(yytext); return TK_IDENTIFIER; }
 
  /* Single character tokens */
 "{" { return '{'; }
@@ -89,6 +89,8 @@ false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
 "&" { return '&'; }
 "|" { return '|'; }
 "^" { return '^'; }
+"[" { return '['; }
+"]" { return ']'; }
 
  /* Whitespace/comments */
 [ \r\n\t]       /* skip whitespace */

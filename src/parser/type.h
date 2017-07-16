@@ -1,37 +1,58 @@
 #pragma once
+#include <memory>
 #include <string>
+#include <vector>
+
+class ParserState;
 
 class Type
 {
 public:
-  Type(const char* name, const char* llvm_name);
-  ~Type();
+  enum class BaseTypeId
+  {
+    Error,
+    Void,
+    Boolean,
+    Bit,
+    Int,
+    Float,
+    Struct
+  };
 
-  const std::string& GetName() const
-  {
-    return m_name;
-  }
-  const std::string& GetLLVMName() const
-  {
-    return m_llvm_name;
-  }
-  bool IsValid() const
-  {
-    return !m_llvm_name.empty();
-  }
+public:
+  ~Type() = default;
+
+  const std::string& GetName() const;
+  const Type* GetBaseType() const;
+  const BaseTypeId GetBaseTypeId() const;
+  bool IsValid() const;
+
+  // Helper methods
+  bool IsErrorType() const;
+  bool IsArrayType() const;
+  bool HasBooleanBase() const;
+  bool HasBitBase() const;
+  bool HasIntBase() const;
+  bool HasFloatBase() const;
+  bool IsVoid() const;
+  bool IsBoolean() const;
+  bool IsBit() const;
+  bool IsInt() const;
+  bool IsFloat() const;
 
   bool CanImplicitlyConvertTo(const Type* type) const;
+  bool HasSameArrayTraits(const Type* type) const;
 
-  static const Type* GetResultType(const Type* lhs, const Type* rhs);
+  static Type* CreatePrimitiveType(const std::string& name, BaseTypeId base);
+  static Type* CreateArrayType(const Type* base_type, const std::vector<int>& array_sizes);
 
-  // Instances of built-in types.
-  static const Type* GetErrorType();
-  static const Type* GetBooleanType();
-  static const Type* GetBitType();
-  static const Type* GetIntType();
-  static const Type* GetFloatType();
+  static const Type* GetResultType(ParserState* state, const Type* lhs, const Type* rhs);
 
 private:
+  Type() = default;
+
   std::string m_name;
-  std::string m_llvm_name;
+  const Type* m_base_type = nullptr;
+  BaseTypeId m_base_type_id = BaseTypeId::Error;
+  std::vector<int> m_array_sizes;
 };

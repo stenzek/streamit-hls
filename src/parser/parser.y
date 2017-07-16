@@ -50,6 +50,7 @@ using namespace AST;
   AST::Node* node;
   AST::NodeList* node_list;
   AST::Program* program;
+  AST::TypeName* type_name;
   AST::Declaration* decl;
   AST::Statement* stmt;
   AST::Expression* expr;
@@ -62,12 +63,12 @@ using namespace AST;
   AST::InitDeclarator init_declarator;
   AST::InitDeclaratorList *init_declarator_list;
 
-  char* identifier;
+  const char* identifier;
 
   bool boolean_literal;
   int integer_literal;
   double float_literal;
-  char* string_literal;
+  const char* string_literal;
 }
 
 %type <program> Program
@@ -82,7 +83,7 @@ using namespace AST;
 %type <node> StatementListItem
 %type <node> CompoundStatement
 %type <node> Declaration
-%type <type> DeclarationSpecifiers
+%type <type_name> DeclarationSpecifiers
 %type <init_declarator> InitDeclarator
 %type <init_declarator_list> InitDeclaratorList
 %type <identifier> Declarator
@@ -114,7 +115,8 @@ using namespace AST;
 %type <identifier> Identifier TK_IDENTIFIER
 %type <integer_literal> IntegerLiteral TK_INTEGER_LITERAL
 %type <boolean_literal> BooleanLiteral TK_BOOLEAN_LITERAL
-%type <type> Type
+%type <identifier> PrimitiveTypeName
+%type <type_name> TypeName
 
 /* Tie the else branch of an if to the outer-most if */
 %nonassoc IF_THEN
@@ -134,13 +136,21 @@ Program
   | Program FilterDeclaration { $1->AddFilter($2); }
   ;
 
-Type
-  : TK_INT { $$ = Type::GetIntType(); }
-  | TK_BOOLEAN { $$ = Type::GetBooleanType(); }
+PrimitiveTypeName
+  : TK_BOOLEAN { $$ = "boolean"; }
+  | TK_BIT { $$ = "bit"; }
+  | TK_INT { $$ = "int"; }
+  | TK_FLOAT { $$ = "float"; }
+  ;
+
+TypeName
+  : PrimitiveTypeName { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }
+  | Identifier { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }
+  | TypeName '[' IntegerLiteral ']' { $1->AddArraySize($3); }
   ;
 
 PipelineDeclaration
-  : Type TK_ARROW Type TK_PIPELINE Identifier '{' PipelineStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7); }
+  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' PipelineStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7); }
   ;
 
 PipelineStatement
@@ -153,7 +163,7 @@ PipelineStatementList
   ;
 
 FilterDeclaration
-  : Type TK_ARROW Type TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, $6->vars, $6->init, $6->prework, $6->work); }
+  : TypeName TK_ARROW TypeName TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, $6->vars, $6->init, $6->prework, $6->work); }
   ;
 
 FilterDefinition
@@ -190,9 +200,8 @@ StatementList
   | StatementList StatementListItem { $1->AddNode($2); }
   ;
 
-/* TODO: Rework this */
 DeclarationSpecifiers
-  : Type
+  : TypeName
   ;
 
 Declarator
@@ -206,6 +215,12 @@ InitDeclarator
     $$.name = $1;
     $$.initializer = $3;
   }
+  | Declarator
+  {
+    $$.sloc = @1;
+    $$.name = $1;
+    $$.initializer = nullptr;
+  }
   ;
 
 InitDeclaratorList
@@ -214,8 +229,7 @@ InitDeclaratorList
   ;
 
 Declaration
-  : DeclarationSpecifiers ';' { $$ = nullptr; }   /* TODO: Is this needed? */
-  | DeclarationSpecifiers InitDeclaratorList ';' { $$ = VariableDeclaration::CreateDeclarations($1, $2); /*delete $2;*/ }
+  : DeclarationSpecifiers InitDeclaratorList ';' { $$ = VariableDeclaration::CreateDeclarations($1, $2); /*delete $2;*/ }
   ;
 
 /* TODO: Arrays here */

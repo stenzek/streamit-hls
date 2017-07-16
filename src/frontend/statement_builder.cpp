@@ -50,7 +50,7 @@ bool StatementBuilder::Visit(AST::IfStatement* node)
     return false;
 
   // Expression needs to be boolean
-  if (node->GetInnerExpression()->GetType() != Type::GetBooleanType())
+  if (!node->GetInnerExpression()->GetType()->IsBoolean())
     return false;
 
   // Create a basic block for the then part
@@ -110,8 +110,8 @@ bool StatementBuilder::Visit(AST::ForStatement* node)
   m_func_builder->SwitchBasicBlock(condition_bb);
   if (node->HasConditionExpression())
   {
-    assert(node->GetConditionExpression()->GetType() == Type::GetBooleanType());
     ExpressionBuilder eb(m_func_builder);
+    assert(node->GetConditionExpression()->GetType()->IsBoolean());
     if (!node->GetConditionExpression()->Accept(&eb) || !eb.IsValid())
       return false;
 

@@ -213,11 +213,92 @@ protected:
   const Type* m_type = nullptr;
 };
 
+// References are placed in the symbol table to resolve names -> type pointers
+class TypeReference : public Node
+{
+public:
+  TypeReference(const std::string& name, const Type* type);
+  ~TypeReference() = default;
+
+  const std::string& GetName() const
+  {
+    return m_name;
+  }
+  const Type* GetType() const
+  {
+    return m_type;
+  }
+
+  void Dump(ASTPrinter* printer) const override
+  {
+  }
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override
+  {
+    return true;
+  }
+  bool Accept(Visitor* visitor) override
+  {
+    return false;
+  }
+
+private:
+  std::string m_name;
+  const Type* m_type;
+};
+
+class TypeName : public Node
+{
+public:
+  TypeName(const SourceLocation& sloc);
+  ~TypeName() = default;
+
+  const std::string& GetBaseTypeName() const;
+  const std::vector<int>& GetArraySizes() const;
+  const Type* GetFinalType() const;
+
+  void SetBaseTypeName(const char* name);
+  void AddArraySize(int size);
+
+  void Merge(ParserState* state, TypeName* rhs);
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+private:
+  SourceLocation m_sloc;
+  std::string m_base_type_name;
+  std::vector<int> m_array_sizes;
+  const Type* m_final_type = nullptr;
+};
+
+class StructSpecifier : public Node
+{
+public:
+  StructSpecifier(const SourceLocation& sloc, const char* name);
+  ~StructSpecifier() = default;
+
+  const std::string& GetName() const;
+  const std::vector<std::pair<std::string, TypeName*>>& GetFields() const;
+
+  void AddField(const char* name, TypeName* specifier);
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+private:
+  SourceLocation m_sloc;
+  std::string m_name;
+  std::vector<std::pair<std::string, TypeName*>> m_fields;
+  const Type* m_final_type = nullptr;
+};
+
 class PipelineDeclaration : public Declaration
 {
 public:
-  PipelineDeclaration(const SourceLocation& sloc, const Type* input_type, const Type* output_type, const char* name,
-                      NodeList* statements);
+  PipelineDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
+                      const char* name, NodeList* statements);
   ~PipelineDeclaration() override;
 
   void Dump(ASTPrinter* printer) const override;
@@ -225,8 +306,10 @@ public:
   bool Accept(Visitor* visitor) override;
 
 private:
-  const Type* m_input_type;
-  const Type* m_output_type;
+  TypeName* m_input_type_specifier;
+  TypeName* m_output_type_specifier;
+  const Type* m_input_type = nullptr;
+  const Type* m_output_type = nullptr;
   std::string m_name;
   NodeList* m_statements;
 };
@@ -250,8 +333,9 @@ private:
 class FilterDeclaration : public Declaration
 {
 public:
-  FilterDeclaration(const SourceLocation& sloc, const Type* input_type, const Type* output_type, const char* name,
-                    NodeList* vars, FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work);
+  FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
+                    const char* name, NodeList* vars, FilterWorkBlock* init, FilterWorkBlock* prework,
+                    FilterWorkBlock* work);
   ~FilterDeclaration() = default;
 
   const Type* GetInputType() const
@@ -300,8 +384,10 @@ public:
   bool Accept(Visitor* visitor) override;
 
 private:
-  const Type* m_input_type;
-  const Type* m_output_type;
+  TypeName* m_input_type_specifier;
+  TypeName* m_output_type_specifier;
+  const Type* m_input_type = nullptr;
+  const Type* m_output_type = nullptr;
   std::string m_name;
   NodeList* m_vars;
   FilterWorkBlock* m_init;
@@ -602,7 +688,7 @@ using InitDeclaratorList = std::vector<InitDeclarator>;
 class VariableDeclaration final : public Declaration
 {
 public:
-  VariableDeclaration(const SourceLocation& sloc, const Type* type, const char* name, Expression* initializer);
+  VariableDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const char* name, Expression* initializer);
   ~VariableDeclaration() override final = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -626,10 +712,11 @@ public:
     return m_initializer;
   }
 
-  static Node* CreateDeclarations(const Type* type, const InitDeclaratorList* declarator_list);
+  static Node* CreateDeclarations(TypeName* type_specifier, const InitDeclaratorList* declarator_list);
 
 private:
-  const Type* m_type;
+  TypeName* m_type_specifier;
+  const Type* m_type = nullptr;
   std::string m_name;
   Expression* m_initializer;
 };

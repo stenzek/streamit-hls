@@ -49,6 +49,28 @@ void NodeList::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
+void TypeName::Dump(ASTPrinter* printer) const
+{
+  printer->Write("TypeSpecifier[base=%s", m_base_type_name.c_str());
+  if (!m_array_sizes.empty())
+  {
+    printer->Write(",array=");
+    for (int sz : m_array_sizes)
+      printer->Write("[%d]", sz);
+  }
+  printer->WriteLine("");
+}
+
+void StructSpecifier::Dump(ASTPrinter* printer) const
+{
+  printer->BeginBlock("StructSpecifier[name=%s]", m_name.c_str());
+  for (const auto& it : m_fields)
+  {
+    printer->Write("field %s: ", it.first.c_str());
+    it.second->Dump(printer);
+  }
+}
+
 void PipelineDeclaration::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("PipelineDeclaration[name=%s, input=%s, output=%s]", m_name.c_str(),

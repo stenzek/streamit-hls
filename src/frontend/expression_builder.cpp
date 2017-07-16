@@ -95,7 +95,7 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
   }
 
   // TODO: Float operands
-  if (node->GetType() == Type::GetIntType())
+  if (node->GetType()->IsInt())
   {
     // TODO: Type conversion where LHS type != RHS type
     assert(node->GetLHSExpression()->GetType() == node->GetType() &&
@@ -156,7 +156,7 @@ bool ExpressionBuilder::Visit(AST::RelationalExpression* node)
   }
 
   // TODO: Float operands
-  if (node->GetIntermediateType() == Type::GetIntType())
+  if (node->GetIntermediateType()->IsInt())
   {
     // TODO: Type conversion where LHS type != RHS type
     assert(node->GetLHSExpression()->GetType() == node->GetIntermediateType() &&
@@ -201,8 +201,7 @@ bool ExpressionBuilder::Visit(AST::LogicalExpression* node)
     return false;
 
   // Both should be boolean types.
-  assert(node->GetLHSExpression()->GetType() == Type::GetBooleanType() &&
-         node->GetRHSExpression()->GetType() == Type::GetBooleanType());
+  assert(node->GetLHSExpression()->GetType()->IsBoolean() && node->GetRHSExpression()->GetType()->IsBoolean());
 
   // Create a new block for the right-hand side of the expression
   llvm::BasicBlock* lhs_end_bb = m_func_builder->NewBasicBlock();
@@ -223,7 +222,7 @@ bool ExpressionBuilder::Visit(AST::LogicalExpression* node)
     llvm::IRBuilder<>(rhs_end_bb).CreateBr(merge_bb);
 
     // Create phi node from result
-    llvm::PHINode* phi = GetIRBuilder().CreatePHI(GetContext()->GetLLVMType(Type::GetBooleanType()), 2, "");
+    llvm::PHINode* phi = GetIRBuilder().CreatePHI(GetContext()->GetLLVMType(node->GetType()), 2, "");
     phi->addIncoming(GetIRBuilder().getInt1(0), lhs_end_bb);
     phi->addIncoming(eb_rhs.GetResultValue(), rhs_end_bb);
     m_result_value = phi;
@@ -239,7 +238,7 @@ bool ExpressionBuilder::Visit(AST::LogicalExpression* node)
     llvm::IRBuilder<>(rhs_end_bb).CreateBr(merge_bb);
 
     // Create phi node from result
-    llvm::PHINode* phi = GetIRBuilder().CreatePHI(GetContext()->GetLLVMType(Type::GetBooleanType()), 2, "");
+    llvm::PHINode* phi = GetIRBuilder().CreatePHI(GetContext()->GetLLVMType(node->GetType()), 2, "");
     phi->addIncoming(GetIRBuilder().getInt1(1), lhs_end_bb);
     phi->addIncoming(eb_rhs.GetResultValue(), rhs_end_bb);
     m_result_value = phi;
