@@ -75,6 +75,9 @@ using namespace AST;
 %type <program> Program
 %type <pipeline_decl> PipelineDeclaration
 %type <node> PipelineStatement
+%type <node> PipelineAddStatement
+%type <node> PipelineSplitStatement
+%type <node> PipelineJoinStatement
 %type <node_list> PipelineStatementList
 %type <filter_decl> FilterDeclaration
 %type <filter_work_parts> FilterDefinition
@@ -159,8 +162,23 @@ PipelineDeclaration
   ;
 
 PipelineStatement
-  : TK_ADD Identifier ';' { $$ = new PipelineAddStatement(@1, $2, nullptr); }
-  | TK_ADD Identifier '(' ')' ';' { $$ = new PipelineAddStatement(@1, $2, nullptr); }
+  : PipelineAddStatement ';' { $$ = $1; }
+  | PipelineSplitStatement ';' { $$ = $1; }
+  | PipelineJoinStatement ';' { $$ = $1; }
+  ;
+
+PipelineAddStatement
+  : TK_ADD Identifier { $$ = new PipelineAddStatement(@1, $2, nullptr); }
+  | TK_ADD Identifier '(' ')' { $$ = new PipelineAddStatement(@1, $2, nullptr); }
+  ;
+
+PipelineSplitStatement
+  : TK_SPLIT TK_ROUNDROBIN { $$ = new PipelineSplitStatement(@1, PipelineSplitStatement::RoundRobin); }
+  | TK_SPLIT TK_DUPLICATE { $$ = new PipelineSplitStatement(@1, PipelineSplitStatement::Duplicate); }
+  ;
+
+PipelineJoinStatement
+  : TK_JOIN TK_ROUNDROBIN { $$ = new PipelineJoinStatement(@1, PipelineJoinStatement::RoundRobin); }
   ;
 
 PipelineStatementList

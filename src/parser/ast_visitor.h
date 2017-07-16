@@ -14,6 +14,8 @@ class TypeName;
 class StructSpecifier;
 class PipelineDeclaration;
 class PipelineAddStatement;
+class PipelineSplitStatement;
+class PipelineJoinStatement;
 class FilterDeclaration;
 class FilterWorkBlock;
 class IntegerLiteralExpression;
@@ -51,6 +53,8 @@ public:
   virtual bool Visit(StructSpecifier* node);
   virtual bool Visit(PipelineDeclaration* node);
   virtual bool Visit(PipelineAddStatement* node);
+  virtual bool Visit(PipelineSplitStatement* node);
+  virtual bool Visit(PipelineJoinStatement* node);
   virtual bool Visit(FilterDeclaration* node);
   virtual bool Visit(FilterWorkBlock* node);
   virtual bool Visit(BooleanLiteralExpression* node);

@@ -128,6 +128,18 @@ bool PipelineAddStatement::SemanticAnalysis(ParserState* state, LexicalScope* sy
   return true;
 }
 
+bool PipelineSplitStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // TODO
+  return true;
+}
+
+bool PipelineJoinStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // TODO
+  return true;
+}
+
 bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;

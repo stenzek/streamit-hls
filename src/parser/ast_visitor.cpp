@@ -124,6 +124,16 @@ bool Visitor::Visit(PipelineAddStatement* node)
   return Visit(static_cast<Statement*>(node));
 }
 
+bool Visitor::Visit(PipelineSplitStatement* node)
+{
+  return static_cast<Statement*>(node);
+}
+
+bool Visitor::Visit(PipelineJoinStatement* node)
+{
+  return static_cast<Statement*>(node);
+}
+
 bool Visitor::Visit(PipelineDeclaration* node)
 {
   return Visit(static_cast<Declaration*>(node));
@@ -307,6 +317,21 @@ bool ContinueStatement::Accept(Visitor* visitor)
 }
 
 bool ReturnStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool PipelineAddStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool PipelineJoinStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool PipelineSplitStatement::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

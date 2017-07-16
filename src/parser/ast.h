@@ -334,6 +334,49 @@ private:
   Node* m_filter_declaration = nullptr;
 };
 
+class PipelineSplitStatement : public Statement
+{
+public:
+  enum Type : unsigned int
+  {
+    RoundRobin,
+    Duplicate
+  };
+
+  PipelineSplitStatement(const SourceLocation& sloc, Type type);
+  ~PipelineSplitStatement() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Type GetType() const;
+
+private:
+  Type m_type;
+};
+
+class PipelineJoinStatement : public Statement
+{
+public:
+  enum Type : unsigned int
+  {
+    RoundRobin
+  };
+
+  PipelineJoinStatement(const SourceLocation& sloc, Type type);
+  ~PipelineJoinStatement() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Type GetType() const;
+
+private:
+  Type m_type;
+};
+
 class FilterDeclaration : public Declaration
 {
 public:

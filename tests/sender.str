@@ -1,4 +1,14 @@
-void -> int filter finput
+void->void pipeline Sender80211
+{
+	add inputf;
+	add scramble;
+	add diff_encode;
+	add chunk2symbol;
+	//add fir_filter;
+	add outputf;
+}
+
+void -> int filter inputf
 {
 	work push 8
 	{
@@ -10,6 +20,15 @@ void -> int filter finput
 		push(0x21);
 		push(0x21);
 		push(0x21);
+	}
+}
+
+int -> void filter outputf
+{
+	work pop 1
+	{
+		//println(pop());
+        pop();
 	}
 }
 
@@ -57,6 +76,17 @@ int -> int filter chunk2symbol
 	}
 }
 
+int -> int pipeline fir_filter
+{
+	//add splitjoin
+	//{
+		split duplicate;
+		//add filter_filter_half;
+		//add filter_filter_half;
+		join roundrobin;
+	//}
+}
+
 int -> int filter fir_filter_half
 {
 	int[16] rcc_taps = {0, -666, 69361, 157964, 255889, 351141, 430952, 484036, 502648, 484036, 430952, 351141, 255889, 157964, 69361, -666};
@@ -77,10 +107,5 @@ int -> int filter fir_filter_half
 			push((rcc_taps[j] * (current / 1024) + rcc_taps[j + 8] * (previous / 1024)) / 1024);
 		pop();
 	}
-}
-
-int -> int pipeline sender
-{
-    add diff_encode;
 }
 

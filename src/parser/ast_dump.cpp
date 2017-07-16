@@ -103,6 +103,18 @@ void PipelineAddStatement::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
+void PipelineSplitStatement::Dump(ASTPrinter* printer) const
+{
+  static const std::array<const char*, 2> type_names = {{"RoundRobin", "Duplicate"}};
+  printer->WriteLine("PipelineSplitStatement[type=%s]", type_names[m_type]);
+}
+
+void PipelineJoinStatement::Dump(ASTPrinter* printer) const
+{
+  static const std::array<const char*, 1> type_names = {{"RoundRobin"}};
+  printer->WriteLine("PipelineJoinStatement[type=%s]", type_names[m_type]);
+}
+
 void IdentifierExpression::Dump(ASTPrinter* printer) const
 {
   printer->WriteLine("IdentifierExpression(%s -> %s)", m_identifier.c_str(), m_type->GetName().c_str());
@@ -119,8 +131,8 @@ void IndexExpression::Dump(ASTPrinter* printer) const
 
 void UnaryExpression::Dump(ASTPrinter* printer) const
 {
-  std::array<const char*, 8> op_names = {{"PreIncrement", "PreDecrement", "PostIncrement", "PostDecrement", "Positive",
-                                          "Negative", "LogicalNot", "BitwiseNot"}};
+  static const std::array<const char*, 8> op_names = {{"PreIncrement", "PreDecrement", "PostIncrement", "PostDecrement",
+                                                       "Positive", "Negative", "LogicalNot", "BitwiseNot"}};
   printer->BeginBlock("UnaryExpression(%s %s -> %s)", op_names[m_op], m_rhs->GetType()->GetName().c_str(),
                       m_type->GetName().c_str());
   printer->Write("rhs: ");
@@ -130,8 +142,8 @@ void UnaryExpression::Dump(ASTPrinter* printer) const
 
 void BinaryExpression::Dump(ASTPrinter* printer) const
 {
-  std::array<const char*, 10> op_names = {{"Add", "Subtract", "Multiply", "Divide", "Modulo", "BitwiseAnd", "BitwiseOr",
-                                           "BitwiseXor", "LeftShift", "RightShift"}};
+  static const std::array<const char*, 10> op_names = {{"Add", "Subtract", "Multiply", "Divide", "Modulo", "BitwiseAnd",
+                                                        "BitwiseOr", "BitwiseXor", "LeftShift", "RightShift"}};
   printer->BeginBlock("BinaryExpression(%s %s %s -> %s)", m_lhs->GetType()->GetName().c_str(), op_names[m_op],
                       m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
   printer->Write("lhs: ");
@@ -143,7 +155,8 @@ void BinaryExpression::Dump(ASTPrinter* printer) const
 
 void RelationalExpression::Dump(ASTPrinter* printer) const
 {
-  std::array<const char*, 6> op_names = {{"Less", "LessEqual", "Greater", "GreaterEqual", "Equal", "NotEqual"}};
+  static const std::array<const char*, 6> op_names = {
+                        {"Less", "LessEqual", "Greater", "GreaterEqual", "Equal", "NotEqual"}};
   printer->BeginBlock("RelationalExpression(%s %s %s -> %s)", m_lhs->GetType()->GetName().c_str(), op_names[m_op],
                       m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
   printer->Write("lhs: ");
@@ -155,7 +168,7 @@ void RelationalExpression::Dump(ASTPrinter* printer) const
 
 void LogicalExpression::Dump(ASTPrinter* printer) const
 {
-  std::array<const char*, 3> op_names = {{"And", "Or", "Not"}};
+  static const std::array<const char*, 3> op_names = {{"And", "Or", "Not"}};
   printer->BeginBlock("LogicalExpression(%s %s %s -> %s)", m_lhs->GetType()->GetName().c_str(), op_names[m_op],
                       m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
   printer->Write("lhs: ");

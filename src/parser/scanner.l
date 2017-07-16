@@ -44,6 +44,8 @@ continue { return TK_CONTINUE; }
 break { return TK_BREAK; }
 return { return TK_RETURN; }
 void { return TK_VOID; }
+duplicate { return TK_DUPLICATE; }
+roundrobin { return TK_ROUNDROBIN; }
 
  /* Digraphs */
 "&&" { return TK_LOGICAL_AND; }

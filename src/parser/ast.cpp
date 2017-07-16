@@ -197,11 +197,6 @@ PipelineAddStatement::~PipelineAddStatement()
 {
 }
 
-bool PipelineAddStatement::Accept(Visitor* visitor)
-{
-  return visitor->Visit(this);
-}
-
 IdentifierExpression::IdentifierExpression(const SourceLocation& sloc, const char* identifier)
   : Expression(sloc), m_identifier(identifier)
 {
@@ -550,5 +545,23 @@ Expression* ReturnStatement::GetInnerExpression() const
 bool ReturnStatement::HasReturnValue() const
 {
   return (m_expr != nullptr);
+}
+
+PipelineSplitStatement::PipelineSplitStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
+{
+}
+
+PipelineSplitStatement::Type PipelineSplitStatement::GetType() const
+{
+  return m_type;
+}
+
+PipelineJoinStatement::PipelineJoinStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
+{
+}
+
+PipelineJoinStatement::Type PipelineJoinStatement::GetType() const
+{
+  return m_type;
 }
 }
