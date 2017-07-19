@@ -13,7 +13,7 @@ void Program::Dump(ASTPrinter* printer) const
   printer->BeginBlock("Pipelines");
   {
     unsigned int counter = 0;
-    for (auto* pipeline : m_pipelines)
+    for (auto* pipeline : m_streams)
     {
       printer->Write("Pipeline[%u]: ", counter++);
       pipeline->Dump(printer);
@@ -87,7 +87,23 @@ void PipelineDeclaration::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
-void PipelineAddStatement::Dump(ASTPrinter* printer) const
+void SplitJoinDeclaration::Dump(ASTPrinter* printer) const
+{
+  printer->BeginBlock("SplitJoinDeclaration[name=%s, input=%s, output=%s]", m_name.c_str(),
+                      m_input_type->GetName().c_str(), m_output_type->GetName().c_str());
+  if (m_statements)
+  {
+    unsigned int counter = 0;
+    for (const auto* stmt : *m_statements)
+    {
+      printer->Write("Statement[%u]: ", counter++);
+      stmt->Dump(printer);
+    }
+  }
+  printer->EndBlock();
+}
+
+void StreamAddStatement::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("PipelineAddStatement[filter=%s]", m_filter_name.c_str());
   if (m_filter_parameters)
@@ -103,13 +119,13 @@ void PipelineAddStatement::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
-void PipelineSplitStatement::Dump(ASTPrinter* printer) const
+void StreamSplitStatement::Dump(ASTPrinter* printer) const
 {
   static const std::array<const char*, 2> type_names = {{"RoundRobin", "Duplicate"}};
   printer->WriteLine("PipelineSplitStatement[type=%s]", type_names[m_type]);
 }
 
-void PipelineJoinStatement::Dump(ASTPrinter* printer) const
+void StreamJoinStatement::Dump(ASTPrinter* printer) const
 {
   static const std::array<const char*, 1> type_names = {{"RoundRobin"}};
   printer->WriteLine("PipelineJoinStatement[type=%s]", type_names[m_type]);
@@ -274,6 +290,7 @@ void FilterDeclaration::Dump(ASTPrinter* printer) const
         printer->Write("var[%u]: ", counter++);
         stmt->Dump(printer);
       }
+      printer->EndBlock();
     }
     if (m_init)
     {

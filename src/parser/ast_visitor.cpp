@@ -119,24 +119,34 @@ bool Visitor::Visit(FilterDeclaration* node)
   return Visit(static_cast<Declaration*>(node));
 }
 
-bool Visitor::Visit(PipelineAddStatement* node)
+bool Visitor::Visit(StreamAddStatement* node)
 {
   return Visit(static_cast<Statement*>(node));
 }
 
-bool Visitor::Visit(PipelineSplitStatement* node)
+bool Visitor::Visit(StreamSplitStatement* node)
 {
   return static_cast<Statement*>(node);
 }
 
-bool Visitor::Visit(PipelineJoinStatement* node)
+bool Visitor::Visit(StreamJoinStatement* node)
 {
   return static_cast<Statement*>(node);
+}
+
+bool Visitor::Visit(StreamDeclaration* node)
+{
+  return Visit(static_cast<Declaration*>(node));
 }
 
 bool Visitor::Visit(PipelineDeclaration* node)
 {
-  return Visit(static_cast<Declaration*>(node));
+  return Visit(static_cast<StreamDeclaration*>(node));
+}
+
+bool Visitor::Visit(SplitJoinDeclaration* node)
+{
+  return Visit(static_cast<StreamDeclaration*>(node));
 }
 
 bool Visitor::Visit(Expression* node)
@@ -321,17 +331,27 @@ bool ReturnStatement::Accept(Visitor* visitor)
   return visitor->Visit(this);
 }
 
-bool PipelineAddStatement::Accept(Visitor* visitor)
+bool PipelineDeclaration::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }
 
-bool PipelineJoinStatement::Accept(Visitor* visitor)
+bool SplitJoinDeclaration::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }
 
-bool PipelineSplitStatement::Accept(Visitor* visitor)
+bool StreamAddStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool StreamJoinStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool StreamSplitStatement::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

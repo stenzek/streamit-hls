@@ -24,7 +24,7 @@ using namespace AST;
 }
 
 %token TK_ARROW
-%token TK_FILTER TK_PIPELINE
+%token TK_FILTER TK_PIPELINE TK_SPLITJOIN
 %token TK_PEEK TK_POP TK_PUSH
 %token TK_ADD TK_LOOP TK_ENQUEUE
 %token TK_SPLIT TK_DUPLICATE
@@ -54,7 +54,7 @@ using namespace AST;
   AST::Declaration* decl;
   AST::Statement* stmt;
   AST::Expression* expr;
-  AST::PipelineDeclaration* pipeline_decl;
+  AST::StreamDeclaration* stream_decl;
   AST::FilterDeclaration* filter_decl;
   AST::FilterWorkParts* filter_work_parts;
   AST::FilterWorkBlock* filter_work_block;
@@ -73,12 +73,16 @@ using namespace AST;
 }
 
 %type <program> Program
-%type <pipeline_decl> PipelineDeclaration
-%type <node> PipelineStatement
-%type <node> PipelineAddStatement
-%type <node> PipelineSplitStatement
-%type <node> PipelineJoinStatement
-%type <node_list> PipelineStatementList
+%type <stream_decl> StreamDeclaration
+%type <stream_decl> PipelineDeclaration
+%type <stream_decl> SplitJoinDeclaration
+%type <stmt> StreamStatement
+%type <stmt> StreamAddStatement
+%type <stmt> StreamSplitStatement
+%type <stmt> StreamJoinStatement
+%type <node_list> StreamStatementList
+%type <stream_decl> AnonymousStreamDeclaration
+%type <filter_decl> AnonymousFilterDeclaration
 %type <filter_decl> FilterDeclaration
 %type <filter_work_parts> FilterDefinition
 %type <filter_work_parts> FilterWorkParts
@@ -136,9 +140,9 @@ IntegerLiteral : TK_INTEGER_LITERAL ;
 BooleanLiteral : TK_BOOLEAN_LITERAL ;
 
 Program
-  : PipelineDeclaration { $$ = state->program = new Program(); state->program->AddPipeline($1); }
+  : StreamDeclaration { $$ = state->program = new Program(); state->program->AddStream($1); }
   | FilterDeclaration { $$ = state->program = new Program(); state->program->AddFilter($1); }
-  | Program PipelineDeclaration { $1->AddPipeline($2); }
+  | Program StreamDeclaration { $1->AddStream($2); }
   | Program FilterDeclaration { $1->AddFilter($2); }
   ;
 
@@ -157,33 +161,64 @@ TypeName
   | TypeName '[' IntegerLiteral ']' { $1->AddArraySize($3); }
   ;
 
+StreamDeclaration
+  : PipelineDeclaration { $$ = $1; }
+  | SplitJoinDeclaration { $$ = $1; }
+  ;
+
 PipelineDeclaration
-  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' PipelineStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7); }
+  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' StreamStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7); }
   ;
 
-PipelineStatement
-  : PipelineAddStatement ';' { $$ = $1; }
-  | PipelineSplitStatement ';' { $$ = $1; }
-  | PipelineJoinStatement ';' { $$ = $1; }
+SplitJoinDeclaration
+  : TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '{' StreamStatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, $7); }
   ;
 
-PipelineAddStatement
-  : TK_ADD Identifier { $$ = new PipelineAddStatement(@1, $2, nullptr); }
-  | TK_ADD Identifier '(' ')' { $$ = new PipelineAddStatement(@1, $2, nullptr); }
+StreamStatement
+  : StreamAddStatement { $$ = $1; }
+  | StreamSplitStatement { $$ = $1; }
+  | StreamJoinStatement { $$ = $1; }
   ;
 
-PipelineSplitStatement
-  : TK_SPLIT TK_ROUNDROBIN { $$ = new PipelineSplitStatement(@1, PipelineSplitStatement::RoundRobin); }
-  | TK_SPLIT TK_DUPLICATE { $$ = new PipelineSplitStatement(@1, PipelineSplitStatement::Duplicate); }
+StreamAddStatement
+  : TK_ADD Identifier ';' { $$ = new StreamAddStatement(@1, $2, nullptr); }
+  | TK_ADD Identifier '(' ')' ';' { $$ = new StreamAddStatement(@1, $2, nullptr); }
+  | TK_ADD AnonymousFilterDeclaration { $$ = new StreamAddStatement(@1, $2->GetName().c_str(), new NodeList()); }
+  | TK_ADD AnonymousStreamDeclaration { $$ = new StreamAddStatement(@1, $2->GetName().c_str(), new NodeList()); }
   ;
 
-PipelineJoinStatement
-  : TK_JOIN TK_ROUNDROBIN { $$ = new PipelineJoinStatement(@1, PipelineJoinStatement::RoundRobin); }
+StreamSplitStatement
+  : TK_SPLIT TK_ROUNDROBIN ';' { $$ = new StreamSplitStatement(@1, StreamSplitStatement::RoundRobin); }
+  | TK_SPLIT TK_DUPLICATE ';' { $$ = new StreamSplitStatement(@1, StreamSplitStatement::Duplicate); }
   ;
 
-PipelineStatementList
-  : PipelineStatement { $$ = new NodeList(); $$->AddNode($1); }
-  | PipelineStatementList PipelineStatement { $1->AddNode($2); }
+StreamJoinStatement
+  : TK_JOIN TK_ROUNDROBIN ';' { $$ = new StreamJoinStatement(@1, StreamJoinStatement::RoundRobin); }
+  ;
+
+AnonymousFilterDeclaration
+  : '{' FilterDefinition '}'
+  {
+    std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_filter");
+    FilterDeclaration* decl = new FilterDeclaration(@1, nullptr, nullptr, name.c_str(), $2->vars, $2->init, $2->prework, $2->work);
+    state->program->AddFilter(decl);
+    $$ = decl;
+  }
+  ;
+
+AnonymousStreamDeclaration
+  : TK_SPLITJOIN '{' StreamStatementList '}'
+  {
+    std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_splitjoin");
+    SplitJoinDeclaration* decl = new SplitJoinDeclaration(@1, nullptr, nullptr, name.c_str(), $3);
+    state->program->AddStream(decl);
+    $$ = decl;
+  }
+  ;
+
+StreamStatementList
+  : StreamStatement { $$ = new NodeList(); $$->AddNode($1); }
+  | StreamStatementList StreamStatement { $1->AddNode($2); }
   ;
 
 FilterDeclaration

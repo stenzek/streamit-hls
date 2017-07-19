@@ -11,9 +11,9 @@ const std::list<FilterDeclaration*>& Program::GetFilterList() const
   return m_filters;
 }
 
-void Program::AddPipeline(PipelineDeclaration* decl)
+void Program::AddStream(StreamDeclaration* decl)
 {
-  m_pipelines.push_back(decl);
+  m_streams.push_back(decl);
 }
 
 void Program::AddFilter(FilterDeclaration* decl)
@@ -171,10 +171,14 @@ void StructSpecifier::AddField(const char* name, TypeName* specifier)
   m_fields.emplace_back(name, specifier);
 }
 
+StreamDeclaration::StreamDeclaration(const SourceLocation& sloc, const char* name) : Declaration(sloc), m_name(name)
+{
+}
+
 PipelineDeclaration::PipelineDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
                                          TypeName* output_type_specifier, const char* name, NodeList* statements)
-  : Declaration(sloc), m_input_type_specifier(input_type_specifier), m_output_type_specifier(output_type_specifier),
-    m_name(name), m_statements(statements)
+  : StreamDeclaration(sloc, name), m_input_type_specifier(input_type_specifier),
+    m_output_type_specifier(output_type_specifier), m_statements(statements)
 {
 }
 
@@ -182,18 +186,23 @@ PipelineDeclaration::~PipelineDeclaration()
 {
 }
 
-bool PipelineDeclaration::Accept(Visitor* visitor)
+SplitJoinDeclaration::SplitJoinDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
+                                           TypeName* output_type_specifier, const char* name, NodeList* statements)
+  : StreamDeclaration(sloc, name), m_input_type_specifier(input_type_specifier),
+    m_output_type_specifier(output_type_specifier), m_statements(statements)
 {
-  return visitor->Visit(this);
 }
 
-PipelineAddStatement::PipelineAddStatement(const SourceLocation& sloc, const char* filter_name,
-                                           const NodeList* parameters)
+SplitJoinDeclaration::~SplitJoinDeclaration()
+{
+}
+
+StreamAddStatement::StreamAddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters)
   : Statement(sloc), m_filter_name(filter_name), m_filter_parameters(parameters)
 {
 }
 
-PipelineAddStatement::~PipelineAddStatement()
+StreamAddStatement::~StreamAddStatement()
 {
 }
 
@@ -547,20 +556,20 @@ bool ReturnStatement::HasReturnValue() const
   return (m_expr != nullptr);
 }
 
-PipelineSplitStatement::PipelineSplitStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
+StreamSplitStatement::StreamSplitStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
 {
 }
 
-PipelineSplitStatement::Type PipelineSplitStatement::GetType() const
+StreamSplitStatement::Type StreamSplitStatement::GetType() const
 {
   return m_type;
 }
 
-PipelineJoinStatement::PipelineJoinStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
+StreamJoinStatement::StreamJoinStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
 {
 }
 
-PipelineJoinStatement::Type PipelineJoinStatement::GetType() const
+StreamJoinStatement::Type StreamJoinStatement::GetType() const
 {
   return m_type;
 }

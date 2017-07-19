@@ -78,13 +78,13 @@ int -> int filter chunk2symbol
 
 int -> int pipeline fir_filter
 {
-	//add splitjoin
-	//{
+	add splitjoin
+	{
 		split duplicate;
-		//add filter_filter_half;
-		//add filter_filter_half;
+		add fir_filter_half;
+		add fir_filter_half;
 		join roundrobin;
-	//}
+	}
 }
 
 int -> int filter fir_filter_half

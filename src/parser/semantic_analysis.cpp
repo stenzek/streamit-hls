@@ -15,7 +15,7 @@ bool Program::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
   for (auto* filter : m_filters)
     result &= filter->SemanticAnalysis(state, symbol_table);
 
-  for (auto* pipeline : m_pipelines)
+  for (auto* pipeline : m_streams)
     result &= pipeline->SemanticAnalysis(state, symbol_table);
 
   return result;
@@ -96,24 +96,62 @@ bool StructSpecifier::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
 bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
-  result &= m_input_type_specifier->SemanticAnalysis(state, symbol_table);
-  m_input_type = m_input_type_specifier->GetFinalType();
-  result &= m_output_type_specifier->SemanticAnalysis(state, symbol_table);
-  m_output_type = m_output_type_specifier->GetFinalType();
+  if (m_input_type_specifier && m_output_type_specifier)
+  {
+    result &= m_input_type_specifier->SemanticAnalysis(state, symbol_table);
+    m_input_type = m_input_type_specifier->GetFinalType();
+    result &= m_output_type_specifier->SemanticAnalysis(state, symbol_table);
+    m_output_type = m_output_type_specifier->GetFinalType();
+  }
+  else
+  {
+    // TODO: Anonymous stream
+    m_input_type = state->GetErrorType();
+    m_output_type = state->GetErrorType();
+  }
 
   if (m_statements)
     result &= m_statements->SemanticAnalysis(state, symbol_table);
 
   if (!symbol_table->AddName(m_name, this))
   {
-    state->ReportError(m_sloc, "Pipeline '%s' is already defined", m_name.c_str());
+    state->ReportError(m_sloc, "Stream '%s' is already defined", m_name.c_str());
     return false;
   }
 
   return result;
 }
 
-bool PipelineAddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  bool result = true;
+  if (m_input_type_specifier && m_output_type_specifier)
+  {
+    result &= m_input_type_specifier->SemanticAnalysis(state, symbol_table);
+    m_input_type = m_input_type_specifier->GetFinalType();
+    result &= m_output_type_specifier->SemanticAnalysis(state, symbol_table);
+    m_output_type = m_output_type_specifier->GetFinalType();
+  }
+  else
+  {
+    // TODO: Anonymous stream
+    m_input_type = state->GetErrorType();
+    m_output_type = state->GetErrorType();
+  }
+
+  if (m_statements)
+    result &= m_statements->SemanticAnalysis(state, symbol_table);
+
+  if (!symbol_table->AddName(m_name, this))
+  {
+    state->ReportError(m_sloc, "Stream '%s' is already defined", m_name.c_str());
+    return false;
+  }
+
+  return result;
+}
+
+bool StreamAddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO: Create variable declarations for parameters - we can manipulate these when generating code..
   // TODO: Check parameter counts and stuff..
@@ -128,13 +166,13 @@ bool PipelineAddStatement::SemanticAnalysis(ParserState* state, LexicalScope* sy
   return true;
 }
 
-bool PipelineSplitStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+bool StreamSplitStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO
   return true;
 }
 
-bool PipelineJoinStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+bool StreamJoinStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO
   return true;

@@ -18,8 +18,7 @@ class NodeList;
 class Statement;
 class Declaration;
 class Expression;
-class PipelineDeclaration;
-class PipelineAddStatement;
+class StreamDeclaration;
 class FilterDeclaration;
 class FilterWorkBlock;
 class IntegerLiteralExpression;
@@ -102,11 +101,11 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
   bool Accept(Visitor* visitor);
 
-  void AddPipeline(PipelineDeclaration* decl);
+  void AddStream(StreamDeclaration* decl);
   void AddFilter(FilterDeclaration* decl);
 
 private:
-  std::list<PipelineDeclaration*> m_pipelines;
+  std::list<StreamDeclaration*> m_streams;
   std::list<FilterDeclaration*> m_filters;
 };
 
@@ -298,7 +297,22 @@ private:
   const Type* m_final_type = nullptr;
 };
 
-class PipelineDeclaration : public Declaration
+class StreamDeclaration : public Declaration
+{
+public:
+  StreamDeclaration(const SourceLocation& sloc, const char* name);
+  ~StreamDeclaration() = default;
+
+  const std::string& GetName() const
+  {
+    return m_name;
+  }
+
+protected:
+  std::string m_name;
+};
+
+class PipelineDeclaration : public StreamDeclaration
 {
 public:
   PipelineDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
@@ -314,15 +328,33 @@ private:
   TypeName* m_output_type_specifier;
   const Type* m_input_type = nullptr;
   const Type* m_output_type = nullptr;
-  std::string m_name;
   NodeList* m_statements;
 };
 
-class PipelineAddStatement : public Statement
+class SplitJoinDeclaration : public StreamDeclaration
 {
 public:
-  PipelineAddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters);
-  ~PipelineAddStatement();
+  SplitJoinDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
+                       const char* name, NodeList* statements);
+  ~SplitJoinDeclaration() override;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+private:
+  TypeName* m_input_type_specifier;
+  TypeName* m_output_type_specifier;
+  const Type* m_input_type = nullptr;
+  const Type* m_output_type = nullptr;
+  NodeList* m_statements;
+};
+
+class StreamAddStatement : public Statement
+{
+public:
+  StreamAddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters);
+  ~StreamAddStatement();
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
@@ -334,7 +366,7 @@ private:
   Node* m_filter_declaration = nullptr;
 };
 
-class PipelineSplitStatement : public Statement
+class StreamSplitStatement : public Statement
 {
 public:
   enum Type : unsigned int
@@ -343,8 +375,8 @@ public:
     Duplicate
   };
 
-  PipelineSplitStatement(const SourceLocation& sloc, Type type);
-  ~PipelineSplitStatement() = default;
+  StreamSplitStatement(const SourceLocation& sloc, Type type);
+  ~StreamSplitStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
@@ -356,7 +388,7 @@ private:
   Type m_type;
 };
 
-class PipelineJoinStatement : public Statement
+class StreamJoinStatement : public Statement
 {
 public:
   enum Type : unsigned int
@@ -364,8 +396,8 @@ public:
     RoundRobin
   };
 
-  PipelineJoinStatement(const SourceLocation& sloc, Type type);
-  ~PipelineJoinStatement() = default;
+  StreamJoinStatement(const SourceLocation& sloc, Type type);
+  ~StreamJoinStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
