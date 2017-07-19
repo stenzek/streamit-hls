@@ -22,6 +22,7 @@
 filter { return TK_FILTER; }
 pipeline { return TK_PIPELINE; }
 splitjoin { return TK_SPLITJOIN; }
+stateful { return TK_STATEFUL; }
 peek { return TK_PEEK; }
 pop { return TK_POP; }
 push { return TK_PUSH; }

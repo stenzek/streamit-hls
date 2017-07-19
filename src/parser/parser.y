@@ -24,7 +24,7 @@ using namespace AST;
 }
 
 %token TK_ARROW
-%token TK_FILTER TK_PIPELINE TK_SPLITJOIN
+%token TK_FILTER TK_PIPELINE TK_SPLITJOIN TK_STATEFUL
 %token TK_PEEK TK_POP TK_PUSH
 %token TK_ADD TK_LOOP TK_ENQUEUE
 %token TK_SPLIT TK_DUPLICATE
@@ -223,6 +223,7 @@ StreamStatementList
 
 FilterDeclaration
   : TypeName TK_ARROW TypeName TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, $6->vars, $6->init, $6->prework, $6->work); }
+  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, $7->vars, $7->init, $7->prework, $7->work); }
   ;
 
 FilterDefinition
