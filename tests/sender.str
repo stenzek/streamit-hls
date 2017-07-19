@@ -4,7 +4,7 @@ void->void pipeline Sender80211
 	add scramble;
 	add diff_encode;
 	add chunk2symbol;
-	//add fir_filter;
+	add fir_filter;
 	add outputf;
 }
 

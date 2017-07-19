@@ -141,9 +141,9 @@ BooleanLiteral : TK_BOOLEAN_LITERAL ;
 
 Program
   : StreamDeclaration { $$ = state->program = new Program(); state->program->AddStream($1); }
-  | FilterDeclaration { $$ = state->program = new Program(); state->program->AddFilter($1); }
+  | FilterDeclaration { $$ = state->program = new Program(); state->program->AddStream($1); state->program->AddFilter($1); }
   | Program StreamDeclaration { $1->AddStream($2); }
-  | Program FilterDeclaration { $1->AddFilter($2); }
+  | Program FilterDeclaration { $1->AddStream($2); $1->AddFilter($2); }
   ;
 
 PrimitiveTypeName
@@ -201,6 +201,7 @@ AnonymousFilterDeclaration
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_filter");
     FilterDeclaration* decl = new FilterDeclaration(@1, nullptr, nullptr, name.c_str(), $2->vars, $2->init, $2->prework, $2->work);
+    state->program->AddStream(decl);
     state->program->AddFilter(decl);
     $$ = decl;
   }

@@ -409,7 +409,7 @@ private:
   Type m_type;
 };
 
-class FilterDeclaration : public Declaration
+class FilterDeclaration : public StreamDeclaration
 {
 public:
   FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
@@ -424,11 +424,6 @@ public:
   const Type* GetOutputType() const
   {
     return m_output_type;
-  }
-
-  const std::string& GetName() const
-  {
-    return m_name;
   }
 
   // TODO: Const here, but this is a larger change (e.g. visitor impact)
@@ -478,7 +473,6 @@ private:
   TypeName* m_output_type_specifier;
   const Type* m_input_type = nullptr;
   const Type* m_output_type = nullptr;
-  std::string m_name;
   NodeList* m_vars;
   FilterWorkBlock* m_init;
   FilterWorkBlock* m_prework;

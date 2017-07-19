@@ -12,11 +12,18 @@ bool Program::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
   bool result = true;
 
   // Resolve filters before pipelines, since pipelines can appear before the filters that they are comprised of.
-  for (auto* filter : m_filters)
-    result &= filter->SemanticAnalysis(state, symbol_table);
+  for (auto* stream : m_streams)
+  {
+    if (!symbol_table->AddName(stream->GetName(), stream))
+    {
+      state->ReportError(stream->GetSourceLocation(), "Duplicate stream/filter declaration '%s'",
+                         stream->GetName().c_str());
+      result = false;
+    }
+  }
 
-  for (auto* pipeline : m_streams)
-    result &= pipeline->SemanticAnalysis(state, symbol_table);
+  for (auto* stream : m_streams)
+    result &= stream->SemanticAnalysis(state, symbol_table);
 
   return result;
 }
@@ -113,12 +120,6 @@ bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
   if (m_statements)
     result &= m_statements->SemanticAnalysis(state, symbol_table);
 
-  if (!symbol_table->AddName(m_name, this))
-  {
-    state->ReportError(m_sloc, "Stream '%s' is already defined", m_name.c_str());
-    return false;
-  }
-
   return result;
 }
 
@@ -141,12 +142,6 @@ bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sy
 
   if (m_statements)
     result &= m_statements->SemanticAnalysis(state, symbol_table);
-
-  if (!symbol_table->AddName(m_name, this))
-  {
-    state->ReportError(m_sloc, "Stream '%s' is already defined", m_name.c_str());
-    return false;
-  }
 
   return result;
 }
@@ -212,13 +207,6 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   {
     LexicalScope work_symbol_table(&filter_symbol_table);
     result &= m_work->SemanticAnalysis(state, &work_symbol_table);
-  }
-
-  // Add the filter into the global namespace
-  if (!symbol_table->AddName(m_name, this))
-  {
-    state->ReportError(m_sloc, "Filter '%s' already defined", m_name.c_str());
-    result = false;
   }
 
   assert(state->current_filter == this);

@@ -450,8 +450,8 @@ Node* VariableDeclaration::CreateDeclarations(TypeName* type_specifier, const In
 FilterDeclaration::FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
                                      TypeName* output_type_specifier, const char* name, NodeList* vars,
                                      FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work)
-  : Declaration(sloc), m_input_type_specifier(input_type_specifier), m_output_type_specifier(output_type_specifier),
-    m_name(name), m_vars(vars), m_init(init), m_prework(prework), m_work(work)
+  : StreamDeclaration(sloc, name), m_input_type_specifier(input_type_specifier),
+    m_output_type_specifier(output_type_specifier), m_vars(vars), m_init(init), m_prework(prework), m_work(work)
 {
 }
 
