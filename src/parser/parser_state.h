@@ -16,24 +16,12 @@ public:
   ParserState();
   ~ParserState();
 
-  const std::string& GetCurrentFileName() const
-  {
-    return m_current_filename;
-  }
+  const std::string& GetCurrentFileName() const { return m_current_filename; }
 
-  AST::LexicalScope* GetGlobalLexicalScope()
-  {
-    return m_global_lexical_scope.get();
-  }
+  AST::LexicalScope* GetGlobalLexicalScope() { return m_global_lexical_scope.get(); }
 
-  const FilterList& GetFilterList() const
-  {
-    return m_filters;
-  }
-  const StreamList& GetStreamList() const
-  {
-    return m_streams;
-  }
+  const FilterList& GetFilterList() const { return m_filters; }
+  const StreamList& GetStreamList() const { return m_streams; }
 
   bool ParseFile(const char* filename, std::FILE* fp);
 

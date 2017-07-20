@@ -49,40 +49,16 @@ public:
   StringList() = default;
   ~StringList() = default;
 
-  const std::string& operator[](size_t index) const
-  {
-    return m_values[index];
-  }
-  ListType::const_iterator begin() const
-  {
-    return m_values.begin();
-  }
-  ListType::const_iterator end() const
-  {
-    return m_values.end();
-  }
+  const std::string& operator[](size_t index) const { return m_values[index]; }
+  ListType::const_iterator begin() const { return m_values.begin(); }
+  ListType::const_iterator end() const { return m_values.end(); }
 
-  std::string& operator[](size_t index)
-  {
-    return m_values[index];
-  }
-  ListType::iterator begin()
-  {
-    return m_values.begin();
-  }
-  ListType::iterator end()
-  {
-    return m_values.end();
-  }
+  std::string& operator[](size_t index) { return m_values[index]; }
+  ListType::iterator begin() { return m_values.begin(); }
+  ListType::iterator end() { return m_values.end(); }
 
-  void AddString(const char* str)
-  {
-    m_values.emplace_back(str);
-  }
-  void AddString(const std::string& str)
-  {
-    m_values.push_back(str);
-  }
+  void AddString(const char* str) { m_values.emplace_back(str); }
+  void AddString(const std::string& str) { m_values.push_back(str); }
 
 private:
   ListType m_values;
@@ -105,36 +81,15 @@ public:
   NodeList() = default;
   ~NodeList() final = default;
 
-  const Node* operator[](size_t index) const
-  {
-    return m_nodes[index];
-  }
-  ListType::const_iterator begin() const
-  {
-    return m_nodes.begin();
-  }
-  ListType::const_iterator end() const
-  {
-    return m_nodes.end();
-  }
+  const Node* operator[](size_t index) const { return m_nodes[index]; }
+  ListType::const_iterator begin() const { return m_nodes.begin(); }
+  ListType::const_iterator end() const { return m_nodes.end(); }
 
-  Node*& operator[](size_t index)
-  {
-    return m_nodes[index];
-  }
-  ListType::iterator begin()
-  {
-    return m_nodes.begin();
-  }
-  ListType::iterator end()
-  {
-    return m_nodes.end();
-  }
+  Node*& operator[](size_t index) { return m_nodes[index]; }
+  ListType::iterator begin() { return m_nodes.begin(); }
+  ListType::iterator end() { return m_nodes.end(); }
 
-  const ListType& GetNodeList() const
-  {
-    return m_nodes;
-  }
+  const ListType& GetNodeList() const { return m_nodes; }
 
   bool HasChildren() const;
   const Node* GetFirst() const;
@@ -202,26 +157,12 @@ public:
   TypeReference(const std::string& name, const Type* type);
   ~TypeReference() = default;
 
-  const std::string& GetName() const
-  {
-    return m_name;
-  }
-  const Type* GetType() const
-  {
-    return m_type;
-  }
+  const std::string& GetName() const { return m_name; }
+  const Type* GetType() const { return m_type; }
 
-  void Dump(ASTPrinter* printer) const override
-  {
-  }
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override
-  {
-    return true;
-  }
-  bool Accept(Visitor* visitor) override
-  {
-    return false;
-  }
+  void Dump(ASTPrinter* printer) const override {}
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override { return true; }
+  bool Accept(Visitor* visitor) override { return false; }
 
 private:
   std::string m_name;
@@ -282,10 +223,7 @@ public:
   StreamDeclaration(const SourceLocation& sloc, const char* name);
   ~StreamDeclaration() = default;
 
-  const std::string& GetName() const
-  {
-    return m_name;
-  }
+  const std::string& GetName() const { return m_name; }
 
 protected:
   std::string m_name;
@@ -337,49 +275,19 @@ public:
                     FilterWorkBlock* work);
   ~FilterDeclaration() = default;
 
-  const Type* GetInputType() const
-  {
-    return m_input_type;
-  }
-  const Type* GetOutputType() const
-  {
-    return m_output_type;
-  }
+  const Type* GetInputType() const { return m_input_type; }
+  const Type* GetOutputType() const { return m_output_type; }
 
   // TODO: Const here, but this is a larger change (e.g. visitor impact)
-  FilterWorkBlock* GetInitBlock() const
-  {
-    return m_init;
-  }
-  FilterWorkBlock* GetPreworkBlock() const
-  {
-    return m_prework;
-  }
-  FilterWorkBlock* GetWorkBlock() const
-  {
-    return m_work;
-  }
-  NodeList* GetStateVariables() const
-  {
-    return m_vars;
-  }
+  FilterWorkBlock* GetInitBlock() const { return m_init; }
+  FilterWorkBlock* GetPreworkBlock() const { return m_prework; }
+  FilterWorkBlock* GetWorkBlock() const { return m_work; }
+  NodeList* GetStateVariables() const { return m_vars; }
 
-  bool HasInitBlock() const
-  {
-    return (m_init != nullptr);
-  }
-  bool HasPreworkBlock() const
-  {
-    return (m_prework != nullptr);
-  }
-  bool HasWorkBlock() const
-  {
-    return (m_work != nullptr);
-  }
-  bool HasStateVariables() const
-  {
-    return (m_vars != nullptr);
-  }
+  bool HasInitBlock() const { return (m_init != nullptr); }
+  bool HasPreworkBlock() const { return (m_prework != nullptr); }
+  bool HasWorkBlock() const { return (m_work != nullptr); }
+  bool HasStateVariables() const { return (m_vars != nullptr); }
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
@@ -417,43 +325,16 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
   bool Accept(Visitor* visitor);
 
-  int GetPeekRate() const
-  {
-    return m_peek_rate;
-  }
-  int GetPopRate() const
-  {
-    return m_pop_rate;
-  }
-  int GetPushRate() const
-  {
-    return m_push_rate;
-  }
-  const NodeList* GetStatements() const
-  {
-    return m_stmts;
-  }
-  NodeList* GetStatements()
-  {
-    return m_stmts;
-  }
+  int GetPeekRate() const { return m_peek_rate; }
+  int GetPopRate() const { return m_pop_rate; }
+  int GetPushRate() const { return m_push_rate; }
+  const NodeList* GetStatements() const { return m_stmts; }
+  NodeList* GetStatements() { return m_stmts; }
 
-  void SetPeekRate(int rate)
-  {
-    m_peek_rate = rate;
-  }
-  void SetPopRate(int rate)
-  {
-    m_pop_rate = rate;
-  }
-  void SetPushRate(int rate)
-  {
-    m_push_rate = rate;
-  }
-  void SetStatements(NodeList* stmts)
-  {
-    m_stmts = stmts;
-  }
+  void SetPeekRate(int rate) { m_peek_rate = rate; }
+  void SetPopRate(int rate) { m_pop_rate = rate; }
+  void SetPushRate(int rate) { m_push_rate = rate; }
+  void SetStatements(NodeList* stmts) { m_stmts = stmts; }
 
 private:
   int m_peek_rate = -1;
@@ -828,26 +709,11 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
-  const Type* GetType() const
-  {
-    return m_type;
-  }
-  const std::string& GetName() const
-  {
-    return m_name;
-  }
-  bool HasInitializer() const
-  {
-    return (m_initializer != nullptr);
-  }
-  Expression* GetInitializer() const
-  {
-    return m_initializer;
-  }
-  void RemoveInitializer()
-  {
-    m_initializer = nullptr;
-  }
+  const Type* GetType() const { return m_type; }
+  const std::string& GetName() const { return m_name; }
+  bool HasInitializer() const { return (m_initializer != nullptr); }
+  Expression* GetInitializer() const { return m_initializer; }
+  void RemoveInitializer() { m_initializer = nullptr; }
 
   static Node* CreateDeclarations(TypeName* type_specifier, const InitDeclaratorList* declarator_list);
 

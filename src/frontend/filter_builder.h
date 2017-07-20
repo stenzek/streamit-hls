@@ -26,42 +26,15 @@ public:
   FilterBuilder(Context* context, llvm::Module* module, const AST::FilterDeclaration* filter_decl);
   ~FilterBuilder();
 
-  Context* GetContext() const
-  {
-    return m_context;
-  }
-  const AST::FilterDeclaration* GetFilterDeclaration() const
-  {
-    return m_filter_decl;
-  }
-  const std::string& GetNamePrefix() const
-  {
-    return m_name_prefix;
-  }
-  llvm::Function* GetInitFunction() const
-  {
-    return m_init_function;
-  }
-  llvm::Function* GetPreworkFunction() const
-  {
-    return m_prework_function;
-  }
-  llvm::Function* GetWorkFunction() const
-  {
-    return m_work_function;
-  }
-  llvm::Constant* GetPeekFunction() const
-  {
-    return m_peek_function;
-  }
-  llvm::Constant* GetPopFunction() const
-  {
-    return m_pop_function;
-  }
-  llvm::Constant* GetPushFunction() const
-  {
-    return m_push_function;
-  }
+  Context* GetContext() const { return m_context; }
+  const AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
+  const std::string& GetNamePrefix() const { return m_name_prefix; }
+  llvm::Function* GetInitFunction() const { return m_init_function; }
+  llvm::Function* GetPreworkFunction() const { return m_prework_function; }
+  llvm::Function* GetWorkFunction() const { return m_work_function; }
+  llvm::Constant* GetPeekFunction() const { return m_peek_function; }
+  llvm::Constant* GetPopFunction() const { return m_pop_function; }
+  llvm::Constant* GetPushFunction() const { return m_push_function; }
 
   bool GenerateCode();
 

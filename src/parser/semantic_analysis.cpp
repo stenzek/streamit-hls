@@ -205,12 +205,12 @@ void FilterDeclaration::MoveStateAssignmentsToInit()
     if (!var_decl || !var_decl->HasInitializer() || var_decl->GetInitializer()->IsConstant())
       continue;
 
-    assign_exprs->AddNode(new ExpressionStatement(
-                          var_decl->GetSourceLocation(),
-                          new AssignmentExpression(var_decl->GetSourceLocation(),
-                                                   new AST::IdentifierExpression(var_decl->GetSourceLocation(),
-                                                                                 var_decl->GetName().c_str()),
-                                                   var_decl->GetInitializer())));
+    assign_exprs->AddNode(
+      new ExpressionStatement(var_decl->GetSourceLocation(),
+                              new AssignmentExpression(var_decl->GetSourceLocation(),
+                                                       new AST::IdentifierExpression(var_decl->GetSourceLocation(),
+                                                                                     var_decl->GetName().c_str()),
+                                                       var_decl->GetInitializer())));
     var_decl->RemoveInitializer();
   }
 

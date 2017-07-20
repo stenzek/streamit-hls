@@ -143,7 +143,7 @@ void BinaryExpression::Dump(ASTPrinter* printer) const
 void RelationalExpression::Dump(ASTPrinter* printer) const
 {
   static const std::array<const char*, 6> op_names = {
-                        {"Less", "LessEqual", "Greater", "GreaterEqual", "Equal", "NotEqual"}};
+    {"Less", "LessEqual", "Greater", "GreaterEqual", "Equal", "NotEqual"}};
   printer->BeginBlock("RelationalExpression(%s %s %s -> %s)", m_lhs->GetType()->GetName().c_str(), op_names[m_op],
                       m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
   printer->Write("lhs: ");

@@ -7,10 +7,7 @@ public:
   ASTPrinter() = default;
   ~ASTPrinter() = default;
 
-  std::string ToString() const
-  {
-    return m_ss.str();
-  }
+  std::string ToString() const { return m_ss.str(); }
 
   void BeginBlock(const char* fmt, ...);
   void Write(const char* fmt, ...);

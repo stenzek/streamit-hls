@@ -85,9 +85,7 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
 class GlobalVariableBuilder : public AST::Visitor
 {
 public:
-  GlobalVariableBuilder(Context* context_, const std::string& prefix_) : context(context_), prefix(prefix_)
-  {
-  }
+  GlobalVariableBuilder(Context* context_, const std::string& prefix_) : context(context_), prefix(prefix_) {}
 
   bool Visit(AST::Node* node) override
   {

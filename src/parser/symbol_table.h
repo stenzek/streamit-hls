@@ -3,7 +3,8 @@
 #include <unordered_map>
 #include "parser/helpers.h"
 
-template <typename NameType, typename ValueType> class SymbolTable
+template <typename NameType, typename ValueType>
+class SymbolTable
 {
 public:
   using MapType = std::unordered_map<NameType, ValueType*>;
@@ -14,14 +15,8 @@ public:
   }
   ~SymbolTable() = default;
 
-  typename MapType::const_iterator begin() const
-  {
-    return m_map.begin();
-  }
-  typename MapType::const_iterator end() const
-  {
-    return m_map.end();
-  }
+  typename MapType::const_iterator begin() const { return m_map.begin(); }
+  typename MapType::const_iterator end() const { return m_map.end(); }
 
   bool HasName(const NameType& name) const
   {
@@ -55,15 +50,9 @@ public:
     return nullptr;
   }
 
-  unsigned int GenerateNameId()
-  {
-    return m_id_counter++;
-  }
+  unsigned int GenerateNameId() { return m_id_counter++; }
 
-  std::string GenerateName(const char* prefix)
-  {
-    return StringFromFormat("%s_%u", prefix, m_id_counter);
-  }
+  std::string GenerateName(const char* prefix) { return StringFromFormat("%s_%u", prefix, m_id_counter); }
 
 private:
   SymbolTable* m_parent;

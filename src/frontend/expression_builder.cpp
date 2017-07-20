@@ -363,8 +363,8 @@ bool ExpressionBuilder::Visit(AST::PeekExpression* node)
   // TODO: Implicit conversions
   assert(node->GetIndexExpression()->GetType()->IsInt());
   assert(m_func_builder->GetFilterBuilder()->GetPeekFunction() != nullptr);
-  m_result_value = GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPeekFunction(),
-                                             {index_eb.GetResultValue()});
+  m_result_value =
+    GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPeekFunction(), {index_eb.GetResultValue()});
   return IsValid();
 }
 

@@ -23,16 +23,10 @@ public:
   Context();
   ~Context();
 
-  llvm::LLVMContext& GetLLVMContext()
-  {
-    return m_llvm_context;
-  }
+  llvm::LLVMContext& GetLLVMContext() { return m_llvm_context; }
   llvm::Type* GetLLVMType(const Type* type);
 
-  llvm::Module* GetModule() const
-  {
-    return m_module;
-  }
+  llvm::Module* GetModule() const { return m_module; }
 
   void DumpModule();
   bool VerifyModule();
