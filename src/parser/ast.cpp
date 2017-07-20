@@ -5,22 +5,6 @@
 
 namespace AST
 {
-
-const std::list<FilterDeclaration*>& Program::GetFilterList() const
-{
-  return m_filters;
-}
-
-void Program::AddStream(StreamDeclaration* decl)
-{
-  m_streams.push_back(decl);
-}
-
-void Program::AddFilter(FilterDeclaration* decl)
-{
-  m_filters.push_back(decl);
-}
-
 bool NodeList::HasChildren() const
 {
   return !m_nodes.empty();
@@ -197,12 +181,12 @@ SplitJoinDeclaration::~SplitJoinDeclaration()
 {
 }
 
-StreamAddStatement::StreamAddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters)
+AddStatement::AddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters)
   : Statement(sloc), m_filter_name(filter_name), m_filter_parameters(parameters)
 {
 }
 
-StreamAddStatement::~StreamAddStatement()
+AddStatement::~AddStatement()
 {
 }
 
@@ -556,20 +540,20 @@ bool ReturnStatement::HasReturnValue() const
   return (m_expr != nullptr);
 }
 
-StreamSplitStatement::StreamSplitStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
+SplitStatement::SplitStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
 {
 }
 
-StreamSplitStatement::Type StreamSplitStatement::GetType() const
+SplitStatement::Type SplitStatement::GetType() const
 {
   return m_type;
 }
 
-StreamJoinStatement::StreamJoinStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
+JoinStatement::JoinStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
 {
 }
 
-StreamJoinStatement::Type StreamJoinStatement::GetType() const
+JoinStatement::Type JoinStatement::GetType() const
 {
   return m_type;
 }

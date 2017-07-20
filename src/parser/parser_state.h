@@ -10,6 +10,9 @@
 class ParserState
 {
 public:
+  using FilterList = std::vector<AST::FilterDeclaration*>;
+  using StreamList = std::vector<AST::StreamDeclaration*>;
+
   ParserState();
   ~ParserState();
 
@@ -23,10 +26,24 @@ public:
     return m_global_lexical_scope.get();
   }
 
+  const FilterList& GetFilterList() const
+  {
+    return m_filters;
+  }
+  const StreamList& GetStreamList() const
+  {
+    return m_streams;
+  }
+
   bool ParseFile(const char* filename, std::FILE* fp);
 
   void ReportError(const char* fmt, ...);
   void ReportError(const AST::SourceLocation& loc, const char* fmt, ...);
+
+  void AddFilter(AST::FilterDeclaration* decl);
+  void AddStream(AST::StreamDeclaration* decl);
+  void AddActiveStream(AST::Node* stream);
+  bool HasActiveStream(AST::Node* stream);
 
   // Mainly for structure types
   const Type* AddType(const std::string& name, const Type* type);
@@ -42,18 +59,24 @@ public:
   const Type* GetIntType();
   const Type* GetFloatType();
 
-  // TODO: Move this to private
-  AST::Program* program = nullptr;
-
   // Filters can't be nested? So this should be sufficient.
   // TODO: Kinda messy though. Maybe would be better placed in the symbol table.
   // TODO: I think they can...
   AST::FilterDeclaration* current_filter = nullptr;
 
+  // AST dumping/printing
+  void DumpAST();
+
 private:
   void CreateBuiltinTypes();
+  bool SemanticAnalysis();
 
   std::string m_current_filename;
+
+  // Filters and stream lists
+  FilterList m_filters;
+  StreamList m_streams;
+  std::vector<AST::Node*> m_active_streams;
 
   // Global lexical scope
   std::unique_ptr<AST::LexicalScope> m_global_lexical_scope;

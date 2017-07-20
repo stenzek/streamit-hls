@@ -49,7 +49,6 @@ using namespace AST;
 
   AST::Node* node;
   AST::NodeList* node_list;
-  AST::Program* program;
   AST::TypeName* type_name;
   AST::Declaration* decl;
   AST::Statement* stmt;
@@ -72,14 +71,9 @@ using namespace AST;
   const char* string_literal;
 }
 
-%type <program> Program
 %type <stream_decl> StreamDeclaration
 %type <stream_decl> PipelineDeclaration
 %type <stream_decl> SplitJoinDeclaration
-%type <stmt> StreamStatement
-%type <stmt> StreamAddStatement
-%type <stmt> StreamSplitStatement
-%type <stmt> StreamJoinStatement
 %type <node_list> StreamStatementList
 %type <stream_decl> AnonymousStreamDeclaration
 %type <filter_decl> AnonymousFilterDeclaration
@@ -103,7 +97,11 @@ using namespace AST;
 %type <stmt> SelectionStatement
 %type <stmt> IterationStatement
 %type <stmt> JumpStatement
+%type <stmt> StreamStatement
 %type <stmt> PushStatement
+%type <stmt> AddStatement
+%type <stmt> SplitStatement
+%type <stmt> JoinStatement
 %type <expr> Expression
 %type <expr> Expression_opt
 %type <expr> PrimaryExpression
@@ -140,10 +138,13 @@ IntegerLiteral : TK_INTEGER_LITERAL ;
 BooleanLiteral : TK_BOOLEAN_LITERAL ;
 
 Program
-  : StreamDeclaration { $$ = state->program = new Program(); state->program->AddStream($1); }
-  | FilterDeclaration { $$ = state->program = new Program(); state->program->AddStream($1); state->program->AddFilter($1); }
-  | Program StreamDeclaration { $1->AddStream($2); }
-  | Program FilterDeclaration { $1->AddStream($2); $1->AddFilter($2); }
+  : ProgramStatement
+  | Program ProgramStatement
+  ;
+
+ProgramStatement
+  : StreamDeclaration { state->AddStream($1); }
+  | FilterDeclaration { state->AddFilter($1); }
   ;
 
 PrimitiveTypeName
@@ -174,35 +175,12 @@ SplitJoinDeclaration
   : TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '{' StreamStatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, $7); }
   ;
 
-StreamStatement
-  : StreamAddStatement { $$ = $1; }
-  | StreamSplitStatement { $$ = $1; }
-  | StreamJoinStatement { $$ = $1; }
-  ;
-
-StreamAddStatement
-  : TK_ADD Identifier ';' { $$ = new StreamAddStatement(@1, $2, nullptr); }
-  | TK_ADD Identifier '(' ')' ';' { $$ = new StreamAddStatement(@1, $2, nullptr); }
-  | TK_ADD AnonymousFilterDeclaration { $$ = new StreamAddStatement(@1, $2->GetName().c_str(), new NodeList()); }
-  | TK_ADD AnonymousStreamDeclaration { $$ = new StreamAddStatement(@1, $2->GetName().c_str(), new NodeList()); }
-  ;
-
-StreamSplitStatement
-  : TK_SPLIT TK_ROUNDROBIN ';' { $$ = new StreamSplitStatement(@1, StreamSplitStatement::RoundRobin); }
-  | TK_SPLIT TK_DUPLICATE ';' { $$ = new StreamSplitStatement(@1, StreamSplitStatement::Duplicate); }
-  ;
-
-StreamJoinStatement
-  : TK_JOIN TK_ROUNDROBIN ';' { $$ = new StreamJoinStatement(@1, StreamJoinStatement::RoundRobin); }
-  ;
-
 AnonymousFilterDeclaration
   : '{' FilterDefinition '}'
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_filter");
     FilterDeclaration* decl = new FilterDeclaration(@1, nullptr, nullptr, name.c_str(), $2->vars, $2->init, $2->prework, $2->work);
-    state->program->AddStream(decl);
-    state->program->AddFilter(decl);
+    state->AddFilter(decl);
     $$ = decl;
   }
   ;
@@ -212,7 +190,7 @@ AnonymousStreamDeclaration
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_splitjoin");
     SplitJoinDeclaration* decl = new SplitJoinDeclaration(@1, nullptr, nullptr, name.c_str(), $3);
-    state->program->AddStream(decl);
+    state->AddStream(decl);
     $$ = decl;
   }
   ;
@@ -324,7 +302,7 @@ Statement
   | JumpStatement { $$ = $1; }
   | PushStatement { $$ = $1; }
   ;
-  
+
 ExpressionStatement
   : Expression ';' { $$ = new ExpressionStatement(@1, $1); }
   | ';' { $$ = nullptr; }
@@ -346,8 +324,31 @@ JumpStatement
   | TK_RETURN ';' { $$ = new ReturnStatement(@1); }
   ;
 
+StreamStatement
+  : AddStatement { $$ = $1; }
+  | SplitStatement { $$ = $1; }
+  | JoinStatement { $$ = $1; }
+  | PushStatement { $$ = $1; }
+  ;
+
+AddStatement
+  : TK_ADD Identifier ';' { $$ = new AddStatement(@1, $2, nullptr); }
+  | TK_ADD Identifier '(' ')' ';' { $$ = new AddStatement(@1, $2, nullptr); }
+  | TK_ADD AnonymousFilterDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList()); }
+  | TK_ADD AnonymousStreamDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList()); }
+  ;
+
+SplitStatement
+  : TK_SPLIT TK_ROUNDROBIN ';' { $$ = new SplitStatement(@1, SplitStatement::RoundRobin); }
+  | TK_SPLIT TK_DUPLICATE ';' { $$ = new SplitStatement(@1, SplitStatement::Duplicate); }
+  ;
+
+JoinStatement
+  : TK_JOIN TK_ROUNDROBIN ';' { $$ = new JoinStatement(@1, JoinStatement::RoundRobin); }
+  ;
+
 PushStatement
-  : TK_PUSH '(' Expression ')' { $$ = new PushStatement(@1, $3); }
+  : TK_PUSH '(' Expression ')' ';' { $$ = new PushStatement(@1, $3); }
 
 Expression
   : AssignmentExpression { $$ = $1; }

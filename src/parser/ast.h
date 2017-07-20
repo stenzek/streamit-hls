@@ -12,7 +12,6 @@ class Type;
 namespace AST
 {
 class Visitor;
-class Program;
 class Node;
 class NodeList;
 class Statement;
@@ -87,26 +86,6 @@ public:
 
 private:
   ListType m_values;
-};
-
-class Program
-{
-public:
-  Program() = default;
-  ~Program() = default;
-
-  const std::list<FilterDeclaration*>& GetFilterList() const;
-
-  void Dump(ASTPrinter* printer) const;
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
-  bool Accept(Visitor* visitor);
-
-  void AddStream(StreamDeclaration* decl);
-  void AddFilter(FilterDeclaration* decl);
-
-private:
-  std::list<StreamDeclaration*> m_streams;
-  std::list<FilterDeclaration*> m_filters;
 };
 
 class Node
@@ -348,65 +327,6 @@ private:
   const Type* m_input_type = nullptr;
   const Type* m_output_type = nullptr;
   NodeList* m_statements;
-};
-
-class StreamAddStatement : public Statement
-{
-public:
-  StreamAddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters);
-  ~StreamAddStatement();
-
-  void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
-  bool Accept(Visitor* visitor) override;
-
-private:
-  std::string m_filter_name;
-  const NodeList* m_filter_parameters;
-  Node* m_filter_declaration = nullptr;
-};
-
-class StreamSplitStatement : public Statement
-{
-public:
-  enum Type : unsigned int
-  {
-    RoundRobin,
-    Duplicate
-  };
-
-  StreamSplitStatement(const SourceLocation& sloc, Type type);
-  ~StreamSplitStatement() = default;
-
-  void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
-  bool Accept(Visitor* visitor) override;
-
-  Type GetType() const;
-
-private:
-  Type m_type;
-};
-
-class StreamJoinStatement : public Statement
-{
-public:
-  enum Type : unsigned int
-  {
-    RoundRobin
-  };
-
-  StreamJoinStatement(const SourceLocation& sloc, Type type);
-  ~StreamJoinStatement() = default;
-
-  void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
-  bool Accept(Visitor* visitor) override;
-
-  Type GetType() const;
-
-private:
-  Type m_type;
 };
 
 class FilterDeclaration : public StreamDeclaration
@@ -810,6 +730,65 @@ public:
 
 private:
   Expression* m_expr;
+};
+
+class AddStatement : public Statement
+{
+public:
+  AddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters);
+  ~AddStatement();
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+private:
+  std::string m_filter_name;
+  const NodeList* m_filter_parameters;
+  Node* m_filter_declaration = nullptr;
+};
+
+class SplitStatement : public Statement
+{
+public:
+  enum Type : unsigned int
+  {
+    RoundRobin,
+    Duplicate
+  };
+
+  SplitStatement(const SourceLocation& sloc, Type type);
+  ~SplitStatement() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Type GetType() const;
+
+private:
+  Type m_type;
+};
+
+class JoinStatement : public Statement
+{
+public:
+  enum Type : unsigned int
+  {
+    RoundRobin
+  };
+
+  JoinStatement(const SourceLocation& sloc, Type type);
+  ~JoinStatement() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  Type GetType() const;
+
+private:
+  Type m_type;
 };
 
 class InitializerListExpression : public Expression

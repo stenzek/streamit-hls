@@ -4,7 +4,9 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <iostream>
 #include "parser/ast.h"
+#include "parser/ast_printer.h"
 #include "parser/parser_defines.h"
 #include "parser/parser_tokens.h"
 #include "parser/parser_state.h"
@@ -27,7 +29,21 @@ bool ParserState::ParseFile(const char* filename, std::FILE* fp)
 {
   m_current_filename = filename;
   yyin = fp;
-  return (yyparse(this) == 0);
+
+  int res = yyparse(this);
+  if (res != 0)
+  {
+    ReportError("yyparse() returned %d", res);
+    return false;
+  }
+
+  if (!SemanticAnalysis())
+  {
+    ReportError("Semantic analysis failed.");
+    return false;
+  }
+
+  return true;
 }
 
 void ParserState::ReportError(const char* fmt, ...)
@@ -49,6 +65,28 @@ void ParserState::ReportError(const AST::SourceLocation& loc, const char* fmt, .
 
   fprintf(stderr, "error at %s:%d.%d: %s\n", loc.filename ? loc.filename : "unknown", loc.first_line, loc.first_column,
           msg.c_str());
+}
+
+void ParserState::AddFilter(AST::FilterDeclaration* decl)
+{
+  m_filters.push_back(decl);
+}
+
+void ParserState::AddStream(AST::StreamDeclaration* decl)
+{
+  m_streams.push_back(decl);
+}
+
+void ParserState::AddActiveStream(AST::Node* stream)
+{
+  assert(!HasActiveStream(stream));
+  m_active_streams.push_back(stream);
+}
+
+bool ParserState::HasActiveStream(AST::Node* stream)
+{
+  return std::any_of(m_active_streams.begin(), m_active_streams.end(),
+                     [stream](AST::Node* s) { return (stream == s); });
 }
 
 const Type* ParserState::AddType(const std::string& name, const Type* type)
@@ -96,6 +134,83 @@ void ParserState::CreateBuiltinTypes()
   m_error_type = Type::CreatePrimitiveType("<error>", Type::BaseTypeId::Error);
 }
 
+bool ParserState::SemanticAnalysis()
+{
+  bool result = true;
+
+  // Add everything to the symbol table first, since filters can be defined after they are referenced.
+  for (auto* filter : m_filters)
+  {
+    if (!m_global_lexical_scope->AddName(filter->GetName(), filter))
+    {
+      ReportError(filter->GetSourceLocation(), "Duplicate filter declaration '%s'", filter->GetName().c_str());
+      result = false;
+    }
+  }
+  for (auto* stream : m_streams)
+  {
+    if (!m_global_lexical_scope->AddName(stream->GetName(), stream))
+    {
+      ReportError(stream->GetSourceLocation(), "Duplicate stream declaration '%s'", stream->GetName().c_str());
+      result = false;
+    }
+  }
+
+  // Now perform semantic analysis.
+  for (auto* filter : m_filters)
+  {
+    if (!HasActiveStream(filter))
+    {
+      AddActiveStream(filter);
+      result &= filter->SemanticAnalysis(this, m_global_lexical_scope.get());
+    }
+  }
+  for (auto* stream : m_streams)
+  {
+    if (!HasActiveStream(stream))
+    {
+      AddActiveStream(stream);
+      result &= stream->SemanticAnalysis(this, m_global_lexical_scope.get());
+    }
+  }
+
+  return result;
+}
+
+void ParserState::DumpAST()
+{
+  ASTPrinter printer;
+  printer.BeginBlock("Filters");
+  {
+    unsigned int counter = 0;
+    for (auto* filter : m_filters)
+    {
+      printer.Write("Filter[%u]: ", counter++);
+      filter->Dump(&printer);
+    }
+  }
+  printer.EndBlock();
+
+  printer.BeginBlock("Streams");
+  {
+    unsigned int counter = 0;
+    for (auto* stream : m_streams)
+    {
+      printer.Write("Pipeline[%u]: ", counter++);
+      stream->Dump(&printer);
+    }
+  }
+  printer.EndBlock();
+
+  std::cout << "Dumping AST: " << std::endl;
+  std::cout << printer.ToString() << std::endl;
+  std::cout << "End of AST." << std::endl;
+
+  std::cout << "Dumping global symbol table: " << std::endl;
+  for (const auto& it : *m_global_lexical_scope)
+    std::cout << "  " << it.first << std::endl;
+  std::cout << "End of global symbol table." << std::endl;
+}
 const Type* ParserState::GetErrorType()
 {
   return m_error_type;

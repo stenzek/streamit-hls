@@ -5,14 +5,15 @@
 
 namespace llvm
 {
+class Constant;
 class Module;
 class Type;
 }
-class Type;
 namespace AST
 {
-class Program;
+class FilterDeclaration;
 }
+class Type;
 
 namespace Frontend
 {
@@ -33,7 +34,8 @@ public:
     return m_module;
   }
 
-  bool GenerateCode(AST::Program* program);
+  void DumpModule();
+  bool VerifyModule();
 
 private:
   llvm::Type* CreateLLVMType(const Type* type);

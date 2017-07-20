@@ -9,6 +9,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/FormattedStream.h"
 #include "parser/ast.h"
+#include "parser/parser_state.h"
 #include "parser/type.h"
 
 namespace Frontend
@@ -16,6 +17,7 @@ namespace Frontend
 
 Context::Context()
 {
+  m_module = new llvm::Module("program", m_llvm_context);
 }
 
 Context::~Context()
@@ -31,6 +33,23 @@ llvm::Type* Context::GetLLVMType(const Type* type)
   llvm::Type* ty = CreateLLVMType(type);
   m_type_map.emplace(type, ty);
   return ty;
+}
+
+void Context::DumpModule()
+{
+  // TODO: Can we use the modern PassManager?
+  llvm::legacy::PassManager pm;
+  pm.add(llvm::createPrintModulePass(llvm::outs()));
+  pm.run(*m_module);
+}
+
+bool Context::VerifyModule()
+{
+  // validate module, should this be here or elsewhere?
+  if (!llvm::verifyModule(*m_module, &llvm::outs()))
+    return false;
+
+  return true;
 }
 
 llvm::Type* Context::CreateLLVMType(const Type* type)
@@ -75,34 +94,23 @@ llvm::Type* Context::CreateLLVMType(const Type* type)
 
   return llvm_ty;
 }
-
-bool Context::GenerateCode(AST::Program* program)
-{
-  m_module = new llvm::Module("program", m_llvm_context);
-
-  // TODO: This will eventually use the stream graph..
-  for (AST::FilterDeclaration* filter_decl : program->GetFilterList())
-  {
-    FilterBuilder fb(this, m_module, filter_decl);
-    if (!fb.GenerateCode())
-      return false;
-  }
-
-  // TODO: Can we use the modern PassManager?
-  llvm::legacy::PassManager pm;
-  pm.add(llvm::createPrintModulePass(llvm::outs()));
-  pm.run(*m_module);
-
-  // validate module, should this be here or elsewhere?
-  if (!llvm::verifyModule(*m_module, &llvm::outs()))
-    return false;
-
-  return true;
-}
 }
 
-bool temp_codegenerator_run(AST::Program* program)
+bool temp_codegenerator_run(ParserState* state)
 {
   Frontend::Context cg;
-  return cg.GenerateCode(program);
+
+  bool result = true;
+  for (AST::FilterDeclaration* filter_decl : state->GetFilterList())
+  {
+    Frontend::FilterBuilder fb(&cg, cg.GetModule(), filter_decl);
+    result &= fb.GenerateCode();
+  }
+
+  result &= cg.VerifyModule();
+
+  cg.DumpModule();
+
+  return result;
+  return result;
 }

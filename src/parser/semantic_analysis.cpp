@@ -7,27 +7,6 @@
 
 namespace AST
 {
-bool Program::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
-{
-  bool result = true;
-
-  // Resolve filters before pipelines, since pipelines can appear before the filters that they are comprised of.
-  for (auto* stream : m_streams)
-  {
-    if (!symbol_table->AddName(stream->GetName(), stream))
-    {
-      state->ReportError(stream->GetSourceLocation(), "Duplicate stream/filter declaration '%s'",
-                         stream->GetName().c_str());
-      result = false;
-    }
-  }
-
-  for (auto* stream : m_streams)
-    result &= stream->SemanticAnalysis(state, symbol_table);
-
-  return result;
-}
-
 bool NodeList::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
@@ -146,7 +125,7 @@ bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sy
   return result;
 }
 
-bool StreamAddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO: Create variable declarations for parameters - we can manipulate these when generating code..
   // TODO: Check parameter counts and stuff..
@@ -161,13 +140,13 @@ bool StreamAddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symb
   return true;
 }
 
-bool StreamSplitStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+bool SplitStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO
   return true;
 }
 
-bool StreamJoinStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+bool JoinStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO
   return true;

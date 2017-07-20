@@ -3,7 +3,6 @@
 namespace AST
 {
 class Visitor;
-class Program;
 class Node;
 class NodeList;
 class Statement;
@@ -15,9 +14,9 @@ class StructSpecifier;
 class StreamDeclaration;
 class PipelineDeclaration;
 class SplitJoinDeclaration;
-class StreamAddStatement;
-class StreamSplitStatement;
-class StreamJoinStatement;
+class AddStatement;
+class SplitStatement;
+class JoinStatement;
 class FilterDeclaration;
 class FilterWorkBlock;
 class IntegerLiteralExpression;
@@ -45,7 +44,6 @@ class ReturnStatement;
 class Visitor
 {
 public:
-  virtual bool Visit(Program* node);
   virtual bool Visit(Node* node);
   virtual bool Visit(Statement* node);
   virtual bool Visit(Declaration* node);
@@ -56,9 +54,9 @@ public:
   virtual bool Visit(StreamDeclaration* node);
   virtual bool Visit(PipelineDeclaration* node);
   virtual bool Visit(SplitJoinDeclaration* node);
-  virtual bool Visit(StreamAddStatement* node);
-  virtual bool Visit(StreamSplitStatement* node);
-  virtual bool Visit(StreamJoinStatement* node);
+  virtual bool Visit(AddStatement* node);
+  virtual bool Visit(SplitStatement* node);
+  virtual bool Visit(JoinStatement* node);
   virtual bool Visit(FilterDeclaration* node);
   virtual bool Visit(FilterWorkBlock* node);
   virtual bool Visit(BooleanLiteralExpression* node);

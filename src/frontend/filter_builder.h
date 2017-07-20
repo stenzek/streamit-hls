@@ -34,6 +34,10 @@ public:
   {
     return m_filter_decl;
   }
+  const std::string& GetNamePrefix() const
+  {
+    return m_name_prefix;
+  }
   llvm::Function* GetInitFunction() const
   {
     return m_init_function;

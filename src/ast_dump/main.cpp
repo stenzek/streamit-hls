@@ -29,29 +29,7 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
-  if (!state.program)
-  {
-    std::cerr << "No program/root node. Exiting." << std::endl;
-    return EXIT_FAILURE;
-  }
-
-  if (!state.program->SemanticAnalysis(&state, state.GetGlobalLexicalScope()))
-  {
-    std::cout << "Semantic analysis failed." << std::endl;
-    return EXIT_FAILURE;
-  }
-
-  ASTPrinter printer;
-  state.program->Dump(&printer);
-
-  std::cout << "Dumping AST: " << std::endl;
-  std::cout << printer.ToString() << std::endl;
-  std::cout << "End of AST." << std::endl;
-
-  std::cout << "Dumping global symbol table: " << std::endl;
-  for (const auto& it : *state.GetGlobalLexicalScope())
-    std::cout << "  " << it.first << std::endl;
-  std::cout << "End of global symbol table." << std::endl;
+  state.DumpAST();
 
   return EXIT_SUCCESS;
 }
