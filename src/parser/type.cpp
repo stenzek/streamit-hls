@@ -1,6 +1,5 @@
 #include "parser/type.h"
 #include <cassert>
-#include "parser/helpers.h"
 #include "parser/parser_state.h"
 
 const std::string& Type::GetName() const

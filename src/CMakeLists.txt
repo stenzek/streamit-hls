@@ -1,3 +1,4 @@
+add_subdirectory(common)
 add_subdirectory(parser)
 add_subdirectory(frontend)
 add_subdirectory(ast_dump)

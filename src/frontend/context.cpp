@@ -1,5 +1,7 @@
 #include "frontend/context.h"
 #include <algorithm>
+#include <cstdarg>
+#include "common/log.h"
 #include "frontend/filter_builder.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -10,7 +12,6 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/FormattedStream.h"
 #include "parser/ast.h"
-#include "parser/helpers.h"
 #include "parser/parser_state.h"
 #include "parser/type.h"
 
@@ -62,6 +63,42 @@ unsigned int Context::GenerateNameId()
 std::string Context::GenerateName(const char* prefix)
 {
   return StringFromFormat("%s_%u", prefix, m_id_counter);
+}
+
+void Context::LogError(const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  std::string msg = StringFromFormatV(fmt, ap);
+  va_end(ap);
+  Log::Error("frontend", "%s", msg.c_str());
+}
+
+void Context::LogWarning(const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  std::string msg = StringFromFormatV(fmt, ap);
+  va_end(ap);
+  Log::Warning("frontend", "%s", msg.c_str());
+}
+
+void Context::LogInfo(const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  std::string msg = StringFromFormatV(fmt, ap);
+  va_end(ap);
+  Log::Info("frontend", "%s", msg.c_str());
+}
+
+void Context::LogDebug(const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  std::string msg = StringFromFormatV(fmt, ap);
+  va_end(ap);
+  Log::Debug("frontend", "%s", msg.c_str());
 }
 
 llvm::Type* Context::CreateLLVMType(const Type* type)

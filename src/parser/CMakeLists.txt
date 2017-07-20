@@ -11,7 +11,6 @@ set(SRCS
     ast_dump.cpp
     ast_printer.cpp
     ast_visitor.cpp
-    helpers.cpp
     parser_state.cpp
     scanner_helpers.cpp
     semantic_analysis.cpp
@@ -26,4 +25,5 @@ add_library(parser
 
 target_include_directories(parser PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
 target_include_directories(parser PRIVATE "${CMAKE_CURRENT_BINARY_DIR}/..")
+target_link_libraries(parser common)
 

@@ -1,10 +1,5 @@
 #pragma once
-#include <cstdarg>
-#include <string>
 #include <type_traits>
-
-std::string StringFromFormat(const char* fmt, ...);
-std::string StringFromFormatV(const char* fmt, va_list ap);
 
 // Enum class bitwise operators
 #define IMPLEMENT_ENUM_CLASS_BITWISE_OPERATORS(type_)                                                                  \

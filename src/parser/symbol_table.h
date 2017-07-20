@@ -1,7 +1,7 @@
 #pragma once
 #include <string>
 #include <unordered_map>
-#include "parser/helpers.h"
+#include "common/string_helpers.h"
 
 template <typename NameType, typename ValueType>
 class SymbolTable

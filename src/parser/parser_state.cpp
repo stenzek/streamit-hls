@@ -6,6 +6,7 @@
 #include <cstdlib>
 #include <cstring>
 #include <iostream>
+#include "common/log.h"
 #include "parser/ast.h"
 #include "parser/ast_printer.h"
 #include "parser/parser_defines.h"
@@ -38,13 +39,13 @@ bool ParserState::ParseFile(const char* filename, std::FILE* fp)
   int res = yyparse(this);
   if (res != 0)
   {
-    ReportError("yyparse() returned %d", res);
+    LogError("yyparse() returned %d", res);
     return false;
   }
 
   if (!SemanticAnalysis())
   {
-    ReportError("Semantic analysis failed.");
+    LogError("Semantic analysis failed.");
     return false;
   }
 
@@ -79,28 +80,68 @@ bool ParserState::AutoSetEntryPoint(const char* filename)
 
   m_entry_point_name.clear();
   m_entry_point_name.append(start, end - start);
+  LogInfo("Automatic entry point based on filename: %s", m_entry_point_name.c_str());
   return true;
 }
 
-void ParserState::ReportError(const char* fmt, ...)
+void ParserState::LogError(const char* fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
   std::string msg = StringFromFormatV(fmt, ap);
   va_end(ap);
 
-  fprintf(stderr, "error: %s\n", msg.c_str());
+  Log::Error("parser", "%s", msg.c_str());
 }
 
-void ParserState::ReportError(const AST::SourceLocation& loc, const char* fmt, ...)
+void ParserState::LogWarning(const char* fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
   std::string msg = StringFromFormatV(fmt, ap);
   va_end(ap);
 
-  fprintf(stderr, "error at %s:%d.%d: %s\n", loc.filename ? loc.filename : "unknown", loc.first_line, loc.first_column,
-          msg.c_str());
+  Log::Warning("parser", "%s", msg.c_str());
+}
+
+void ParserState::LogInfo(const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  std::string msg = StringFromFormatV(fmt, ap);
+  va_end(ap);
+
+  Log::Info("parser", "%s", msg.c_str());
+}
+
+void ParserState::LogDebug(const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  std::string msg = StringFromFormatV(fmt, ap);
+  va_end(ap);
+
+  Log::Debug("parser", "%s", msg.c_str());
+}
+
+void ParserState::LogError(const AST::SourceLocation& loc, const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  std::string msg = StringFromFormatV(fmt, ap);
+  va_end(ap);
+
+  Log::Error("%s:%d.%d: %s", loc.filename ? loc.filename : "unknown", loc.first_line, loc.first_column, msg.c_str());
+}
+
+void ParserState::LogWarning(const AST::SourceLocation& loc, const char* fmt, ...)
+{
+  va_list ap;
+  va_start(ap, fmt);
+  std::string msg = StringFromFormatV(fmt, ap);
+  va_end(ap);
+
+  Log::Warning("%s:%d.%d: %s", loc.filename ? loc.filename : "unknown", loc.first_line, loc.first_column, msg.c_str());
 }
 
 void ParserState::AddFilter(AST::FilterDeclaration* decl)
@@ -179,7 +220,7 @@ bool ParserState::SemanticAnalysis()
   {
     if (!m_global_lexical_scope->AddName(filter->GetName(), filter))
     {
-      ReportError(filter->GetSourceLocation(), "Duplicate filter declaration '%s'", filter->GetName().c_str());
+      LogError(filter->GetSourceLocation(), "Duplicate filter declaration '%s'", filter->GetName().c_str());
       result = false;
     }
   }
@@ -187,7 +228,7 @@ bool ParserState::SemanticAnalysis()
   {
     if (!m_global_lexical_scope->AddName(stream->GetName(), stream))
     {
-      ReportError(stream->GetSourceLocation(), "Duplicate stream declaration '%s'", stream->GetName().c_str());
+      LogError(stream->GetSourceLocation(), "Duplicate stream declaration '%s'", stream->GetName().c_str());
       result = false;
     }
   }
@@ -238,16 +279,16 @@ void ParserState::DumpAST()
   }
   printer.EndBlock();
 
-  std::cout << "Dumping AST: " << std::endl;
+  LogInfo("Dumping AST: ");
   std::cout << printer.ToString() << std::endl;
-  std::cout << "End of AST." << std::endl;
+  LogInfo("End of AST.");
 
-  std::cout << "Dumping global symbol table: " << std::endl;
+  LogInfo("Dumping global symbol table: ");
   for (const auto& it : *m_global_lexical_scope)
-    std::cout << "  " << it.first << std::endl;
-  std::cout << "End of global symbol table." << std::endl;
+    LogInfo("  %s", it.first.c_str());
+  LogInfo("End of global symbol table.");
 
-  std::cout << "Entry point: " << m_entry_point_name << std::endl;
+  LogInfo("Entry point: %s", m_entry_point_name.c_str());
 }
 const Type* ParserState::GetErrorType()
 {
@@ -276,7 +317,7 @@ const Type* ParserState::GetFloatType()
 
 void yyerror(ParserState* state, const char* s)
 {
-  state->ReportError(yylloc, "%s", s);
+  state->LogError(yylloc, "%s", s);
 }
 
 char* yyasprintf(const char* fmt, ...)

@@ -1,17 +1,17 @@
 #include "frontend/stream_graph_builder.h"
 #include <cassert>
 #include <iostream>
+#include "common/string_helpers.h"
 #include "frontend/context.h"
 #include "frontend/stream_graph.h"
 #include "frontend/stream_graph_function_builder.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
-#include "llvm/IR/Function.h"
-#include "llvm/IR/Module.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
+#include "llvm/IR/Function.h"
+#include "llvm/IR/Module.h"
 #include "llvm/Support/TargetSelect.h"
 #include "parser/ast.h"
-#include "parser/helpers.h"
 #include "parser/parser_state.h"
 #include "parser/type.h"
 
@@ -34,11 +34,11 @@ bool StreamGraphBuilder::GenerateGraph()
   if (!m_context->VerifyModule())
     (void)0;
 
-  std::cerr << "Creating execution engine" << std::endl;
+  m_context->LogInfo("Creating execution engine");
   if (!CreateExecutionEngine())
     return false;
 
-  std::cerr << "Executing main" << std::endl;
+  m_context->LogInfo("Executing main");
   ExecuteMain();
 
   return true;
@@ -132,6 +132,7 @@ bool StreamGraphBuilder::GenerateStreamFunction(AST::StreamDeclaration* decl)
 {
   auto iter = m_function_map.find(decl);
   assert(iter != m_function_map.end());
+  m_context->LogDebug("Generating stream function for %s", decl->GetName().c_str());
 
   StreamGraphFunctionBuilder builder(m_context, decl->GetName(), iter->second);
   return decl->Accept(&builder);
@@ -178,7 +179,7 @@ bool StreamGraphBuilder::CreateExecutionEngine()
 
   if (!m_execution_engine)
   {
-    m_parser_state->ReportError("Failed to create LLVM execution engine: %s", error_msg.c_str());
+    m_context->LogError("Failed to create LLVM execution engine: %s", error_msg.c_str());
     return false;
   }
 

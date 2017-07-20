@@ -34,6 +34,11 @@ public:
   unsigned int GenerateNameId();
   std::string GenerateName(const char* prefix);
 
+  void LogError(const char* fmt, ...);
+  void LogWarning(const char* fmt, ...);
+  void LogInfo(const char* fmt, ...);
+  void LogDebug(const char* fmt, ...);
+
 private:
   llvm::Type* CreateLLVMType(const Type* type);
 

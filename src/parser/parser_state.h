@@ -28,8 +28,13 @@ public:
 
   bool ParseFile(const char* filename, std::FILE* fp);
 
-  void ReportError(const char* fmt, ...);
-  void ReportError(const AST::SourceLocation& loc, const char* fmt, ...);
+  void LogError(const char* fmt, ...);
+  void LogWarning(const char* fmt, ...);
+  void LogInfo(const char* fmt, ...);
+  void LogDebug(const char* fmt, ...);
+
+  void LogError(const AST::SourceLocation& loc, const char* fmt, ...);
+  void LogWarning(const AST::SourceLocation& loc, const char* fmt, ...);
 
   void AddFilter(AST::FilterDeclaration* decl);
   void AddStream(AST::StreamDeclaration* decl);
