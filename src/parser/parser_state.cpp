@@ -4,6 +4,7 @@
 #include <cstdarg>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
 #include <iostream>
 #include "parser/ast.h"
 #include "parser/ast_printer.h"
@@ -30,6 +31,10 @@ bool ParserState::ParseFile(const char* filename, std::FILE* fp)
   m_current_filename = filename;
   yyin = fp;
 
+  // Auto set entry point based on file name
+  if (m_entry_point_name.empty())
+    AutoSetEntryPoint(filename);
+
   int res = yyparse(this);
   if (res != 0)
   {
@@ -43,6 +48,37 @@ bool ParserState::ParseFile(const char* filename, std::FILE* fp)
     return false;
   }
 
+  return true;
+}
+
+bool ParserState::AutoSetEntryPoint(const char* filename)
+{
+  const char* start = std::strrchr(filename, '/');
+  if (!start)
+  {
+    start = std::strrchr(filename, '\\');
+    if (!start)
+      start = filename;
+    else
+      start++;
+  }
+  else
+  {
+    start++;
+  }
+
+  if (std::strlen(start) == 0)
+    return false;
+
+  const char* end = std::strrchr(start, '.');
+  if (!end)
+    end = start + std::strlen(start) - 1;
+
+  if (start == end)
+    return false;
+
+  m_entry_point_name.clear();
+  m_entry_point_name.append(start, end - start);
   return true;
 }
 
@@ -210,6 +246,8 @@ void ParserState::DumpAST()
   for (const auto& it : *m_global_lexical_scope)
     std::cout << "  " << it.first << std::endl;
   std::cout << "End of global symbol table." << std::endl;
+
+  std::cout << "Entry point: " << m_entry_point_name << std::endl;
 }
 const Type* ParserState::GetErrorType()
 {

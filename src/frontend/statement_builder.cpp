@@ -5,6 +5,7 @@
 #include "frontend/filter_builder.h"
 #include "frontend/filter_function_builder.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/Module.h"
 #include "parser/ast.h"
 #include "parser/type.h"
 
@@ -181,6 +182,19 @@ bool StatementBuilder::Visit(AST::PushStatement* node)
          m_func_builder->GetFilterBuilder()->GetFilterDeclaration()->GetOutputType());
   assert(m_func_builder->GetFilterBuilder()->GetPushFunction() != nullptr);
   GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPushFunction(), {eb.GetResultValue()});
+  return true;
+}
+
+bool StatementBuilder::Visit(AST::AddStatement* node)
+{
+  // look up stream function with correct type signature based on args
+  // if this fails, it means they don't match and we stuffed up somewhere
+  std::string func_name = StringFromFormat("%s_add", node->GetStreamName().c_str());
+  llvm::Function* func = GetContext()->GetModule()->getFunction(func_name);
+  assert(func && "referenced filter exists");
+
+  // TODO: Parameter handling.
+  GetIRBuilder().CreateCall(func);
   return true;
 }
 }

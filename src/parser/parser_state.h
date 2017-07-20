@@ -18,6 +18,9 @@ public:
 
   const std::string& GetCurrentFileName() const { return m_current_filename; }
 
+  const std::string& GetEntryPointName() const { return m_entry_point_name; }
+  void SetEntryPointName(const std::string& name) { m_entry_point_name = name; }
+
   AST::LexicalScope* GetGlobalLexicalScope() { return m_global_lexical_scope.get(); }
 
   const FilterList& GetFilterList() const { return m_filters; }
@@ -56,10 +59,12 @@ public:
   void DumpAST();
 
 private:
+  bool AutoSetEntryPoint(const char* filename);
   void CreateBuiltinTypes();
   bool SemanticAnalysis();
 
   std::string m_current_filename;
+  std::string m_entry_point_name;
 
   // Filters and stream lists
   FilterList m_filters;

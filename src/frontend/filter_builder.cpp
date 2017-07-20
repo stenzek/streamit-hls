@@ -12,8 +12,8 @@
 namespace Frontend
 {
 
-FilterBuilder::FilterBuilder(Context* context, llvm::Module* module, const AST::FilterDeclaration* filter_decl)
-  : m_context(context), m_module(module), m_filter_decl(filter_decl)
+FilterBuilder::FilterBuilder(Context* context, const AST::FilterDeclaration* filter_decl)
+  : m_context(context), m_filter_decl(filter_decl)
 {
   // TODO: This should use filter instances, not filters
   m_name_prefix = m_filter_decl->GetName();
@@ -57,15 +57,15 @@ bool FilterBuilder::GenerateCode()
 
 llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, const std::string& name)
 {
-  assert(m_module->getFunction(name.c_str()) == nullptr);
+  assert(m_context->GetModule()->getFunction(name.c_str()) == nullptr);
   llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), ret_type, nullptr);
+  llvm::Constant* func_cons = m_context->GetModule()->getOrInsertFunction(name.c_str(), ret_type, nullptr);
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return nullptr;
 
   // Start at the entry basic block for the work function.
-  FilterFunctionBuilder entry_bb_builder(this, "entry", func);
+  FilterFunctionBuilder entry_bb_builder(m_context, this, "entry", func);
 
   // Add global variable references
   for (const auto& it : m_global_variable_map)
@@ -152,8 +152,10 @@ bool FilterBuilder::GenerateChannelFunctions()
     llvm::Type* llvm_peek_idx_ty = llvm::Type::getInt32Ty(m_context->GetLLVMContext());
     llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {llvm_peek_idx_ty}, false);
     llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
-    m_peek_function = m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_name_prefix.c_str()), llvm_peek_fn);
-    m_pop_function = m_module->getOrInsertFunction(StringFromFormat("%s_pop", m_name_prefix.c_str()), llvm_pop_fn);
+    m_peek_function =
+      m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_peek", m_name_prefix.c_str()), llvm_peek_fn);
+    m_pop_function =
+      m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_pop", m_name_prefix.c_str()), llvm_pop_fn);
   }
 
   // Push
@@ -162,7 +164,8 @@ bool FilterBuilder::GenerateChannelFunctions()
     llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
     llvm::Type* ret_ty = llvm::Type::getVoidTy(m_context->GetLLVMContext());
     llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(ret_ty, {llvm_ty}, false);
-    m_push_function = m_module->getOrInsertFunction(StringFromFormat("%s_push", m_name_prefix.c_str()), llvm_push_fn);
+    m_push_function =
+      m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_push", m_name_prefix.c_str()), llvm_push_fn);
   }
 
   return true;

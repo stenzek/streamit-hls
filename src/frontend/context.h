@@ -31,6 +31,9 @@ public:
   void DumpModule();
   bool VerifyModule();
 
+  unsigned int GenerateNameId();
+  std::string GenerateName(const char* prefix);
+
 private:
   llvm::Type* CreateLLVMType(const Type* type);
 
@@ -40,5 +43,7 @@ private:
   TypeMap m_type_map;
 
   llvm::Module* m_module;
+
+  int m_id_counter = 1;
 };
 }

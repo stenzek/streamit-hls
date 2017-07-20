@@ -1,4 +1,5 @@
 #include "frontend/context.h"
+#include <algorithm>
 #include "frontend/filter_builder.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRPrintingPasses.h"
@@ -9,6 +10,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/FormattedStream.h"
 #include "parser/ast.h"
+#include "parser/helpers.h"
 #include "parser/parser_state.h"
 #include "parser/type.h"
 
@@ -50,6 +52,16 @@ bool Context::VerifyModule()
     return false;
 
   return true;
+}
+
+unsigned int Context::GenerateNameId()
+{
+  return m_id_counter++;
+}
+
+std::string Context::GenerateName(const char* prefix)
+{
+  return StringFromFormat("%s_%u", prefix, m_id_counter);
 }
 
 llvm::Type* Context::CreateLLVMType(const Type* type)
@@ -96,6 +108,7 @@ llvm::Type* Context::CreateLLVMType(const Type* type)
 }
 }
 
+#if 0
 bool temp_codegenerator_run(ParserState* state)
 {
   Frontend::Context cg;
@@ -112,5 +125,5 @@ bool temp_codegenerator_run(ParserState* state)
   cg.DumpModule();
 
   return result;
-  return result;
 }
+#endif

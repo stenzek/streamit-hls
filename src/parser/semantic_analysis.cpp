@@ -130,10 +130,10 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
   // TODO: Create variable declarations for parameters - we can manipulate these when generating code..
   // TODO: Check parameter counts and stuff..
   // TODO: Check return types
-  m_filter_declaration = symbol_table->GetName(m_filter_name);
-  if (!m_filter_declaration)
+  m_stream_declaration = dynamic_cast<StreamDeclaration*>(symbol_table->GetName(m_stream_name));
+  if (!m_stream_declaration)
   {
-    state->ReportError(m_sloc, "Referencing undefined filter/pipeline '%s'", m_filter_name.c_str());
+    state->ReportError(m_sloc, "Referencing undefined filter/pipeline '%s'", m_stream_name.c_str());
     return false;
   }
 

@@ -182,7 +182,7 @@ SplitJoinDeclaration::~SplitJoinDeclaration()
 }
 
 AddStatement::AddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters)
-  : Statement(sloc), m_filter_name(filter_name), m_filter_parameters(parameters)
+  : Statement(sloc), m_stream_name(filter_name), m_stream_parameters(parameters)
 {
 }
 

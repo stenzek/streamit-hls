@@ -76,11 +76,11 @@ void SplitJoinDeclaration::Dump(ASTPrinter* printer) const
 
 void AddStatement::Dump(ASTPrinter* printer) const
 {
-  printer->BeginBlock("AddStatement[filter=%s]", m_filter_name.c_str());
-  if (m_filter_parameters)
+  printer->BeginBlock("AddStatement[filter=%s]", m_stream_name.c_str());
+  if (m_stream_parameters)
   {
     unsigned int counter = 0;
-    for (const auto* node : m_filter_parameters->GetNodeList())
+    for (const auto* node : m_stream_parameters->GetNodeList())
     {
       printer->BeginBlock("Parameter[%u]", counter++);
       node->Dump(printer);

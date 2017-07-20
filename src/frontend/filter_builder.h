@@ -23,7 +23,7 @@ class Context;
 class FilterBuilder
 {
 public:
-  FilterBuilder(Context* context, llvm::Module* module, const AST::FilterDeclaration* filter_decl);
+  FilterBuilder(Context* context, const AST::FilterDeclaration* filter_decl);
   ~FilterBuilder();
 
   Context* GetContext() const { return m_context; }
@@ -44,7 +44,6 @@ private:
   bool GenerateChannelFunctions();
 
   Context* m_context;
-  llvm::Module* m_module;
   const AST::FilterDeclaration* m_filter_decl;
   std::string m_name_prefix;
   std::unordered_map<const AST::VariableDeclaration*, llvm::GlobalVariable*> m_global_variable_map;

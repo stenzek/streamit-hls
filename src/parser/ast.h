@@ -240,6 +240,8 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
+  NodeList* GetStatements() const { return m_statements; }
+
 private:
   TypeName* m_input_type_specifier;
   TypeName* m_output_type_specifier;
@@ -258,6 +260,8 @@ public:
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
+
+  NodeList* GetStatements() const { return m_statements; }
 
 private:
   TypeName* m_input_type_specifier;
@@ -623,10 +627,12 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
+  const std::string& GetStreamName() const { return m_stream_name; }
+
 private:
-  std::string m_filter_name;
-  const NodeList* m_filter_parameters;
-  Node* m_filter_declaration = nullptr;
+  std::string m_stream_name;
+  const NodeList* m_stream_parameters;
+  StreamDeclaration* m_stream_declaration = nullptr;
 };
 
 class SplitStatement : public Statement
