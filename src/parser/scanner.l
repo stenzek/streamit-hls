@@ -67,8 +67,8 @@ true { yylval.boolean_literal = true; return TK_BOOLEAN_LITERAL; }
 false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
 
  /* Integer literal */
-[\+\-]?0x[0-9A-Fa-f]+ { yylval.integer_literal = ScannerHelpers::ParseIntegerLiteral(yytext, 16); return TK_INTEGER_LITERAL; }
-[\+\-]?[0-9]+ { yylval.integer_literal = ScannerHelpers::ParseIntegerLiteral(yytext, 10); return TK_INTEGER_LITERAL; }
+0x[0-9A-Fa-f]+ { yylval.integer_literal = ScannerHelpers::ParseIntegerLiteral(yytext, 16); return TK_INTEGER_LITERAL; }
+[0-9]+ { yylval.integer_literal = ScannerHelpers::ParseIntegerLiteral(yytext, 10); return TK_INTEGER_LITERAL; }
 
  /* Identifier */
 [a-zA-Z][a-zA-Z0-9_]* { yylval.identifier = strdup(yytext); return TK_IDENTIFIER; }

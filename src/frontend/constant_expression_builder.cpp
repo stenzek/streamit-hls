@@ -70,4 +70,76 @@ bool ConstantExpressionBuilder::Visit(AST::InitializerListExpression* node)
   m_result_value = llvm::ConstantArray::get(llvm_array_type, llvm_values);
   return IsValid();
 }
+
+bool ConstantExpressionBuilder::Visit(AST::UnaryExpression* node)
+{
+  ConstantExpressionBuilder rhs_ceb(m_context);
+  if (!node->GetRHSExpression()->Accept(&rhs_ceb) || !rhs_ceb.IsValid())
+    return false;
+
+  // We support a subset of unary expressions (+/-).
+  if (node->GetType()->IsInt())
+  {
+    switch (node->GetOperator())
+    {
+    case AST::UnaryExpression::Positive:
+      m_result_value = rhs_ceb.GetResultValue();
+      break;
+    case AST::UnaryExpression::Negative:
+      m_result_value = llvm::ConstantExpr::getNeg(rhs_ceb.GetResultValue());
+      break;
+    }
+  }
+
+  return IsValid();
+}
+
+bool ConstantExpressionBuilder::Visit(AST::BinaryExpression* node)
+{
+  ConstantExpressionBuilder lhs_ceb(m_context);
+  if (!node->GetRHSExpression()->Accept(&lhs_ceb) || !lhs_ceb.IsValid())
+    return false;
+  ConstantExpressionBuilder rhs_ceb(m_context);
+  if (!node->GetRHSExpression()->Accept(&rhs_ceb) || !rhs_ceb.IsValid())
+    return false;
+
+  if (node->GetType()->IsInt())
+  {
+    switch (node->GetOperator())
+    {
+    case AST::BinaryExpression::Add:
+      m_result_value = llvm::ConstantExpr::getAdd(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::Subtract:
+      m_result_value = llvm::ConstantExpr::getSub(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::Multiply:
+      m_result_value = llvm::ConstantExpr::getMul(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::Divide:
+      m_result_value = llvm::ConstantExpr::getSDiv(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::Modulo:
+      m_result_value = llvm::ConstantExpr::getSRem(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::BitwiseAnd:
+      m_result_value = llvm::ConstantExpr::getAnd(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::BitwiseOr:
+      m_result_value = llvm::ConstantExpr::getOr(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::BitwiseXor:
+      m_result_value = llvm::ConstantExpr::getXor(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::LeftShift:
+      m_result_value = llvm::ConstantExpr::getShl(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    case AST::BinaryExpression::RightShift:
+      m_result_value = llvm::ConstantExpr::getAShr(lhs_ceb.GetResultValue(), rhs_ceb.GetResultValue());
+      break;
+    }
+  }
+
+  return IsValid();
+}
 }

@@ -220,6 +220,12 @@ UnaryExpression::UnaryExpression(const SourceLocation& sloc, Operator op, Expres
 {
 }
 
+bool UnaryExpression::IsConstant() const
+{
+  // This is needed to parse x = -5.
+  return (m_op >= Positive && m_op <= Negative && m_rhs->IsConstant());
+}
+
 UnaryExpression::Operator UnaryExpression::GetOperator() const
 {
   return m_op;
@@ -233,6 +239,11 @@ Expression* UnaryExpression::GetRHSExpression() const
 BinaryExpression::BinaryExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
   : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
+}
+
+bool BinaryExpression::IsConstant() const
+{
+  return (m_lhs->IsConstant() && m_rhs->IsConstant());
 }
 
 Expression* BinaryExpression::GetLHSExpression() const

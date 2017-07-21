@@ -21,6 +21,8 @@ public:
   bool Visit(AST::IntegerLiteralExpression* node) override;
   bool Visit(AST::BooleanLiteralExpression* node) override;
   bool Visit(AST::InitializerListExpression* node) override;
+  bool Visit(AST::UnaryExpression* node) override;
+  bool Visit(AST::BinaryExpression* node) override;
 
 private:
   Context* m_context;

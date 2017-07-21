@@ -381,10 +381,12 @@ PostfixExpression
 
 UnaryExpression
   : PostfixExpression { $$ = $1; }
-  | '+' UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::Positive, $2); }
-  | '-' UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::Negative, $2); }
-  | '!' UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::LogicalNot, $2); }
-  | '~' UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::BitwiseNot, $2); }
+  | TK_INCREMENT UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::PreIncrement, $2); }
+  | TK_DECREMENT UnaryExpression { $$ = new UnaryExpression(@1, UnaryExpression::PreDecrement, $2); }
+  | '+' CastExpression { $$ = new UnaryExpression(@1, UnaryExpression::Positive, $2); }
+  | '-' CastExpression { $$ = new UnaryExpression(@1, UnaryExpression::Negative, $2); }
+  | '!' CastExpression { $$ = new UnaryExpression(@1, UnaryExpression::LogicalNot, $2); }
+  | '~' CastExpression { $$ = new UnaryExpression(@1, UnaryExpression::BitwiseNot, $2); }
   ;
 
 CastExpression

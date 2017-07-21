@@ -152,6 +152,7 @@ bool StreamGraphBuilder::GenerateMain()
 
 bool StreamGraphBuilder::CreateExecutionEngine()
 {
+  // TODO: Inline all function calls, to propogate as many constants as possible
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();

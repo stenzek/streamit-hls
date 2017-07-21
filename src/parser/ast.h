@@ -434,6 +434,7 @@ public:
   UnaryExpression(const SourceLocation& sloc, Operator op, Expression* rhs);
   ~UnaryExpression() = default;
 
+  bool IsConstant() const override;
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
@@ -466,6 +467,7 @@ public:
   BinaryExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs);
   ~BinaryExpression() = default;
 
+  bool IsConstant() const override;
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
