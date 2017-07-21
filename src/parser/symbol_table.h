@@ -26,9 +26,14 @@ public:
     return m_map.find(name) != m_map.end();
   }
 
+  bool HasNameInLocalScope(const NameType& name) const
+  {
+    return m_map.find(name) != m_map.end();
+  }
+
   bool AddName(const NameType& name, ValueType* node)
   {
-    if (HasName(name))
+    if (HasNameInLocalScope(name))
       return false;
 
     m_map.emplace(name, node);

@@ -5,6 +5,9 @@
 #include "parser/ast_printer.h"
 #include "parser/parser_state.h"
 #include "parser/symbol_table.h"
+#include "frontend/context.h"
+#include "frontend/filter_builder.h"
+#include "frontend/stream_graph_builder.h"
 #include "spdlog/spdlog.h"
 
 extern bool temp_codegenerator_run(ParserState*);

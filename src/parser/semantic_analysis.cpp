@@ -440,7 +440,7 @@ bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
   result &= m_type_specifier->SemanticAnalysis(state, symbol_table);
   m_type = m_type_specifier->GetFinalType();
 
-  if (symbol_table->HasName(m_name))
+  if (symbol_table->HasNameInLocalScope(m_name))
   {
     state->LogError(m_sloc, "Duplicate definition of '%s'", m_name.c_str());
     result = false;
