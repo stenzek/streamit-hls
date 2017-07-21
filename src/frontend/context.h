@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <unordered_map>
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 
 namespace llvm
@@ -8,6 +9,7 @@ namespace llvm
 class Constant;
 class Module;
 class Type;
+class Value;
 }
 namespace AST
 {
@@ -25,6 +27,11 @@ public:
 
   llvm::LLVMContext& GetLLVMContext() { return m_llvm_context; }
   llvm::Type* GetLLVMType(const Type* type);
+
+  llvm::Type* GetVoidType();
+  llvm::Type* GetIntType();
+  llvm::Type* GetStringType();
+  llvm::Type* GetPointerType();
 
   llvm::Module* GetModule() const { return m_module; }
 

@@ -126,12 +126,12 @@ bool Visitor::Visit(AddStatement* node)
 
 bool Visitor::Visit(SplitStatement* node)
 {
-  return static_cast<Statement*>(node);
+  return Visit(static_cast<Statement*>(node));
 }
 
 bool Visitor::Visit(JoinStatement* node)
 {
-  return static_cast<Statement*>(node);
+  return Visit(static_cast<Statement*>(node));
 }
 
 bool Visitor::Visit(StreamDeclaration* node)

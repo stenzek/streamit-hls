@@ -26,6 +26,8 @@ public:
   bool Visit(AST::ReturnStatement* node) override;
   bool Visit(AST::PushStatement* node) override;
   bool Visit(AST::AddStatement* node) override;
+  bool Visit(AST::SplitStatement* node) override;
+  bool Visit(AST::JoinStatement* node) override;
 
 private:
   FilterFunctionBuilder* m_func_builder;

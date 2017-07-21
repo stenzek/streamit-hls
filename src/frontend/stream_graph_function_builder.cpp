@@ -22,9 +22,10 @@ bool StreamGraphFunctionBuilder::Visit(AST::FilterDeclaration* node)
 {
   // We're a filter, simply call AddFilter
   // TODO: Handling of parameters - we would probably need to create a boxed type for each
-  llvm::Function* call_func = m_context->GetModule()->getFunction("StreamGraphInterpreter_AddFilter");
+  llvm::Function* call_func = m_context->GetModule()->getFunction("StreamGraphBuilder_AddFilter");
+  llvm::Value* filter_name_ptr = GetCurrentIRBuilder().CreateGlobalStringPtr(node->GetName().c_str());
   assert(call_func);
-  GetCurrentIRBuilder().CreateCall(call_func);
+  GetCurrentIRBuilder().CreateCall(call_func, filter_name_ptr);
   GetCurrentIRBuilder().CreateRetVoid();
   return true;
 }
@@ -32,17 +33,18 @@ bool StreamGraphFunctionBuilder::Visit(AST::FilterDeclaration* node)
 bool StreamGraphFunctionBuilder::Visit(AST::SplitJoinDeclaration* node)
 {
   // We're a splitjoin
-  llvm::Function* call_func = m_context->GetModule()->getFunction("StreamGraphInterpreter_BeginSplitJoin");
+  llvm::Function* call_func = m_context->GetModule()->getFunction("StreamGraphBuilder_BeginSplitJoin");
+  llvm::Value* name_ptr = GetCurrentIRBuilder().CreateGlobalStringPtr(node->GetName().c_str());
   assert(call_func);
-  GetCurrentIRBuilder().CreateCall(call_func);
+  GetCurrentIRBuilder().CreateCall(call_func, name_ptr);
 
   // Generate statements
   bool result = node->GetStatements()->Accept(this);
 
   // End of splitjoin
-  call_func = m_context->GetModule()->getFunction("StreamGraphInterpreter_EndSplitJoin");
+  call_func = m_context->GetModule()->getFunction("StreamGraphBuilder_EndSplitJoin");
   assert(call_func);
-  GetCurrentIRBuilder().CreateCall(call_func);
+  GetCurrentIRBuilder().CreateCall(call_func, name_ptr);
   GetCurrentIRBuilder().CreateRetVoid();
   return result;
 }
@@ -50,17 +52,18 @@ bool StreamGraphFunctionBuilder::Visit(AST::SplitJoinDeclaration* node)
 bool StreamGraphFunctionBuilder::Visit(AST::PipelineDeclaration* node)
 {
   // We're a pipeline
-  llvm::Function* call_func = m_context->GetModule()->getFunction("StreamGraphInterpreter_BeginPipeline");
+  llvm::Function* call_func = m_context->GetModule()->getFunction("StreamGraphBuilder_BeginPipeline");
+  llvm::Value* name_ptr = GetCurrentIRBuilder().CreateGlobalStringPtr(node->GetName().c_str());
   assert(call_func);
-  GetCurrentIRBuilder().CreateCall(call_func);
+  GetCurrentIRBuilder().CreateCall(call_func, name_ptr);
 
   // Generate statements
   bool result = node->GetStatements()->Accept(this);
 
   // End of splitjoin
-  call_func = m_context->GetModule()->getFunction("StreamGraphInterpreter_EndPipeline");
+  call_func = m_context->GetModule()->getFunction("StreamGraphBuilder_EndPipeline");
   assert(call_func);
-  GetCurrentIRBuilder().CreateCall(call_func);
+  GetCurrentIRBuilder().CreateCall(call_func, name_ptr);
   GetCurrentIRBuilder().CreateRetVoid();
   return result;
 }

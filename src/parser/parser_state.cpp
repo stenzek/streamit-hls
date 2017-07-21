@@ -131,7 +131,8 @@ void ParserState::LogError(const AST::SourceLocation& loc, const char* fmt, ...)
   std::string msg = StringFromFormatV(fmt, ap);
   va_end(ap);
 
-  Log::Error("%s:%d.%d: %s", loc.filename ? loc.filename : "unknown", loc.first_line, loc.first_column, msg.c_str());
+  Log::Error("parser", "%s:%d.%d: %s", loc.filename ? loc.filename : "unknown", loc.first_line, loc.first_column,
+             msg.c_str());
 }
 
 void ParserState::LogWarning(const AST::SourceLocation& loc, const char* fmt, ...)
@@ -141,7 +142,8 @@ void ParserState::LogWarning(const AST::SourceLocation& loc, const char* fmt, ..
   std::string msg = StringFromFormatV(fmt, ap);
   va_end(ap);
 
-  Log::Warning("%s:%d.%d: %s", loc.filename ? loc.filename : "unknown", loc.first_line, loc.first_column, msg.c_str());
+  Log::Warning("parser", "%s:%d.%d: %s", loc.filename ? loc.filename : "unknown", loc.first_line, loc.first_column,
+               msg.c_str());
 }
 
 void ParserState::AddFilter(AST::FilterDeclaration* decl)

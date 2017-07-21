@@ -1,6 +1,7 @@
 #include "frontend/stream_graph_builder.h"
 #include <cassert>
 #include <iostream>
+#include "common/log.h"
 #include "common/string_helpers.h"
 #include "frontend/context.h"
 #include "frontend/stream_graph.h"
@@ -81,35 +82,19 @@ bool StreamGraphBuilder::GenerateGlobals()
 
 bool StreamGraphBuilder::GenerateStreamGraphFunctions()
 {
-  //   // Pop/peek
-  //   if (!m_filter_decl->GetInputType()->IsVoid())
-  //   {
-  //     llvm::Type* ret_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
-  //     llvm::Type* llvm_peek_idx_ty = llvm::Type::getInt32Ty(m_context->GetLLVMContext());
-  //     llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {llvm_peek_idx_ty}, false);
-  //     llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
-  //     m_peek_function = m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_peek",
-  //     m_name_prefix.c_str()), llvm_peek_fn);
-  //     m_pop_function = m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_pop", m_name_prefix.c_str()),
-  //     llvm_pop_fn);
-  //   }
-  //
-  //   // Push
-  //   if (!m_filter_decl->GetOutputType()->IsVoid())
-  //   {
-  //     llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
-  //     llvm::Type* ret_ty = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  //     llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(ret_ty, {llvm_ty}, false);
-  //     m_push_function = m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_push",
-  //     m_name_prefix.c_str()), llvm_push_fn);
-  //   }
-
-  llvm::Type* void_ty = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  m_context->GetModule()->getOrInsertFunction("StreamGraphInterpreter_BeginPipeline", void_ty, nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphInterpreter_EndPipeline", void_ty, nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphInterpreter_BeginSplitJoin", void_ty, nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphInterpreter_EndSplitJoin", void_ty, nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphInterpreter_AddFilter", void_ty, nullptr);
+  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_BeginPipeline", m_context->GetVoidType(),
+                                              m_context->GetStringType(), nullptr);
+  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_EndPipeline", m_context->GetVoidType(),
+                                              m_context->GetStringType(), nullptr);
+  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_BeginSplitJoin", m_context->GetVoidType(),
+                                              m_context->GetStringType(), nullptr);
+  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_EndSplitJoin", m_context->GetVoidType(),
+                                              m_context->GetStringType(), nullptr);
+  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_Split", m_context->GetVoidType(),
+                                              m_context->GetIntType(), nullptr);
+  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_Join", m_context->GetVoidType(), nullptr);
+  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_AddFilter", m_context->GetVoidType(),
+                                              m_context->GetStringType(), nullptr);
   return true;
 }
 
@@ -207,25 +192,37 @@ void StreamGraphBuilder::ExecuteMain()
 // Functions visible to generated code
 //////////////////////////////////////////////////////////////////////////
 extern "C" {
-EXPORT void StreamGraphInterpreter_BeginPipeline()
+EXPORT void StreamGraphBuilder_BeginPipeline(const char* name)
 {
-  std::cerr << "BeginPipeline" << std::endl;
+  // Begin new pipeline
+  Log::Debug("frontend", "StreamGraph BeginPipeline %s", name);
 }
-EXPORT void StreamGraphInterpreter_EndPipeline()
+EXPORT void StreamGraphBuilder_EndPipeline(const char* name)
 {
-  std::cerr << "EndPipeline" << std::endl;
+  // End pipeline and add to parent
+  Log::Debug("frontend", "StreamGraph EndPipeline %s", name);
 }
-EXPORT void StreamGraphInterpreter_BeginSplitJoin()
+EXPORT void StreamGraphBuilder_BeginSplitJoin(const char* name)
 {
-  std::cerr << "BeginSplitJoin" << std::endl;
+  Log::Debug("frontend", "StreamGraph BeginSplitJoin %s", name);
 }
-EXPORT void StreamGraphInterpreter_EndSplitJoin()
+EXPORT void StreamGraphBuilder_EndSplitJoin(const char* name)
 {
-  std::cerr << "EndSplitJoin" << std::endl;
+  Log::Debug("frontend", "StreamGraph EndSplitJoin %s", name);
 }
-EXPORT void StreamGraphInterpreter_AddFilter(const char* name)
+EXPORT void StreamGraphBuilder_Split(int mode)
 {
-  std::cerr << "AddFilter" << std::endl;
+  const char* mode_str = (mode == 0) ? "duplicate" : "roundrobin";
+  Log::Debug("frontend", "StreamGraph Split %s", mode_str);
+}
+EXPORT void StreamGraphBuilder_Join()
+{
+  Log::Debug("frontend", "StreamGraph Join");
+}
+EXPORT void StreamGraphBuilder_AddFilter(const char* name)
+{
+  // Direct add to current
+  Log::Debug("frontend", "StreamGraph AddFilter %s", name);
 }
 }
 

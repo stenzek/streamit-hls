@@ -197,4 +197,21 @@ bool StatementBuilder::Visit(AST::AddStatement* node)
   GetIRBuilder().CreateCall(func);
   return true;
 }
+
+bool StatementBuilder::Visit(AST::SplitStatement* node)
+{
+  llvm::Function* func = GetContext()->GetModule()->getFunction("StreamGraphBuilder_Split");
+  llvm::Value* mode_arg = GetIRBuilder().getInt32((node->GetType() == AST::SplitStatement::Duplicate) ? 0 : 1);
+  assert(func && "Split function exists");
+  GetIRBuilder().CreateCall(func, mode_arg);
+  return true;
+}
+
+bool StatementBuilder::Visit(AST::JoinStatement* node)
+{
+  llvm::Function* func = GetContext()->GetModule()->getFunction("StreamGraphBuilder_Join");
+  assert(func && "Join function exists");
+  GetIRBuilder().CreateCall(func);
+  return true;
+}
 }

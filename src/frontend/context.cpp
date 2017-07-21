@@ -1,8 +1,10 @@
 #include "frontend/context.h"
 #include <algorithm>
 #include <cstdarg>
+#include <cstring>
 #include "common/log.h"
 #include "frontend/filter_builder.h"
+#include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRPrintingPasses.h"
 #include "llvm/IR/LLVMContext.h"
@@ -36,6 +38,27 @@ llvm::Type* Context::GetLLVMType(const Type* type)
   llvm::Type* ty = CreateLLVMType(type);
   m_type_map.emplace(type, ty);
   return ty;
+}
+
+llvm::Type* Context::GetVoidType()
+{
+  return llvm::Type::getVoidTy(m_llvm_context);
+}
+
+llvm::Type* Context::GetIntType()
+{
+  return llvm::Type::getInt32Ty(m_llvm_context);
+}
+
+llvm::Type* Context::GetStringType()
+{
+  return llvm::Type::getInt8PtrTy(m_llvm_context);
+}
+
+llvm::Type* Context::GetPointerType()
+{
+  // clang seems to represent void* as i8*
+  return llvm::Type::getInt8PtrTy(m_llvm_context);
 }
 
 void Context::DumpModule()
