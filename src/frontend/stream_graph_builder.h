@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <unordered_map>
 
 namespace llvm
@@ -40,6 +41,7 @@ private:
 
   Context* m_context;
   ParserState* m_parser_state;
+  std::unique_ptr<llvm::Module> m_module;
   std::unordered_map<const AST::StreamDeclaration*, llvm::Function*> m_function_map;
   llvm::ExecutionEngine* m_execution_engine = nullptr;
 };

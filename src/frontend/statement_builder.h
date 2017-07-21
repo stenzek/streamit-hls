@@ -15,6 +15,7 @@ public:
   ~StatementBuilder();
 
   Context* GetContext() const;
+  llvm::Module* GetModule() const;
   llvm::IRBuilder<>& GetIRBuilder() const;
 
   bool Visit(AST::Node* node) override;

@@ -27,10 +27,4 @@ if(LLVM_FOUND)
     target_include_directories(frontend PRIVATE "${LLVM_INCLUDE_DIRS}")
     llvm_map_components_to_libnames(llvm_libs support core executionengine mcjit native)
     target_link_libraries(frontend ${llvm_libs})
-
-    # Shared library variant needs pthreads linked in
-    set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
-    set(THREADS_PREFER_PTHREAD_FLAG TRUE)
-    find_package(Threads REQUIRED)
-    target_link_libraries(frontend Threads::Threads)
 endif()

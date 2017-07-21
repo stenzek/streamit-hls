@@ -15,7 +15,8 @@ class FilterFunctionBuilder : public AST::Visitor
 public:
   using VariableTable = std::unordered_map<const AST::VariableDeclaration*, llvm::Value*>;
 
-  FilterFunctionBuilder(Context* ctx, FilterBuilder* fb, const std::string& name, llvm::Function* func);
+  FilterFunctionBuilder(Context* ctx, llvm::Module* mod, FilterBuilder* fb, const std::string& name,
+                        llvm::Function* func);
   ~FilterFunctionBuilder();
 
   bool Visit(AST::Node* node) override;
@@ -23,6 +24,7 @@ public:
   bool Visit(AST::Statement* node) override;
 
   Context* GetContext() const;
+  llvm::Module* GetModule() const;
   FilterBuilder* GetFilterBuilder() const;
   llvm::BasicBlock* GetEntryBasicBlock() const;
   llvm::BasicBlock* GetCurrentBasicBlock() const;
@@ -50,6 +52,7 @@ public:
 
 protected:
   Context* m_context;
+  llvm::Module* m_module;
   FilterBuilder* m_filter_builder;
   FilterFunctionBuilder* m_parent;
   std::string m_name;

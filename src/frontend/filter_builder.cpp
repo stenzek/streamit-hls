@@ -13,8 +13,8 @@
 namespace Frontend
 {
 
-FilterBuilder::FilterBuilder(Context* context, const AST::FilterDeclaration* filter_decl)
-  : m_context(context), m_filter_decl(filter_decl)
+FilterBuilder::FilterBuilder(Context* context, llvm::Module* mod, const AST::FilterDeclaration* filter_decl)
+  : m_context(context), m_module(mod), m_filter_decl(filter_decl)
 {
   // TODO: This should use filter instances, not filters
   m_name_prefix = m_filter_decl->GetName();
@@ -58,15 +58,15 @@ bool FilterBuilder::GenerateCode()
 
 llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, const std::string& name)
 {
-  assert(m_context->GetModule()->getFunction(name.c_str()) == nullptr);
+  assert(m_module->getFunction(name.c_str()) == nullptr);
   llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  llvm::Constant* func_cons = m_context->GetModule()->getOrInsertFunction(name.c_str(), ret_type, nullptr);
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), ret_type, nullptr);
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return nullptr;
 
   // Start at the entry basic block for the work function.
-  FilterFunctionBuilder entry_bb_builder(m_context, this, "entry", func);
+  FilterFunctionBuilder entry_bb_builder(m_context, m_module, this, "entry", func);
 
   // Add global variable references
   for (const auto& it : m_global_variable_map)
@@ -86,7 +86,10 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
 class GlobalVariableBuilder : public AST::Visitor
 {
 public:
-  GlobalVariableBuilder(Context* context_, const std::string& prefix_) : context(context_), prefix(prefix_) {}
+  GlobalVariableBuilder(Context* context_, llvm::Module* mod_, const std::string& prefix_)
+    : context(context_), mod(mod_), prefix(prefix_)
+  {
+  }
 
   bool Visit(AST::Node* node) override
   {
@@ -118,13 +121,14 @@ public:
 
     // Create LLVM global var
     llvm::Type* llvm_ty = context->GetLLVMType(node->GetType());
-    llvm::GlobalVariable* llvm_var = new llvm::GlobalVariable(*context->GetModule(), llvm_ty, true,
-                                                              llvm::GlobalValue::PrivateLinkage, initializer, var_name);
+    llvm::GlobalVariable* llvm_var =
+      new llvm::GlobalVariable(*mod, llvm_ty, true, llvm::GlobalValue::PrivateLinkage, initializer, var_name);
     global_var_map.emplace(node, llvm_var);
     return true;
   }
 
   Context* context;
+  llvm::Module* mod;
   std::string prefix;
   std::unordered_map<const AST::VariableDeclaration*, llvm::GlobalVariable*> global_var_map;
 };
@@ -135,7 +139,7 @@ bool FilterBuilder::GenerateGlobals()
     return true;
 
   // Visit the state variable declarations, generating LLVM variables for them
-  GlobalVariableBuilder gvb(m_context, m_name_prefix);
+  GlobalVariableBuilder gvb(m_context, m_module, m_name_prefix);
   if (!m_filter_decl->GetStateVariables()->Accept(&gvb))
     return false;
 
@@ -153,10 +157,8 @@ bool FilterBuilder::GenerateChannelFunctions()
     llvm::Type* llvm_peek_idx_ty = llvm::Type::getInt32Ty(m_context->GetLLVMContext());
     llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {llvm_peek_idx_ty}, false);
     llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
-    m_peek_function =
-      m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_peek", m_name_prefix.c_str()), llvm_peek_fn);
-    m_pop_function =
-      m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_pop", m_name_prefix.c_str()), llvm_pop_fn);
+    m_peek_function = m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_name_prefix.c_str()), llvm_peek_fn);
+    m_pop_function = m_module->getOrInsertFunction(StringFromFormat("%s_pop", m_name_prefix.c_str()), llvm_pop_fn);
   }
 
   // Push
@@ -165,8 +167,7 @@ bool FilterBuilder::GenerateChannelFunctions()
     llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
     llvm::Type* ret_ty = llvm::Type::getVoidTy(m_context->GetLLVMContext());
     llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(ret_ty, {llvm_ty}, false);
-    m_push_function =
-      m_context->GetModule()->getOrInsertFunction(StringFromFormat("%s_push", m_name_prefix.c_str()), llvm_push_fn);
+    m_push_function = m_module->getOrInsertFunction(StringFromFormat("%s_push", m_name_prefix.c_str()), llvm_push_fn);
   }
 
   return true;

@@ -20,6 +20,7 @@ namespace Frontend
 {
 StreamGraphBuilder::StreamGraphBuilder(Context* context, ParserState* state) : m_context(context), m_parser_state(state)
 {
+  m_module = m_context->CreateModule("streamgraph");
 }
 
 StreamGraphBuilder::~StreamGraphBuilder()
@@ -31,9 +32,9 @@ bool StreamGraphBuilder::GenerateGraph()
   if (!GenerateCode())
     return false;
 
-  m_context->DumpModule();
-  if (!m_context->VerifyModule())
-    (void)0;
+  m_context->DumpModule(m_module.get());
+  if (!m_context->VerifyModule(m_module.get()))
+    m_context->LogError("Module verification failed");
 
   m_context->LogInfo("Creating execution engine");
   if (!CreateExecutionEngine())
@@ -82,19 +83,18 @@ bool StreamGraphBuilder::GenerateGlobals()
 
 bool StreamGraphBuilder::GenerateStreamGraphFunctions()
 {
-  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_BeginPipeline", m_context->GetVoidType(),
-                                              m_context->GetStringType(), nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_EndPipeline", m_context->GetVoidType(),
-                                              m_context->GetStringType(), nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_BeginSplitJoin", m_context->GetVoidType(),
-                                              m_context->GetStringType(), nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_EndSplitJoin", m_context->GetVoidType(),
-                                              m_context->GetStringType(), nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_Split", m_context->GetVoidType(),
-                                              m_context->GetIntType(), nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_Join", m_context->GetVoidType(), nullptr);
-  m_context->GetModule()->getOrInsertFunction("StreamGraphBuilder_AddFilter", m_context->GetVoidType(),
-                                              m_context->GetStringType(), nullptr);
+  m_module->getOrInsertFunction("StreamGraphBuilder_BeginPipeline", m_context->GetVoidType(),
+                                m_context->GetStringType(), nullptr);
+  m_module->getOrInsertFunction("StreamGraphBuilder_EndPipeline", m_context->GetVoidType(), m_context->GetStringType(),
+                                nullptr);
+  m_module->getOrInsertFunction("StreamGraphBuilder_BeginSplitJoin", m_context->GetVoidType(),
+                                m_context->GetStringType(), nullptr);
+  m_module->getOrInsertFunction("StreamGraphBuilder_EndSplitJoin", m_context->GetVoidType(), m_context->GetStringType(),
+                                nullptr);
+  m_module->getOrInsertFunction("StreamGraphBuilder_Split", m_context->GetVoidType(), m_context->GetIntType(), nullptr);
+  m_module->getOrInsertFunction("StreamGraphBuilder_Join", m_context->GetVoidType(), nullptr);
+  m_module->getOrInsertFunction("StreamGraphBuilder_AddFilter", m_context->GetVoidType(), m_context->GetStringType(),
+                                nullptr);
   return true;
 }
 
@@ -105,7 +105,7 @@ bool StreamGraphBuilder::GenerateStreamFunctionPrototype(AST::StreamDeclaration*
   // TODO: Work out how to handle stream parameters.. varargs?
   std::string name = StringFromFormat("%s_add", decl->GetName().c_str());
   llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  llvm::Constant* func_cons = m_context->GetModule()->getOrInsertFunction(name.c_str(), ret_type, nullptr);
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), ret_type, nullptr);
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   assert(func_cons && func);
 
@@ -119,7 +119,7 @@ bool StreamGraphBuilder::GenerateStreamFunction(AST::StreamDeclaration* decl)
   assert(iter != m_function_map.end());
   m_context->LogDebug("Generating stream function for %s", decl->GetName().c_str());
 
-  StreamGraphFunctionBuilder builder(m_context, decl->GetName(), iter->second);
+  StreamGraphFunctionBuilder builder(m_context, m_module.get(), decl->GetName(), iter->second);
   return decl->Accept(&builder);
 }
 
@@ -139,7 +139,7 @@ bool StreamGraphBuilder::GenerateMain()
 
   // Create main prototype
   llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  llvm::Constant* func_cons = m_context->GetModule()->getOrInsertFunction("main", ret_type, nullptr);
+  llvm::Constant* func_cons = m_module->getOrInsertFunction("main", ret_type, nullptr);
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
 
   // Create main body - a single call to the entry point
@@ -156,11 +156,8 @@ bool StreamGraphBuilder::CreateExecutionEngine()
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
 
-  // TODO: We could use the JIT. Not like it would matter.
-  // TODO: Clean up this unique_ptr mess..
-  std::unique_ptr<llvm::Module> mod_ptr(m_context->GetModule());
   std::string error_msg;
-  m_execution_engine = llvm::EngineBuilder(std::move(mod_ptr)).setErrorStr(&error_msg).create();
+  m_execution_engine = llvm::EngineBuilder(std::move(m_module)).setErrorStr(&error_msg).create();
 
   if (!m_execution_engine)
   {
@@ -224,15 +221,4 @@ EXPORT void StreamGraphBuilder_AddFilter(const char* name)
   // Direct add to current
   Log::Debug("frontend", "StreamGraph AddFilter %s", name);
 }
-}
-
-bool temp_codegenerator_run(ParserState* state)
-{
-  Frontend::Context cg;
-
-  bool result = true;
-  Frontend::StreamGraphBuilder b(&cg, state);
-  result &= b.GenerateGraph();
-
-  return result;
 }

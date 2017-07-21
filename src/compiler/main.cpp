@@ -1,28 +1,60 @@
 #include <cstdio>
 #include <cstdlib>
 #include <iostream>
+#include <memory>
+#include "frontend/context.h"
+#include "frontend/filter_builder.h"
+#include "frontend/stream_graph_builder.h"
+#include "llvm/IR/Module.h"
 #include "parser/ast.h"
 #include "parser/ast_printer.h"
 #include "parser/parser_state.h"
 #include "parser/symbol_table.h"
-#include "frontend/context.h"
-#include "frontend/filter_builder.h"
-#include "frontend/stream_graph_builder.h"
 #include "spdlog/spdlog.h"
 
-extern bool temp_codegenerator_run(ParserState*);
+auto frontend_log = spdlog::stdout_color_mt("frontend");
+auto parser_log = spdlog::stdout_color_mt("parser");
+auto main_log = spdlog::stdout_color_mt("main");
+
+static bool GenerateStreamGraph(Frontend::Context* ctx, ParserState* state)
+{
+  main_log->info("Generating stream graph...");
+
+  Frontend::StreamGraphBuilder builder(ctx, state);
+  if (!builder.GenerateGraph())
+    return false;
+
+  return true;
+}
+
+static bool GenerateFilterFunctions(Frontend::Context* ctx, ParserState* state)
+{
+  main_log->info("Generating filter functions...");
+
+  std::unique_ptr<llvm::Module> mod = ctx->CreateModule("filters");
+
+  bool result = true;
+  for (AST::FilterDeclaration* filter_decl : state->GetFilterList())
+  {
+    Frontend::FilterBuilder fb(ctx, mod.get(), filter_decl);
+    result &= fb.GenerateCode();
+  }
+
+  ctx->DumpModule(mod.get());
+  if (!ctx->VerifyModule(mod.get()))
+    main_log->error("Filter module verification failed");
+
+  return result;
+}
 
 int main(int argc, char* argv[])
 {
   const char* filename = "stdin";
   std::FILE* fp = stdin;
 
-  auto frontend_log = spdlog::stdout_color_mt("frontend");
-  auto parser_log = spdlog::stdout_color_mt("parser");
-  auto log = spdlog::stdout_color_mt("main");
   frontend_log->set_level(spdlog::level::debug);
   parser_log->set_level(spdlog::level::debug);
-  log->set_level(spdlog::level::debug);
+  main_log->set_level(spdlog::level::debug);
 
   if (argc > 1)
   {
@@ -30,7 +62,7 @@ int main(int argc, char* argv[])
     fp = fopen(filename, "r");
     if (!fp)
     {
-      log->error("Failed to open file {}", filename);
+      main_log->error("Failed to open file {}", filename);
       return EXIT_FAILURE;
     }
   }
@@ -38,15 +70,22 @@ int main(int argc, char* argv[])
   ParserState state;
   if (!state.ParseFile(filename, fp))
   {
-    log->error("Parse failed. Exiting.");
+    main_log->error("Parse failed. Exiting.");
     return EXIT_FAILURE;
   }
 
   state.DumpAST();
 
-  if (!temp_codegenerator_run(&state))
+  std::unique_ptr<Frontend::Context> ctx = std::make_unique<Frontend::Context>();
+  if (!GenerateStreamGraph(ctx.get(), &state))
   {
-    log->error("Generating code failed. Exiting.");
+    main_log->error("Generating stream graph failed. Exiting.");
+    return EXIT_FAILURE;
+  }
+
+  if (!GenerateFilterFunctions(ctx.get(), &state))
+  {
+    main_log->error("Generating code failed. Exiting.");
     return EXIT_FAILURE;
   }
 

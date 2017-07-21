@@ -22,7 +22,6 @@ namespace Frontend
 
 Context::Context()
 {
-  m_module = new llvm::Module("program", m_llvm_context);
 }
 
 Context::~Context()
@@ -61,18 +60,23 @@ llvm::Type* Context::GetPointerType()
   return llvm::Type::getInt8PtrTy(m_llvm_context);
 }
 
-void Context::DumpModule()
+std::unique_ptr<llvm::Module> Context::CreateModule(const char* name)
+{
+  return std::make_unique<llvm::Module>(name, m_llvm_context);
+}
+
+void Context::DumpModule(llvm::Module* mod)
 {
   // TODO: Can we use the modern PassManager?
   llvm::legacy::PassManager pm;
   pm.add(llvm::createPrintModulePass(llvm::outs()));
-  pm.run(*m_module);
+  pm.run(*mod);
 }
 
-bool Context::VerifyModule()
+bool Context::VerifyModule(llvm::Module* mod)
 {
   // validate module, should this be here or elsewhere?
-  if (!llvm::verifyModule(*m_module, &llvm::outs()))
+  if (!llvm::verifyModule(*mod, &llvm::outs()))
     return false;
 
   return true;

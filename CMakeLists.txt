@@ -37,6 +37,12 @@ find_package(BISON)
 # LLVM
 find_package(LLVM)
 
+# LLVM shared library variant needs pthreads linked in
+set(CMAKE_THREAD_PREFER_PTHREAD TRUE)
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
+link_libraries(Threads::Threads)
+
 enable_testing()
 add_subdirectory(dep)
 add_subdirectory(src)

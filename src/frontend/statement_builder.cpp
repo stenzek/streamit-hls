@@ -24,6 +24,11 @@ Context* StatementBuilder::GetContext() const
   return m_func_builder->GetContext();
 }
 
+llvm::Module* StatementBuilder::GetModule() const
+{
+  return m_func_builder->GetModule();
+}
+
 llvm::IRBuilder<>& StatementBuilder::GetIRBuilder() const
 {
   return m_func_builder->GetCurrentIRBuilder();
@@ -190,7 +195,7 @@ bool StatementBuilder::Visit(AST::AddStatement* node)
   // look up stream function with correct type signature based on args
   // if this fails, it means they don't match and we stuffed up somewhere
   std::string func_name = StringFromFormat("%s_add", node->GetStreamName().c_str());
-  llvm::Function* func = GetContext()->GetModule()->getFunction(func_name);
+  llvm::Function* func = GetModule()->getFunction(func_name);
   assert(func && "referenced filter exists");
 
   // TODO: Parameter handling.
@@ -200,7 +205,7 @@ bool StatementBuilder::Visit(AST::AddStatement* node)
 
 bool StatementBuilder::Visit(AST::SplitStatement* node)
 {
-  llvm::Function* func = GetContext()->GetModule()->getFunction("StreamGraphBuilder_Split");
+  llvm::Function* func = GetModule()->getFunction("StreamGraphBuilder_Split");
   llvm::Value* mode_arg = GetIRBuilder().getInt32((node->GetType() == AST::SplitStatement::Duplicate) ? 0 : 1);
   assert(func && "Split function exists");
   GetIRBuilder().CreateCall(func, mode_arg);
@@ -209,7 +214,7 @@ bool StatementBuilder::Visit(AST::SplitStatement* node)
 
 bool StatementBuilder::Visit(AST::JoinStatement* node)
 {
-  llvm::Function* func = GetContext()->GetModule()->getFunction("StreamGraphBuilder_Join");
+  llvm::Function* func = GetModule()->getFunction("StreamGraphBuilder_Join");
   assert(func && "Join function exists");
   GetIRBuilder().CreateCall(func);
   return true;

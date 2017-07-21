@@ -33,10 +33,9 @@ public:
   llvm::Type* GetStringType();
   llvm::Type* GetPointerType();
 
-  llvm::Module* GetModule() const { return m_module; }
-
-  void DumpModule();
-  bool VerifyModule();
+  std::unique_ptr<llvm::Module> CreateModule(const char* name);
+  void DumpModule(llvm::Module* mod);
+  bool VerifyModule(llvm::Module* mod);
 
   unsigned int GenerateNameId();
   std::string GenerateName(const char* prefix);
@@ -53,8 +52,6 @@ private:
 
   using TypeMap = std::unordered_map<const Type*, llvm::Type*>;
   TypeMap m_type_map;
-
-  llvm::Module* m_module;
 
   int m_id_counter = 1;
 };

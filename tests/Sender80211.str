@@ -94,7 +94,7 @@ int -> int filter fir_filter_half
 		int current = peek(1);
 		//int temp = 0;
 		for (int j=0; j < 8; j++){
-			push((rcc_taps[j] * (current >> 10) + rcc_taps[j+ 8] * (previous >> 10 )) >> 10);
+			push((rcc_taps[j] * (current >> 10) + rcc_taps[j+8] * (previous >> 10 )) >> 10);
 			//push((j << 28) + (current << 16) + previous);
 			//push((j << 28) + (temp >> 8));
 		}

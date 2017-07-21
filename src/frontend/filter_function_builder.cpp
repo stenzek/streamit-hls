@@ -9,9 +9,9 @@
 namespace Frontend
 {
 
-FilterFunctionBuilder::FilterFunctionBuilder(Context* ctx, FilterBuilder* fb, const std::string& name,
-                                             llvm::Function* func)
-  : m_context(ctx), m_filter_builder(fb), m_name(name), m_func(func),
+FilterFunctionBuilder::FilterFunctionBuilder(Context* ctx, llvm::Module* mod, FilterBuilder* fb,
+                                             const std::string& name, llvm::Function* func)
+  : m_context(ctx), m_module(mod), m_filter_builder(fb), m_name(name), m_func(func),
     m_entry_basic_block(llvm::BasicBlock::Create(ctx->GetLLVMContext(), "entry", func)),
     m_current_ir_builder(m_entry_basic_block)
 {
@@ -25,6 +25,11 @@ FilterFunctionBuilder::~FilterFunctionBuilder()
 Context* FilterFunctionBuilder::GetContext() const
 {
   return m_context;
+}
+
+llvm::Module* FilterFunctionBuilder::GetModule() const
+{
+  return m_module;
 }
 
 FilterBuilder* FilterFunctionBuilder::GetFilterBuilder() const
