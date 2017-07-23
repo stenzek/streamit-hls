@@ -1,5 +1,5 @@
-#include "parser/ast.h"
 #include "parser/ast_visitor.h"
+#include "parser/ast.h"
 
 namespace AST
 {

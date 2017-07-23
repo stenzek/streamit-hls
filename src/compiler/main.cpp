@@ -2,10 +2,7 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
-#include "frontend/context.h"
-#include "frontend/filter_builder.h"
-#include "frontend/stream_graph_builder.h"
-#include "llvm/IR/Module.h"
+#include "frontend/frontend.h"
 #include "parser/ast.h"
 #include "parser/ast_printer.h"
 #include "parser/parser_state.h"
@@ -15,37 +12,6 @@
 auto frontend_log = spdlog::stdout_color_mt("frontend");
 auto parser_log = spdlog::stdout_color_mt("parser");
 auto main_log = spdlog::stdout_color_mt("main");
-
-static bool GenerateStreamGraph(Frontend::Context* ctx, ParserState* state)
-{
-  main_log->info("Generating stream graph...");
-
-  Frontend::StreamGraphBuilder builder(ctx, state);
-  if (!builder.GenerateGraph())
-    return false;
-
-  return true;
-}
-
-static bool GenerateFilterFunctions(Frontend::Context* ctx, ParserState* state)
-{
-  main_log->info("Generating filter functions...");
-
-  std::unique_ptr<llvm::Module> mod = ctx->CreateModule("filters");
-
-  bool result = true;
-  for (AST::FilterDeclaration* filter_decl : state->GetFilterList())
-  {
-    Frontend::FilterBuilder fb(ctx, mod.get(), filter_decl);
-    result &= fb.GenerateCode();
-  }
-
-  ctx->DumpModule(mod.get());
-  if (!ctx->VerifyModule(mod.get()))
-    main_log->error("Filter module verification failed");
-
-  return result;
-}
 
 int main(int argc, char* argv[])
 {
@@ -76,18 +42,21 @@ int main(int argc, char* argv[])
 
   state.DumpAST();
 
-  std::unique_ptr<Frontend::Context> ctx = std::make_unique<Frontend::Context>();
-  if (!GenerateStreamGraph(ctx.get(), &state))
+  Frontend::Context* ctx = Frontend::CreateContext();
+  if (!Frontend::GenerateStreamGraph(ctx, &state))
   {
     main_log->error("Generating stream graph failed. Exiting.");
+    Frontend::DestroyContext(ctx);
     return EXIT_FAILURE;
   }
 
-  if (!GenerateFilterFunctions(ctx.get(), &state))
+  if (!Frontend::GenerateFilterFunctions(ctx, &state))
   {
     main_log->error("Generating code failed. Exiting.");
+    Frontend::DestroyContext(ctx);
     return EXIT_FAILURE;
   }
 
+  Frontend::DestroyContext(ctx);
   return EXIT_SUCCESS;
 }

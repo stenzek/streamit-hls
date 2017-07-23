@@ -8,9 +8,11 @@ set(SRCS
     expression_builder.cpp
     filter_builder.cpp
     filter_function_builder.cpp
+    frontend.cpp
     statement_builder.cpp
     stream_graph.cpp
     stream_graph_builder.cpp
+    stream_graph_dump.cpp
     stream_graph_function_builder.cpp
 )
 
