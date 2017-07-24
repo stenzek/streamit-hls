@@ -1,6 +1,6 @@
-#include "parser/ast.h"
 #include <array>
 #include <cassert>
+#include "parser/ast.h"
 #include "parser/ast_printer.h"
 #include "parser/type.h"
 

@@ -1,8 +1,8 @@
-#include "frontend/stream_graph.h"
 #include <cassert>
 #include <cstdarg>
 #include <sstream>
 #include "common/string_helpers.h"
+#include "frontend/stream_graph.h"
 
 namespace StreamGraph
 {
@@ -24,7 +24,7 @@ public:
   void WriteLine(const char* fmt, ...);
   void Indent();
   void Deindent();
-  void WriteEdgesFrom(const Node* src);
+  void WriteEdge(const Node* src, const Node* dst);
 
 protected:
   std::stringstream m_out;
@@ -68,40 +68,42 @@ void StreamGraphDumpVisitor::Deindent()
   m_indent--;
 }
 
-void StreamGraphDumpVisitor::WriteEdgesFrom(const Node* src)
+void StreamGraphDumpVisitor::WriteEdge(const Node* src, const Node* dst)
 {
-  for (const Node* output : src->GetOutputs())
-    WriteLine("%s -> %s;", src->GetName().c_str(), output->GetName().c_str());
+  WriteLine("%s -> %s;", src->GetName().c_str(), dst->GetName().c_str());
 }
 
 bool StreamGraphDumpVisitor::Visit(Filter* node)
 {
-  WriteLine("%s [shape=circle];", node->GetName().c_str());
+  WriteLine("%s [shape=ellipse];", node->GetName().c_str());
+  if (node->HasOutputConnection())
+    WriteEdge(node, node->GetOutputConnection());
+
   return true;
 }
 
 bool StreamGraphDumpVisitor::Visit(Pipeline* node)
 {
-  WriteLine("subgraph %s {", node->GetName().c_str());
+  if (m_indent > 0)
+    WriteLine("subgraph cluster_%s {", node->GetName().c_str());
   Indent();
 
   WriteLine("label = \"%s\";\n", node->GetName().c_str());
 
   for (Node* child : node->GetChildren())
-  {
     child->Accept(this);
-    WriteEdgesFrom(child);
-  }
 
   Deindent();
-  WriteLine("}");
+
+  if (m_indent > 0)
+    WriteLine("}");
 
   return true;
 }
 
 bool StreamGraphDumpVisitor::Visit(SplitJoin* node)
 {
-  WriteLine("subgraph %s {", node->GetName().c_str());
+  WriteLine("subgraph cluster_%s {", node->GetName().c_str());
   Indent();
 
   WriteLine("label = \"%s\";\n", node->GetName().c_str());
@@ -110,28 +112,29 @@ bool StreamGraphDumpVisitor::Visit(SplitJoin* node)
   node->GetJoinNode()->Accept(this);
 
   for (Node* child : node->GetChildren())
-  {
     child->Accept(this);
-    WriteEdgesFrom(child);
-  }
 
   Deindent();
   WriteLine("}");
 
-  WriteEdgesFrom(node->GetSplitNode());
-  WriteEdgesFrom(node->GetJoinNode());
   return true;
 }
 
 bool StreamGraphDumpVisitor::Visit(Split* node)
 {
-  WriteLine("%s [shape=circle];", node->GetName().c_str());
+  WriteLine("%s [shape=triangle];", node->GetName().c_str());
+
+  for (const Node* out_node : node->GetOutputs())
+    WriteEdge(node, out_node);
+
   return true;
 }
 
 bool StreamGraphDumpVisitor::Visit(Join* node)
 {
-  WriteLine("%s [shape=circle];", node->GetName().c_str());
+  WriteLine("%s [shape=invtriangle];", node->GetName().c_str());
+  if (node->HasOutputConnection())
+    WriteEdge(node, node->GetOutputConnection());
   return true;
 }
 
@@ -139,9 +142,7 @@ std::string DumpStreamGraph(Node* root)
 {
   StreamGraphDumpVisitor visitor;
   visitor.WriteLine("digraph G {");
-  visitor.Indent();
   root->Accept(&visitor);
-  visitor.Deindent();
   visitor.WriteLine("}");
   return visitor.ToString();
 }

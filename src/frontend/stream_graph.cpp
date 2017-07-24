@@ -31,31 +31,26 @@ bool Filter::AddChild(BuilderState* state, Node* child)
   return true;
 }
 
-bool Filter::ConnectFrom(BuilderState* state, Node* src)
+bool Filter::ConnectTo(BuilderState* state, Node* dst)
 {
-  AddInput(src);
+  if (m_output_connection)
+  {
+    state->Error("Filter %s already has an output connection", m_name.c_str());
+    return false;
+  }
+
+  m_output_connection = dst->GetInputNode();
   return true;
 }
 
-bool Filter::ConnectTo(BuilderState* state, Node* dst)
+Node* Filter::GetInputNode()
 {
-  AddOutput(dst);
-  return true;
+  return this;
 }
 
 bool Filter::Validate(BuilderState* state)
 {
   return true;
-}
-
-Node* Filter::GetChildInputNode()
-{
-  return this;
-}
-
-Node* Filter::GetChildOutputNode()
-{
-  return this;
 }
 
 Pipeline::Pipeline(const std::string& name) : Node(name, nullptr, nullptr)
@@ -72,9 +67,8 @@ bool Pipeline::AddChild(BuilderState* state, Node* node)
 
   if (!m_children.empty())
   {
-    Node* last = m_children.back();
-    if (!last->GetChildOutputNode()->ConnectTo(state, node->GetChildInputNode()) ||
-        !node->GetChildInputNode()->ConnectFrom(state, last->GetChildOutputNode()))
+    Node* back = m_children.back();
+    if (!back->ConnectTo(state, node))
       return false;
   }
 
@@ -87,7 +81,7 @@ bool Pipeline::Accept(Visitor* visitor)
   return visitor->Visit(this);
 }
 
-bool Pipeline::ConnectTo(BuilderState* state, Node* dst)
+bool Pipeline::ConnectTo(BuilderState* state, Node* node)
 {
   if (m_children.empty())
   {
@@ -96,22 +90,7 @@ bool Pipeline::ConnectTo(BuilderState* state, Node* dst)
   }
 
   Node* back = m_children.back();
-  if (!back->ConnectTo(state, dst->GetChildInputNode()))
-    return false;
-
-  return true;
-}
-
-bool Pipeline::ConnectFrom(BuilderState* state, Node* src)
-{
-  if (m_children.empty())
-  {
-    state->Error("Connecting sink to empty pipeline");
-    return false;
-  }
-
-  Node* front = m_children.front();
-  if (!front->ConnectFrom(state, src->GetChildOutputNode()))
+  if (!back->ConnectTo(state, node))
     return false;
 
   return true;
@@ -123,16 +102,10 @@ bool Pipeline::Validate(BuilderState* state)
   return true;
 }
 
-Node* Pipeline::GetChildInputNode()
+Node* Pipeline::GetInputNode()
 {
   assert(!m_children.empty());
-  return m_children.front()->GetChildInputNode();
-}
-
-Node* Pipeline::GetChildOutputNode()
-{
-  assert(!m_children.empty());
-  return m_children.back()->GetChildOutputNode();
+  return m_children.front()->GetInputNode();
 }
 
 SplitJoin::SplitJoin(const std::string& name) : Node(name, nullptr, nullptr)
@@ -144,26 +117,16 @@ bool SplitJoin::Accept(Visitor* visitor)
   return visitor->Visit(this);
 }
 
-bool SplitJoin::ConnectFrom(BuilderState* state, Node* src)
-{
-  if (!m_split_node || !m_join_node)
-    return false;
-
-  if (!m_split_node->ConnectFrom(state, src->GetChildOutputNode()))
-    return false;
-
-  return true;
-}
-
 bool SplitJoin::ConnectTo(BuilderState* state, Node* dst)
 {
-  if (!m_split_node || !m_join_node)
-    return false;
+  assert(m_join_node != nullptr);
+  return m_join_node->ConnectTo(state, dst);
+}
 
-  if (!m_join_node->ConnectTo(state, dst->GetChildInputNode()))
-    return false;
-
-  return true;
+Node* SplitJoin::GetInputNode()
+{
+  assert(m_split_node != nullptr);
+  return m_split_node;
 }
 
 bool SplitJoin::AddChild(BuilderState* state, Node* node)
@@ -181,8 +144,7 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
       return false;
     }
 
-    if (!m_split_node->ConnectTo(state, node->GetChildInputNode()) ||
-        !node->GetChildInputNode()->ConnectFrom(state, m_split_node->GetChildOutputNode()))
+    if (!m_split_node->ConnectTo(state, node))
       return false;
 
     m_children.push_back(node);
@@ -226,8 +188,7 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
     {
       for (Node* child_node : m_children)
       {
-        if (!child_node->GetChildOutputNode()->ConnectTo(state, m_join_node) ||
-            !m_join_node->ConnectFrom(state, child_node->GetChildOutputNode()))
+        if (!child_node->ConnectTo(state, m_join_node))
           return false;
       }
 
@@ -256,18 +217,6 @@ bool SplitJoin::Validate(BuilderState* state)
   return true;
 }
 
-Node* SplitJoin::GetChildInputNode()
-{
-  assert(m_split_node != nullptr);
-  return m_split_node;
-}
-
-Node* SplitJoin::GetChildOutputNode()
-{
-  assert(m_join_node != nullptr);
-  return m_join_node;
-}
-
 Split::Split(const std::string& name) : Node(name, nullptr, nullptr)
 {
 }
@@ -278,16 +227,15 @@ bool Split::AddChild(BuilderState* state, Node* node)
   return false;
 }
 
-bool Split::ConnectFrom(BuilderState* state, Node* src)
+bool Split::ConnectTo(BuilderState* state, Node* dst)
 {
-  AddInput(src);
+  m_outputs.push_back(dst->GetInputNode());
   return true;
 }
 
-bool Split::ConnectTo(BuilderState* state, Node* dst)
+Node* Split::GetInputNode()
 {
-  AddOutput(dst);
-  return true;
+  return this;
 }
 
 bool Split::Accept(Visitor* visitor)
@@ -301,16 +249,6 @@ bool Split::Validate(BuilderState* state)
   return true;
 }
 
-Node* Split::GetChildInputNode()
-{
-  return this;
-}
-
-Node* Split::GetChildOutputNode()
-{
-  return this;
-}
-
 Join::Join(const std::string& name) : Node(name, nullptr, nullptr)
 {
 }
@@ -321,16 +259,21 @@ bool Join::AddChild(BuilderState* state, Node* node)
   return false;
 }
 
-bool Join::ConnectFrom(BuilderState* state, Node* src)
+bool Join::ConnectTo(BuilderState* state, Node* dst)
 {
-  AddInput(src);
+  if (m_output_connection)
+  {
+    state->Error("Join %s already has an output connection", m_name.c_str());
+    return false;
+  }
+
+  m_output_connection = dst->GetInputNode();
   return true;
 }
 
-bool Join::ConnectTo(BuilderState* state, Node* dst)
+Node* Join::GetInputNode()
 {
-  AddOutput(dst);
-  return true;
+  return this;
 }
 
 bool Join::Accept(Visitor* visitor)
@@ -342,15 +285,5 @@ bool Join::Validate(BuilderState* state)
 {
   // TODO: Work out input/output types
   return true;
-}
-
-Node* Join::GetChildInputNode()
-{
-  return this;
-}
-
-Node* Join::GetChildOutputNode()
-{
-  return this;
 }
 }

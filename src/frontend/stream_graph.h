@@ -42,27 +42,21 @@ public:
   const std::string& GetName() const { return m_name; }
   const Type* GetInputType() const { return m_input_type; }
   const Type* GetOutputType() const { return m_output_type; }
-  const NodeList& GetInputs() const { return m_inputs; }
-  const NodeList& GetOutputs() const { return m_outputs; }
-
-  void AddInput(Node* input) { m_inputs.push_back(input); }
-  void AddOutput(Node* output) { m_outputs.push_back(output); }
 
   virtual bool Accept(Visitor* visitor) = 0;
   virtual bool AddChild(BuilderState* state, Node* child) = 0;
-  virtual bool ConnectTo(BuilderState* state, Node* dst) = 0;
-  virtual bool ConnectFrom(BuilderState* state, Node* src) = 0;
   virtual bool Validate(BuilderState* state) = 0;
 
-  virtual Node* GetChildInputNode() = 0;
-  virtual Node* GetChildOutputNode() = 0;
+  // Channel creation - we call this method on the source node
+  virtual bool ConnectTo(BuilderState* state, Node* dst) = 0;
+
+  // Gets the first filter/node in the pipeline/splitjoin that should be connected to
+  virtual Node* GetInputNode() = 0;
 
 protected:
   std::string m_name;
   const Type* m_input_type;
   const Type* m_output_type;
-  NodeList m_inputs;
-  NodeList m_outputs;
 };
 
 class Filter : public Node
@@ -72,18 +66,19 @@ public:
   ~Filter() = default;
 
   AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
+  bool HasOutputConnection() const { return (m_output_connection != nullptr); }
+  Node* GetOutputConnection() const { return m_output_connection; }
 
   bool Accept(Visitor* visitor) override;
-  bool ConnectTo(BuilderState* state, Node* dst) override;
-  bool ConnectFrom(BuilderState* state, Node* src) override;
   bool AddChild(BuilderState* state, Node* child) override;
   bool Validate(BuilderState* state) override;
 
-  Node* GetChildInputNode() override;
-  Node* GetChildOutputNode() override;
+  bool ConnectTo(BuilderState* state, Node* dst) override;
+  Node* GetInputNode() override;
 
 protected:
   AST::FilterDeclaration* m_filter_decl;
+  Node* m_output_connection = nullptr;
 };
 
 class Pipeline : public Node
@@ -95,13 +90,11 @@ public:
   const NodeList& GetChildren() const { return m_children; }
 
   bool Accept(Visitor* visitor) override;
-  bool ConnectTo(BuilderState* state, Node* dst) override;
-  bool ConnectFrom(BuilderState* state, Node* src) override;
   bool AddChild(BuilderState* state, Node* node) override;
   bool Validate(BuilderState* state) override;
 
-  Node* GetChildInputNode() override;
-  Node* GetChildOutputNode() override;
+  bool ConnectTo(BuilderState* state, Node* dst) override;
+  Node* GetInputNode() override;
 
 protected:
   NodeList m_children;
@@ -114,20 +107,21 @@ public:
   ~SplitJoin() = default;
 
   const NodeList& GetChildren() const { return m_children; }
+  bool HasOutputConnection() const { return (m_output_connection != nullptr); }
+  Node* GetOutputConnection() const { return m_output_connection; }
   Split* GetSplitNode() const { return m_split_node; }
   Join* GetJoinNode() const { return m_join_node; }
 
   bool Accept(Visitor* visitor) override;
-  bool ConnectTo(BuilderState* state, Node* dst) override;
-  bool ConnectFrom(BuilderState* state, Node* src) override;
   bool AddChild(BuilderState* state, Node* node) override;
   bool Validate(BuilderState* state) override;
 
-  Node* GetChildInputNode() override;
-  Node* GetChildOutputNode() override;
+  bool ConnectTo(BuilderState* state, Node* dst) override;
+  Node* GetInputNode() override;
 
 protected:
   NodeList m_children;
+  Node* m_output_connection = nullptr;
   Split* m_split_node = nullptr;
   Join* m_join_node = nullptr;
 };
@@ -139,19 +133,17 @@ public:
   Split(const std::string& name);
   ~Split() = default;
 
-  const NodeList& GetChildren() const { return m_children; }
+  const NodeList& GetOutputs() const { return m_outputs; }
 
   bool Accept(Visitor* visitor) override;
-  bool ConnectTo(BuilderState* state, Node* dst) override;
-  bool ConnectFrom(BuilderState* state, Node* src) override;
   bool AddChild(BuilderState* state, Node* node) override;
   bool Validate(BuilderState* state) override;
 
-  Node* GetChildInputNode() override;
-  Node* GetChildOutputNode() override;
+  bool ConnectTo(BuilderState* state, Node* dst) override;
+  Node* GetInputNode() override;
 
 private:
-  NodeList m_children;
+  NodeList m_outputs;
 };
 
 class Join : public Node
@@ -160,13 +152,17 @@ public:
   Join(const std::string& name);
   ~Join() = default;
 
+  Node* GetOutputConnection() const { return m_output_connection; }
+  bool HasOutputConnection() const { return (m_output_connection != nullptr); }
+
   bool Accept(Visitor* visitor) override;
-  bool ConnectTo(BuilderState* state, Node* dst) override;
-  bool ConnectFrom(BuilderState* state, Node* src) override;
   bool AddChild(BuilderState* state, Node* node) override;
   bool Validate(BuilderState* state) override;
 
-  Node* GetChildInputNode() override;
-  Node* GetChildOutputNode() override;
+  bool ConnectTo(BuilderState* state, Node* dst) override;
+  Node* GetInputNode() override;
+
+private:
+  Node* m_output_connection = nullptr;
 };
 }
