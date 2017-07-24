@@ -2,25 +2,19 @@
 #include <cstdlib>
 #include <iostream>
 #include <memory>
+#include "common/log.h"
 #include "frontend/frontend.h"
 #include "parser/ast.h"
 #include "parser/ast_printer.h"
 #include "parser/parser_state.h"
 #include "parser/symbol_table.h"
-#include "spdlog/spdlog.h"
-
-auto frontend_log = spdlog::stdout_color_mt("frontend");
-auto parser_log = spdlog::stdout_color_mt("parser");
-auto main_log = spdlog::stdout_color_mt("main");
 
 int main(int argc, char* argv[])
 {
   const char* filename = "stdin";
   std::FILE* fp = stdin;
 
-  frontend_log->set_level(spdlog::level::debug);
-  parser_log->set_level(spdlog::level::debug);
-  main_log->set_level(spdlog::level::debug);
+  Log::SetConsoleOutputParams(true);
 
   if (argc > 1)
   {
@@ -28,7 +22,7 @@ int main(int argc, char* argv[])
     fp = fopen(filename, "r");
     if (!fp)
     {
-      main_log->error("Failed to open file {}", filename);
+      Log::Error("main", "Failed to open file {}", filename);
       return EXIT_FAILURE;
     }
   }
@@ -36,7 +30,7 @@ int main(int argc, char* argv[])
   ParserState state;
   if (!state.ParseFile(filename, fp))
   {
-    main_log->error("Parse failed. Exiting.");
+    Log::Error("main", "Parse failed. Exiting.");
     return EXIT_FAILURE;
   }
 
@@ -45,14 +39,14 @@ int main(int argc, char* argv[])
   Frontend::Context* ctx = Frontend::CreateContext();
   if (!Frontend::GenerateStreamGraph(ctx, &state))
   {
-    main_log->error("Generating stream graph failed. Exiting.");
+    Log::Error("main", "Generating stream graph failed. Exiting.");
     Frontend::DestroyContext(ctx);
     return EXIT_FAILURE;
   }
 
   if (!Frontend::GenerateFilterFunctions(ctx, &state))
   {
-    main_log->error("Generating code failed. Exiting.");
+    Log::Error("main", "Generating code failed. Exiting.");
     Frontend::DestroyContext(ctx);
     return EXIT_FAILURE;
   }

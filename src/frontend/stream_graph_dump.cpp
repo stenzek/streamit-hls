@@ -1,8 +1,8 @@
+#include "frontend/stream_graph.h"
 #include <cassert>
 #include <cstdarg>
 #include <sstream>
 #include "common/string_helpers.h"
-#include "frontend/stream_graph.h"
 
 namespace StreamGraph
 {
