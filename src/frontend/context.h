@@ -30,6 +30,7 @@ public:
 
   llvm::Type* GetVoidType();
   llvm::Type* GetIntType();
+  llvm::Type* GetIntPtrType();
   llvm::Type* GetStringType();
   llvm::Type* GetPointerType();
 

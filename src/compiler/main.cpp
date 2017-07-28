@@ -27,6 +27,11 @@ int main(int argc, char* argv[])
     }
   }
 
+#if 0
+  char tmp[100];
+  fgets(tmp, sizeof(tmp), stdin);
+#endif
+
   ParserState state;
   if (!state.ParseFile(filename, fp))
   {
@@ -37,14 +42,15 @@ int main(int argc, char* argv[])
   state.DumpAST();
 
   Frontend::Context* ctx = Frontend::CreateContext();
-  if (!Frontend::GenerateStreamGraph(ctx, &state))
+  StreamGraph::Node* root_node = Frontend::GenerateStreamGraph(ctx, &state);
+  if (!root_node)
   {
     Log::Error("main", "Generating stream graph failed. Exiting.");
     Frontend::DestroyContext(ctx);
     return EXIT_FAILURE;
   }
 
-  if (!Frontend::GenerateFilterFunctions(ctx, &state))
+  if (!Frontend::GenerateFilterFunctions(ctx, &state, root_node))
   {
     Log::Error("main", "Generating code failed. Exiting.");
     Frontend::DestroyContext(ctx);

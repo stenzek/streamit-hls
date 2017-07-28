@@ -4,7 +4,9 @@
 #include "frontend/constant_expression_builder.h"
 #include "frontend/context.h"
 #include "frontend/filter_function_builder.h"
+#include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
@@ -13,11 +15,11 @@
 namespace Frontend
 {
 
-FilterBuilder::FilterBuilder(Context* context, llvm::Module* mod, const AST::FilterDeclaration* filter_decl)
-  : m_context(context), m_module(mod), m_filter_decl(filter_decl)
+FilterBuilder::FilterBuilder(Context* context, llvm::Module* mod, const AST::FilterDeclaration* filter_decl,
+                             const std::string& instance_name, const std::string& output_instance_name)
+  : m_context(context), m_module(mod), m_filter_decl(filter_decl), m_instance_name(instance_name),
+    m_output_instance_name(output_instance_name)
 {
-  // TODO: This should use filter instances, not filters
-  m_name_prefix = m_filter_decl->GetName();
 }
 
 FilterBuilder::~FilterBuilder()
@@ -31,7 +33,7 @@ bool FilterBuilder::GenerateCode()
 
   if (m_filter_decl->HasInitBlock())
   {
-    std::string name = StringFromFormat("%s_init", m_name_prefix.c_str());
+    std::string name = StringFromFormat("%s_init", m_instance_name.c_str());
     m_init_function = GenerateFunction(m_filter_decl->GetInitBlock(), name);
     if (!m_init_function)
       return false;
@@ -39,7 +41,7 @@ bool FilterBuilder::GenerateCode()
 
   if (m_filter_decl->HasPreworkBlock())
   {
-    std::string name = StringFromFormat("%s_prework", m_name_prefix.c_str());
+    std::string name = StringFromFormat("%s_prework", m_instance_name.c_str());
     m_prework_function = GenerateFunction(m_filter_decl->GetPreworkBlock(), name);
     if (!m_prework_function)
       return false;
@@ -47,7 +49,7 @@ bool FilterBuilder::GenerateCode()
 
   if (m_filter_decl->HasWorkBlock())
   {
-    std::string name = StringFromFormat("%s_work", m_name_prefix.c_str());
+    std::string name = StringFromFormat("%s_work", m_instance_name.c_str());
     m_work_function = GenerateFunction(m_filter_decl->GetWorkBlock(), name);
     if (!m_work_function)
       return false;
@@ -143,7 +145,7 @@ bool FilterBuilder::GenerateGlobals()
     return true;
 
   // Visit the state variable declarations, generating LLVM variables for them
-  GlobalVariableBuilder gvb(m_context, m_module, m_name_prefix);
+  GlobalVariableBuilder gvb(m_context, m_module, m_instance_name);
   if (!m_filter_decl->GetStateVariables()->Accept(&gvb))
     return false;
 
@@ -157,24 +159,265 @@ bool FilterBuilder::GenerateChannelFunctions()
   // Pop/peek
   if (!m_filter_decl->GetInputType()->IsVoid())
   {
-    llvm::Type* ret_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
-    llvm::Type* llvm_peek_idx_ty = llvm::Type::getInt32Ty(m_context->GetLLVMContext());
-    llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {llvm_peek_idx_ty}, false);
-    llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
-    m_peek_function = m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_name_prefix.c_str()), llvm_peek_fn);
-    m_pop_function = m_module->getOrInsertFunction(StringFromFormat("%s_pop", m_name_prefix.c_str()), llvm_pop_fn);
+    if (!GenerateInputBuffer())
+      return false;
+
+    if (!GenerateInputPeekFunction() || !GenerateInputPopFunction() || !GenerateInputPushFunction())
+      return false;
+
+    if (!GenerateInputGetSizeFunction() || !GenerateInputGetSpaceFunction())
+      return false;
   }
 
-  // Push
-  if (!m_filter_decl->GetOutputType()->IsVoid())
-  {
-    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
-    llvm::Type* ret_ty = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-    llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(ret_ty, {llvm_ty}, false);
-    m_push_function = m_module->getOrInsertFunction(StringFromFormat("%s_push", m_name_prefix.c_str()), llvm_push_fn);
-  }
+  // Push - this needs the name of the output filter
+  if (!m_filter_decl->GetOutputType()->IsVoid() && !GenerateOutputPushPrototype())
+    return false;
 
   return true;
+}
+
+constexpr unsigned int FIFO_QUEUE_SIZE = 64;
+
+bool FilterBuilder::GenerateInputBuffer()
+{
+  llvm::Type* data_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+
+  // Create struct type
+  //
+  // data_type data[FIFO_QUEUE_SIZE]
+  // int head
+  // int tail
+  //
+  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(data_ty, FIFO_QUEUE_SIZE);
+  m_input_buffer_type = llvm::StructType::create(StringFromFormat("%s_buf", m_instance_name.c_str()), data_array_ty,
+                                                 m_context->GetIntType(), m_context->GetIntType(), nullptr);
+
+  // Create global variable
+  m_input_buffer_var = new llvm::GlobalVariable(*m_module, m_input_buffer_type, true, llvm::GlobalValue::PrivateLinkage,
+                                                nullptr, StringFromFormat("%s_buf_instance", m_instance_name.c_str()));
+
+  // Initializer for global variable
+  llvm::ConstantAggregateZero* buffer_initializer = llvm::ConstantAggregateZero::get(m_input_buffer_type);
+  m_input_buffer_var->setConstant(false);
+  m_input_buffer_var->setInitializer(buffer_initializer);
+  return true;
+}
+
+bool FilterBuilder::GenerateInputPeekFunction()
+{
+  llvm::Type* ret_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+  llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {m_context->GetIntType()}, false);
+  m_peek_function = m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_instance_name.c_str()), llvm_peek_fn);
+  if (!m_peek_function)
+    return false;
+  llvm::Function* func = llvm::cast<llvm::Function>(m_peek_function);
+  if (!func)
+    return false;
+
+  llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
+  llvm::IRBuilder<> builder(entry_bb);
+
+  auto func_args_iter = func->arg_begin();
+  llvm::Value* index = &(*func_args_iter++);
+  index->setName("index");
+
+  // tail_ptr = &buf.tail
+  // pos_1 = *tail_ptr
+  llvm::Value* tail_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(2)}, "tail_ptr");
+  llvm::Value* pos_1 = builder.CreateLoad(tail_ptr, "pos_1");
+
+  // pos = (pos_1 + index) % FIFO_QUEUE_SIZE
+  llvm::Value* pos_2 = builder.CreateAdd(pos_1, index, "pos_2");
+  llvm::Value* pos = builder.CreateURem(pos_2, builder.getInt32(FIFO_QUEUE_SIZE), "tail");
+
+  // value_ptr = &buf.data[pos]
+  // value = *value_ptr
+  llvm::Value* value_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                     {builder.getInt32(0), builder.getInt32(0), pos}, "value_ptr");
+  llvm::Value* value = builder.CreateLoad(value_ptr, "value");
+
+  // return value
+  builder.CreateRet(value);
+  return true;
+}
+
+bool FilterBuilder::GenerateInputPopFunction()
+{
+  llvm::Type* ret_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+  llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
+  m_pop_function = m_module->getOrInsertFunction(StringFromFormat("%s_pop", m_instance_name.c_str()), llvm_pop_fn);
+  if (!m_pop_function)
+    return false;
+  llvm::Function* func = llvm::cast<llvm::Function>(m_pop_function);
+  if (!func)
+    return false;
+
+  llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
+  llvm::IRBuilder<> builder(entry_bb);
+
+  // tail_ptr = &buf.tail
+  // tail = *tail_ptr
+  llvm::Value* tail_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(2)}, "tail_ptr");
+  llvm::Value* tail = builder.CreateLoad(tail_ptr, "tail");
+
+  // value_ptr = &buf.data[tail]
+  // value = *value_ptr
+  llvm::Value* value_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                     {builder.getInt32(0), builder.getInt32(0), tail}, "value_ptr");
+  llvm::Value* value = builder.CreateLoad(value_ptr, "value");
+
+  // new_tail = (tail + 1) % FIFO_QUEUE_SIZE
+  llvm::Value* new_tail_1 = builder.CreateAdd(tail, builder.getInt32(1), "new_tail_1");
+  llvm::Value* new_tail = builder.CreateURem(new_tail_1, builder.getInt32(FIFO_QUEUE_SIZE), "new_tail");
+
+  // *tail_ptr = new_tail
+  builder.CreateStore(new_tail, tail_ptr);
+
+  // return value
+  builder.CreateRet(value);
+  return true;
+}
+
+bool FilterBuilder::GenerateInputPushFunction()
+{
+  llvm::Type* param_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+  llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(m_context->GetVoidType(), {param_ty}, false);
+  llvm::Constant* func_cons =
+    m_module->getOrInsertFunction(StringFromFormat("%s_push", m_instance_name.c_str()), llvm_push_fn);
+  if (!func_cons)
+    return false;
+  llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
+  if (!func)
+    return false;
+
+  llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
+  llvm::IRBuilder<> builder(entry_bb);
+
+  auto func_args_iter = func->arg_begin();
+  llvm::Value* value = &(*func_args_iter++);
+  value->setName("value");
+
+  // head_ptr = &buf.head
+  // head = *head_ptr
+  llvm::Value* head_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(1)}, "head_ptr");
+  llvm::Value* head = builder.CreateLoad(head_ptr, "head");
+
+  // value_ptr = &buf.data[head]
+  // value_ptr = *value_ptr
+  llvm::Value* value_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                     {builder.getInt32(0), builder.getInt32(0), head}, "value_ptr");
+  builder.CreateStore(value, value_ptr);
+
+  // new_head = (head + 1) % FIFO_QUEUE_SIZE
+  // *head_ptr = new_head
+  llvm::Value* new_head_1 = builder.CreateAdd(head, builder.getInt32(1), "new_head_1");
+  llvm::Value* new_head = builder.CreateURem(new_head_1, builder.getInt32(FIFO_QUEUE_SIZE), "new_head");
+  builder.CreateStore(new_head, head_ptr);
+  builder.CreateRetVoid();
+  return true;
+}
+
+bool FilterBuilder::GenerateInputGetSizeFunction()
+{
+  std::string func_name = StringFromFormat("%s_getsize", m_instance_name.c_str());
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(func_name, m_context->GetIntType(), nullptr);
+  if (!func_cons)
+    return false;
+  llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
+  if (!func)
+    return false;
+
+  llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
+  llvm::BasicBlock* not_wrapped_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "not_wrapped", func);
+  llvm::BasicBlock* wrapped_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "wrapped", func);
+  llvm::IRBuilder<> builder(entry_bb);
+
+  // head_ptr = &buf.head
+  // head = *head_ptr
+  // tail_ptr = &buf.tail
+  // tail = *tail_ptr
+  llvm::Value* head_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(1)}, "head_ptr");
+  llvm::Value* tail_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(2)}, "tail_ptr");
+  llvm::Value* head = builder.CreateLoad(head_ptr, "head");
+  llvm::Value* tail = builder.CreateLoad(tail_ptr, "tail");
+
+  // if (head >= tail) {
+  llvm::Value* not_wrapped_test = builder.CreateICmpUGE(head, tail);
+  builder.CreateCondBr(not_wrapped_test, not_wrapped_bb, wrapped_bb);
+  builder.SetInsertPoint(not_wrapped_bb);
+
+  // return head - tail
+  llvm::Value* size = builder.CreateSub(head, tail, "size");
+  builder.CreateRet(size);
+
+  // } else {
+  builder.SetInsertPoint(wrapped_bb);
+
+  // size = FIFO_QUEUE_SIZE - tail + head
+  llvm::Value* size_1 = builder.CreateSub(builder.getInt32(FIFO_QUEUE_SIZE), tail, "size");
+  llvm::Value* size_2 = builder.CreateAdd(size_1, head, "size");
+  builder.CreateRet(size_2);
+  return true;
+}
+
+bool FilterBuilder::GenerateInputGetSpaceFunction()
+{
+  std::string func_name = StringFromFormat("%s_getspace", m_instance_name.c_str());
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(func_name, m_context->GetIntType(), nullptr);
+  if (!func_cons)
+    return false;
+  llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
+  if (!func)
+    return false;
+
+  llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
+  llvm::BasicBlock* not_wrapped_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "not_wrapped", func);
+  llvm::BasicBlock* wrapped_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "wrapped", func);
+  llvm::IRBuilder<> builder(entry_bb);
+
+  // head_ptr = &buf.head
+  // head = *head_ptr
+  // tail_ptr = &buf.tail
+  // tail = *tail_ptr
+  llvm::Value* head_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(1)}, "head_ptr");
+  llvm::Value* tail_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(2)}, "tail_ptr");
+  llvm::Value* head = builder.CreateLoad(head_ptr, "head");
+  llvm::Value* tail = builder.CreateLoad(tail_ptr, "tail");
+
+  // if (head >= tail) {
+  llvm::Value* not_wrapped_test = builder.CreateICmpUGE(head, tail);
+  builder.CreateCondBr(not_wrapped_test, not_wrapped_bb, wrapped_bb);
+  builder.SetInsertPoint(not_wrapped_bb);
+
+  // return FIFO_QUEUE_SIZE - head - tail
+  llvm::Value* size_1 = builder.CreateSub(head, tail, "size");
+  llvm::Value* size_2 = builder.CreateSub(builder.getInt32(FIFO_QUEUE_SIZE), size_1, "size");
+  builder.CreateRet(size_2);
+
+  // } else {
+  builder.SetInsertPoint(wrapped_bb);
+
+  // size = FIFO_QUEUE_SIZE - tail + head
+  llvm::Value* size_3 = builder.CreateSub(builder.getInt32(FIFO_QUEUE_SIZE), tail, "size");
+  llvm::Value* size_4 = builder.CreateAdd(size_3, head, "size");
+  llvm::Value* size_5 = builder.CreateSub(builder.getInt32(FIFO_QUEUE_SIZE), size_4, "size");
+  builder.CreateRet(size_5);
+  return true;
+}
+
+bool FilterBuilder::GenerateOutputPushPrototype()
+{
+  llvm::Type* param_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
+  llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(m_context->GetVoidType(), {param_ty}, false);
+  m_push_function = m_module->getOrInsertFunction(StringFromFormat("%s_push", m_instance_name.c_str()), llvm_push_fn);
+  return (m_push_function != nullptr);
 }
 
 } // namespace Frontend

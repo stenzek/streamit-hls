@@ -49,6 +49,11 @@ llvm::Type* Context::GetIntType()
   return llvm::Type::getInt32Ty(m_llvm_context);
 }
 
+llvm::Type* Context::GetIntPtrType()
+{
+  return llvm::Type::getInt32PtrTy(m_llvm_context);
+}
+
 llvm::Type* Context::GetStringType()
 {
   return llvm::Type::getInt8PtrTy(m_llvm_context);
