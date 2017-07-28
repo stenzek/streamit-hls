@@ -123,6 +123,10 @@ public:
     llvm::Type* llvm_ty = context->GetLLVMType(node->GetType());
     llvm::GlobalVariable* llvm_var =
       new llvm::GlobalVariable(*mod, llvm_ty, true, llvm::GlobalValue::PrivateLinkage, initializer, var_name);
+
+    if (initializer)
+      llvm_var->setConstant(false);
+
     global_var_map.emplace(node, llvm_var);
     return true;
   }
