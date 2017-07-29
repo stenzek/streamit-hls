@@ -2,6 +2,7 @@
 #include "common/log.h"
 #include "frontend/context.h"
 #include "frontend/filter_builder.h"
+#include "frontend/splitjoin_builder.h"
 #include "frontend/stream_graph.h"
 #include "frontend/stream_graph_builder.h"
 #include "llvm/IR/Module.h"
@@ -94,12 +95,14 @@ bool FilterGeneratorVisitor::Visit(StreamGraph::SplitJoin* node)
 
 bool FilterGeneratorVisitor::Visit(StreamGraph::Split* node)
 {
-  return true;
+  SplitJoinBuilder sb(m_context, m_module, node->GetName());
+  return sb.GenerateSplit(node, 1);
 }
 
 bool FilterGeneratorVisitor::Visit(StreamGraph::Join* node)
 {
-  return true;
+  SplitJoinBuilder sb(m_context, m_module, node->GetName());
+  return sb.GenerateJoin(node);
 }
 
 bool GenerateFilterFunctions(Frontend::Context* ctx, ParserState* state, StreamGraph::Node* root_node)

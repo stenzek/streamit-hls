@@ -9,6 +9,7 @@ set(SRCS
     filter_builder.cpp
     filter_function_builder.cpp
     frontend.cpp
+    splitjoin_builder.cpp
     statement_builder.cpp
     stream_graph.cpp
     stream_graph_builder.cpp
