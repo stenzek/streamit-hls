@@ -231,6 +231,12 @@ void FilterDeclaration::MoveStateAssignmentsToInit()
 bool FilterWorkBlock::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO: Check rates and stuff (e.g. push type matches output type)..
+  if (m_peek_rate < 0)
+    m_peek_rate = 0;
+  if (m_pop_rate < 0)
+    m_pop_rate = 0;
+  if (m_push_rate < 0)
+    m_push_rate = 0;
   return m_stmts->SemanticAnalysis(state, symbol_table);
 }
 

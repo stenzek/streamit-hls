@@ -1,6 +1,7 @@
 #pragma once
 #include <string>
 #include <vector>
+#include "common/types.h"
 
 class Type;
 
@@ -42,6 +43,13 @@ public:
   const std::string& GetName() const { return m_name; }
   const Type* GetInputType() const { return m_input_type; }
   const Type* GetOutputType() const { return m_output_type; }
+  u32 GetPeekRate() const { return m_peek_rate; }
+  u32 GetPopRate() const { return m_pop_rate; }
+  u32 GetPushRate() const { return m_push_rate; }
+  u32 GetNetPeek() const { return m_peek_rate * m_multiplicity; }
+  u32 GetNetPop() const { return m_pop_rate * m_multiplicity; }
+  u32 GetNetPush() const { return m_push_rate * m_multiplicity; }
+  u32 GetMultiplicity() const { return m_multiplicity; }
 
   virtual bool Accept(Visitor* visitor) = 0;
   virtual bool AddChild(BuilderState* state, Node* child) = 0;
@@ -53,10 +61,18 @@ public:
   // Gets the first filter/node in the pipeline/splitjoin that should be connected to
   virtual Node* GetInputNode() = 0;
 
+  // Schedule for steady state
+  virtual void SteadySchedule() = 0;
+  virtual void AddMultiplicity(u32 count) = 0;
+
 protected:
   std::string m_name;
   const Type* m_input_type;
   const Type* m_output_type;
+  u32 m_peek_rate = 0;
+  u32 m_pop_rate = 0;
+  u32 m_push_rate = 0;
+  u32 m_multiplicity = 1;
 };
 
 class Filter : public Node
@@ -75,6 +91,9 @@ public:
 
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
+
+  void SteadySchedule() override;
+  void AddMultiplicity(u32 count) override;
 
 protected:
   AST::FilterDeclaration* m_filter_decl;
@@ -95,6 +114,9 @@ public:
 
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
+
+  void SteadySchedule() override;
+  void AddMultiplicity(u32 count) override;
 
 protected:
   NodeList m_children;
@@ -119,6 +141,9 @@ public:
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
 
+  void SteadySchedule() override;
+  void AddMultiplicity(u32 count) override;
+
 protected:
   NodeList m_children;
   Node* m_output_connection = nullptr;
@@ -142,6 +167,9 @@ public:
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
 
+  void SteadySchedule() override;
+  void AddMultiplicity(u32 count) override;
+
 private:
   NodeList m_outputs;
 };
@@ -161,6 +189,9 @@ public:
 
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
+
+  void SteadySchedule() override;
+  void AddMultiplicity(u32 count) override;
 
 private:
   Node* m_output_connection = nullptr;

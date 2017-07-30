@@ -65,9 +65,14 @@ llvm::Type* Context::GetPointerType()
   return llvm::Type::getInt8PtrTy(m_llvm_context);
 }
 
-std::unique_ptr<llvm::Module> Context::CreateModule(const char* name)
+llvm::Module* Context::CreateModule(const char* name)
 {
-  return std::make_unique<llvm::Module>(name, m_llvm_context);
+  return new llvm::Module(name, m_llvm_context);
+}
+
+void Context::DestroyModule(llvm::Module* mod)
+{
+  delete mod;
 }
 
 void Context::DumpModule(llvm::Module* mod)

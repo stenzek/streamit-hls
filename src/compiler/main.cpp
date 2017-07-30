@@ -39,7 +39,9 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
+#if 0
   state.DumpAST();
+#endif
 
   Frontend::Context* ctx = Frontend::CreateContext();
   StreamGraph::Node* root_node = Frontend::GenerateStreamGraph(ctx, &state);
@@ -50,7 +52,7 @@ int main(int argc, char* argv[])
     return EXIT_FAILURE;
   }
 
-  if (!Frontend::GenerateFilterFunctions(ctx, &state, root_node))
+  if (!Frontend::GenerateCode(ctx, &state, root_node))
   {
     Log::Error("main", "Generating code failed. Exiting.");
     Frontend::DestroyContext(ctx);

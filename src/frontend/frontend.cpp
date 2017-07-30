@@ -1,3 +1,4 @@
+#include "frontend/frontend.h"
 #include <iostream>
 #include "common/log.h"
 #include "frontend/context.h"
@@ -10,7 +11,6 @@
 
 namespace Frontend
 {
-
 Context* CreateContext()
 {
   return new Context();
@@ -29,9 +29,28 @@ StreamGraph::Node* GenerateStreamGraph(Frontend::Context* ctx, ParserState* stat
   if (!builder.GenerateGraph())
     return nullptr;
 
-  std::string graph = StreamGraph::DumpStreamGraph(builder.GetStartNode());
+  StreamGraph::Node* root_node = builder.GetStartNode();
+  root_node->SteadySchedule();
+
+  std::string graph = StreamGraph::DumpStreamGraph(root_node);
   std::cout << graph << std::endl;
   return builder.GetStartNode();
+}
+
+bool GenerateCode(Context* ctx, ParserState* state, StreamGraph::Node* root_node)
+{
+  llvm::Module* mod = ctx->CreateModule("filters");
+  if (!GenerateFilterFunctions(ctx, mod, state, root_node) || !GeneratePrimePumpFunction(ctx, mod, state, root_node) ||
+      !GenerateSteadyStateFunction(ctx, mod, state, root_node) || !GenerateMainFunction(ctx, mod, state, root_node))
+  {
+    return false;
+  }
+
+  ctx->DumpModule(mod);
+  if (!ctx->VerifyModule(mod))
+    Log::Error("frontend", "Module verification failed.");
+
+  ctx->DestroyModule(mod);
 }
 
 class FilterGeneratorVisitor : public StreamGraph::Visitor
@@ -105,19 +124,29 @@ bool FilterGeneratorVisitor::Visit(StreamGraph::Join* node)
   return sb.GenerateJoin(node);
 }
 
-bool GenerateFilterFunctions(Frontend::Context* ctx, ParserState* state, StreamGraph::Node* root_node)
+bool GenerateFilterFunctions(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node)
 {
   Log::Info("frontend", "Generating filter functions...");
 
-  std::unique_ptr<llvm::Module> mod = ctx->CreateModule("filters");
+  FilterGeneratorVisitor fgv(ctx, mod);
+  return root_node->Accept(&fgv);
+}
 
-  FilterGeneratorVisitor fgv(ctx, mod.get());
-  bool result = root_node->Accept(&fgv);
+bool GeneratePrimePumpFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node)
+{
+  Log::Info("frontend", "Generating prime pump function...");
+  return true;
+}
 
-  ctx->DumpModule(mod.get());
-  if (!ctx->VerifyModule(mod.get()))
-    Log::Error("frontend", "Filter module verification failed");
+bool GenerateSteadyStateFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node)
+{
+  Log::Info("frontend", "Generating prime pump function...");
+  return true;
+}
 
-  return result;
+bool GenerateMainFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* node)
+{
+  Log::Info("frontend", "Generating main function...");
+  return true;
 }
 }

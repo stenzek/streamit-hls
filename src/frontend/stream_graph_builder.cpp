@@ -26,7 +26,7 @@ namespace StreamGraph
 {
 Builder::Builder(Frontend::Context* context, ParserState* state) : m_context(context), m_parser_state(state)
 {
-  m_module = m_context->CreateModule("streamgraph");
+  m_module = std::unique_ptr<llvm::Module>(m_context->CreateModule("streamgraph"));
 }
 
 Builder::~Builder()

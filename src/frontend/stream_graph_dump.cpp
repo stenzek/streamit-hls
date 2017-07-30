@@ -76,6 +76,10 @@ void StreamGraphDumpVisitor::WriteEdge(const Node* src, const Node* dst)
 bool StreamGraphDumpVisitor::Visit(Filter* node)
 {
   WriteLine("%s [shape=ellipse];", node->GetName().c_str());
+  WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
+            node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
+            node->GetMultiplicity());
+
   if (node->HasOutputConnection())
     WriteEdge(node, node->GetOutputConnection());
 
@@ -89,6 +93,9 @@ bool StreamGraphDumpVisitor::Visit(Pipeline* node)
   Indent();
 
   WriteLine("label = \"%s\";\n", node->GetName().c_str());
+  WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
+            node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
+            node->GetMultiplicity());
 
   for (Node* child : node->GetChildren())
     child->Accept(this);
@@ -107,6 +114,9 @@ bool StreamGraphDumpVisitor::Visit(SplitJoin* node)
   Indent();
 
   WriteLine("label = \"%s\";\n", node->GetName().c_str());
+  WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
+            node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
+            node->GetMultiplicity());
 
   node->GetSplitNode()->Accept(this);
   node->GetJoinNode()->Accept(this);
@@ -123,6 +133,9 @@ bool StreamGraphDumpVisitor::Visit(SplitJoin* node)
 bool StreamGraphDumpVisitor::Visit(Split* node)
 {
   WriteLine("%s [shape=triangle];", node->GetName().c_str());
+  WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
+            node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
+            node->GetMultiplicity());
 
   for (const Node* out_node : node->GetOutputs())
     WriteEdge(node, out_node);
@@ -133,8 +146,13 @@ bool StreamGraphDumpVisitor::Visit(Split* node)
 bool StreamGraphDumpVisitor::Visit(Join* node)
 {
   WriteLine("%s [shape=invtriangle];", node->GetName().c_str());
+  WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
+            node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
+            node->GetMultiplicity());
+
   if (node->HasOutputConnection())
     WriteEdge(node, node->GetOutputConnection());
+
   return true;
 }
 

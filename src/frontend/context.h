@@ -34,7 +34,8 @@ public:
   llvm::Type* GetStringType();
   llvm::Type* GetPointerType();
 
-  std::unique_ptr<llvm::Module> CreateModule(const char* name);
+  llvm::Module* CreateModule(const char* name);
+  void DestroyModule(llvm::Module* mod);
   void DumpModule(llvm::Module* mod);
   bool VerifyModule(llvm::Module* mod);
 

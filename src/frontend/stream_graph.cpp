@@ -1,6 +1,8 @@
 #include "frontend/stream_graph.h"
 #include <cassert>
+#include "common/string_helpers.h"
 #include "frontend/stream_graph_builder.h"
+#include "parser/ast.h"
 
 namespace StreamGraph
 {
@@ -18,6 +20,11 @@ Node::Node(const std::string& name, const Type* input_type, const Type* output_t
 Filter::Filter(AST::FilterDeclaration* decl, const std::string& name, const Type* input_type, const Type* output_type)
   : Node(name, input_type, output_type), m_filter_decl(decl)
 {
+  // Filter has to have a work block (this should already be validated at AST time)
+  assert(m_filter_decl->HasWorkBlock());
+  m_peek_rate = m_filter_decl->GetWorkBlock()->GetPeekRate();
+  m_pop_rate = m_filter_decl->GetWorkBlock()->GetPopRate();
+  m_push_rate = m_filter_decl->GetWorkBlock()->GetPushRate();
 }
 
 bool Filter::Accept(Visitor* visitor)
@@ -46,6 +53,15 @@ bool Filter::ConnectTo(BuilderState* state, Node* dst)
 Node* Filter::GetInputNode()
 {
   return this;
+}
+
+void Filter::SteadySchedule()
+{
+}
+
+void Filter::AddMultiplicity(u32 count)
+{
+  m_multiplicity *= count;
 }
 
 bool Filter::Validate(BuilderState* state)
@@ -99,13 +115,64 @@ bool Pipeline::ConnectTo(BuilderState* state, Node* node)
 bool Pipeline::Validate(BuilderState* state)
 {
   // TODO: Work out input/output types
-  return true;
+  if (m_children.empty())
+  {
+    state->Error("Pipeline is missing children");
+    return false;
+  }
+
+  bool result = true;
+  for (Node* node : m_children)
+    result &= node->Validate(state);
+
+  return result;
 }
 
 Node* Pipeline::GetInputNode()
 {
   assert(!m_children.empty());
   return m_children.front()->GetInputNode();
+}
+
+void Pipeline::SteadySchedule()
+{
+  for (Node* child : m_children)
+    child->SteadySchedule();
+
+  Node* prev_child = m_children.front();
+  for (size_t i = 1; i < m_children.size(); i++)
+  {
+    Node* child = m_children[i];
+    u32 prev_send = prev_child->GetNetPush();
+    u32 next_recv = child->GetNetPop();
+    if (prev_send != next_recv)
+    {
+      u32 gcd1 = gcd(prev_send, next_recv);
+      prev_send /= gcd1;
+      next_recv /= gcd1;
+
+      // Multiply previous children output to handle the new request size
+      for (size_t j = 0; j < i; j++)
+        m_children[j]->AddMultiplicity(next_recv);
+
+      child->AddMultiplicity(prev_send);
+    }
+
+    prev_child = child;
+  }
+
+  Node* first_child = m_children.front();
+  Node* last_child = m_children.back();
+  m_peek_rate = first_child->GetNetPeek();
+  m_pop_rate = first_child->GetNetPop();
+  m_push_rate = last_child->GetNetPush();
+}
+
+void Pipeline::AddMultiplicity(u32 count)
+{
+  m_multiplicity *= count;
+  for (Node* child : m_children)
+    child->AddMultiplicity(count);
 }
 
 SplitJoin::SplitJoin(const std::string& name) : Node(name, nullptr, nullptr)
@@ -127,6 +194,63 @@ Node* SplitJoin::GetInputNode()
 {
   assert(m_split_node != nullptr);
   return m_split_node;
+}
+
+void SplitJoin::SteadySchedule()
+{
+  const Node* child_parent = m_split_node;
+  for (Node* child : m_children)
+    child->SteadySchedule();
+
+  // TODO: Fix this up for roundrobin without even distribution
+  Node* prev_child = m_children.front();
+  for (size_t i = 0; i < m_children.size(); i++)
+  {
+    Node* next = m_children[i];
+    u32 prev_send = m_split_node->GetNetPush();
+    u32 next_recv = next->GetNetPop();
+    if (prev_send != next_recv)
+    {
+      u32 gcd1 = gcd(prev_send, next_recv);
+      prev_send /= gcd1;
+      next_recv /= gcd1;
+
+      // Multiply previous children output to handle the new request size
+      m_split_node->AddMultiplicity(next_recv);
+      for (size_t j = 0; j < i; j++)
+        m_children[j]->AddMultiplicity(next_recv);
+      next->AddMultiplicity(prev_send);
+    }
+  }
+
+  Node* first_child = m_children.front();
+  u32 prev_send = first_child->GetNetPush();
+  u32 next_recv = m_join_node->GetNetPop();
+  if (prev_send != next_recv)
+  {
+    u32 gcd1 = gcd(prev_send, next_recv);
+    prev_send /= gcd1;
+    next_recv /= gcd1;
+
+    // Multiply previous children output to handle the new request size
+    m_split_node->AddMultiplicity(next_recv);
+    for (Node* child : m_children)
+      child->AddMultiplicity(next_recv);
+    m_join_node->AddMultiplicity(prev_send);
+  }
+
+  m_peek_rate = m_split_node->GetNetPeek();
+  m_pop_rate = m_split_node->GetNetPop();
+  m_push_rate = m_join_node->GetNetPush();
+}
+
+void SplitJoin::AddMultiplicity(u32 count)
+{
+  m_multiplicity *= count;
+  m_split_node->AddMultiplicity(count);
+  m_join_node->AddMultiplicity(count);
+  for (Node* child : m_children)
+    child->AddMultiplicity(count);
 }
 
 bool SplitJoin::AddChild(BuilderState* state, Node* node)
@@ -214,11 +338,19 @@ bool SplitJoin::Validate(BuilderState* state)
     return false;
   }
 
-  return true;
+  bool result = true;
+  result &= m_split_node->Validate(state);
+  result &= m_join_node->Validate(state);
+  for (Node* child : m_children)
+    result &= child->Validate(state);
+  return result;
 }
 
 Split::Split(const std::string& name) : Node(name, nullptr, nullptr)
 {
+  m_peek_rate = 0;
+  m_pop_rate = 1;
+  m_push_rate = 1;
 }
 
 bool Split::AddChild(BuilderState* state, Node* node)
@@ -238,6 +370,16 @@ Node* Split::GetInputNode()
   return this;
 }
 
+void Split::SteadySchedule()
+{
+  assert(0 && "Should not be called");
+}
+
+void Split::AddMultiplicity(u32 count)
+{
+  m_multiplicity *= count;
+}
+
 bool Split::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
@@ -251,6 +393,9 @@ bool Split::Validate(BuilderState* state)
 
 Join::Join(const std::string& name) : Node(name, nullptr, nullptr)
 {
+  m_peek_rate = 0;
+  m_pop_rate = 1;
+  m_push_rate = 1;
 }
 
 bool Join::AddChild(BuilderState* state, Node* node)
@@ -285,5 +430,15 @@ bool Join::Validate(BuilderState* state)
 {
   // TODO: Work out input/output types
   return true;
+}
+
+void Join::SteadySchedule()
+{
+  assert(0 && "Should not be called");
+}
+
+void Join::AddMultiplicity(u32 count)
+{
+  m_multiplicity *= count;
 }
 }

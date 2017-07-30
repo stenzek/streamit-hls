@@ -2,6 +2,10 @@
 
 class ParserState;
 
+namespace llvm
+{
+class Module;
+}
 namespace Frontend
 {
 class Context;
@@ -17,5 +21,10 @@ Context* CreateContext();
 void DestroyContext(Context* ctx);
 
 StreamGraph::Node* GenerateStreamGraph(Context* ctx, ParserState* state);
-bool GenerateFilterFunctions(Context* ctx, ParserState* state, StreamGraph::Node* root_node);
+bool GenerateCode(Context* ctx, ParserState* state, StreamGraph::Node* root_node);
+
+bool GenerateFilterFunctions(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node);
+bool GeneratePrimePumpFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node);
+bool GenerateSteadyStateFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node);
+bool GenerateMainFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* node);
 }
