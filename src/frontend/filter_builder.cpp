@@ -187,14 +187,16 @@ bool FilterBuilder::GenerateInputBuffer()
   // data_type data[FIFO_QUEUE_SIZE]
   // int head
   // int tail
+  // int size
   //
   llvm::ArrayType* data_array_ty = llvm::ArrayType::get(data_ty, FIFO_QUEUE_SIZE);
-  m_input_buffer_type = llvm::StructType::create(StringFromFormat("%s_buf", m_instance_name.c_str()), data_array_ty,
-                                                 m_context->GetIntType(), m_context->GetIntType(), nullptr);
+  m_input_buffer_type =
+    llvm::StructType::create(StringFromFormat("%s_buf_type", m_instance_name.c_str()), data_array_ty,
+                             m_context->GetIntType(), m_context->GetIntType(), m_context->GetIntType(), nullptr);
 
   // Create global variable
   m_input_buffer_var = new llvm::GlobalVariable(*m_module, m_input_buffer_type, true, llvm::GlobalValue::PrivateLinkage,
-                                                nullptr, StringFromFormat("%s_buf_instance", m_instance_name.c_str()));
+                                                nullptr, StringFromFormat("%s_buf", m_instance_name.c_str()));
 
   // Initializer for global variable
   llvm::ConstantAggregateZero* buffer_initializer = llvm::ConstantAggregateZero::get(m_input_buffer_type);
@@ -275,6 +277,16 @@ bool FilterBuilder::GenerateInputPopFunction()
   // *tail_ptr = new_tail
   builder.CreateStore(new_tail, tail_ptr);
 
+  // size_ptr = &buf.size
+  // size_1 = *size_ptr
+  // size_2 = size_1 - 1
+  // *size_ptr = size_2
+  llvm::Value* size_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(3)}, "size_ptr");
+  llvm::Value* size_1 = builder.CreateLoad(size_ptr, "size");
+  llvm::Value* size_2 = builder.CreateSub(size_1, builder.getInt32(1), "size");
+  builder.CreateStore(size_2, size_ptr);
+
   // return value
   builder.CreateRet(value);
   return true;
@@ -316,6 +328,16 @@ bool FilterBuilder::GenerateInputPushFunction()
   llvm::Value* new_head_1 = builder.CreateAdd(head, builder.getInt32(1), "new_head_1");
   llvm::Value* new_head = builder.CreateURem(new_head_1, builder.getInt32(FIFO_QUEUE_SIZE), "new_head");
   builder.CreateStore(new_head, head_ptr);
+
+  // size_ptr = &buf.size
+  // size_1 = *size_ptr
+  // size_2 = size_1 + 1
+  // *size_ptr = size_2
+  llvm::Value* size_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(3)}, "size_ptr");
+  llvm::Value* size_1 = builder.CreateLoad(size_ptr, "size");
+  llvm::Value* size_2 = builder.CreateAdd(size_1, builder.getInt32(1), "size");
+  builder.CreateStore(size_2, size_ptr);
   builder.CreateRetVoid();
   return true;
 }
@@ -331,37 +353,15 @@ bool FilterBuilder::GenerateInputGetSizeFunction()
     return false;
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
-  llvm::BasicBlock* not_wrapped_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "not_wrapped", func);
-  llvm::BasicBlock* wrapped_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "wrapped", func);
   llvm::IRBuilder<> builder(entry_bb);
 
-  // head_ptr = &buf.head
-  // head = *head_ptr
-  // tail_ptr = &buf.tail
-  // tail = *tail_ptr
-  llvm::Value* head_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
-                                                    {builder.getInt32(0), builder.getInt32(1)}, "head_ptr");
-  llvm::Value* tail_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
-                                                    {builder.getInt32(0), builder.getInt32(2)}, "tail_ptr");
-  llvm::Value* head = builder.CreateLoad(head_ptr, "head");
-  llvm::Value* tail = builder.CreateLoad(tail_ptr, "tail");
-
-  // if (head >= tail) {
-  llvm::Value* not_wrapped_test = builder.CreateICmpUGE(head, tail);
-  builder.CreateCondBr(not_wrapped_test, not_wrapped_bb, wrapped_bb);
-  builder.SetInsertPoint(not_wrapped_bb);
-
-  // return head - tail
-  llvm::Value* size = builder.CreateSub(head, tail, "size");
+  // size_ptr = &buf.size
+  // size = *size_ptr
+  // return size
+  llvm::Value* size_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(3)}, "size_ptr");
+  llvm::Value* size = builder.CreateLoad(size_ptr, "size");
   builder.CreateRet(size);
-
-  // } else {
-  builder.SetInsertPoint(wrapped_bb);
-
-  // size = FIFO_QUEUE_SIZE - tail + head
-  llvm::Value* size_1 = builder.CreateSub(builder.getInt32(FIFO_QUEUE_SIZE), tail, "size");
-  llvm::Value* size_2 = builder.CreateAdd(size_1, head, "size");
-  builder.CreateRet(size_2);
   return true;
 }
 
@@ -376,39 +376,17 @@ bool FilterBuilder::GenerateInputGetSpaceFunction()
     return false;
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
-  llvm::BasicBlock* not_wrapped_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "not_wrapped", func);
-  llvm::BasicBlock* wrapped_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "wrapped", func);
   llvm::IRBuilder<> builder(entry_bb);
 
-  // head_ptr = &buf.head
-  // head = *head_ptr
-  // tail_ptr = &buf.tail
-  // tail = *tail_ptr
-  llvm::Value* head_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
-                                                    {builder.getInt32(0), builder.getInt32(1)}, "head_ptr");
-  llvm::Value* tail_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
-                                                    {builder.getInt32(0), builder.getInt32(2)}, "tail_ptr");
-  llvm::Value* head = builder.CreateLoad(head_ptr, "head");
-  llvm::Value* tail = builder.CreateLoad(tail_ptr, "tail");
-
-  // if (head >= tail) {
-  llvm::Value* not_wrapped_test = builder.CreateICmpUGE(head, tail);
-  builder.CreateCondBr(not_wrapped_test, not_wrapped_bb, wrapped_bb);
-  builder.SetInsertPoint(not_wrapped_bb);
-
-  // return FIFO_QUEUE_SIZE - head - tail
-  llvm::Value* size_1 = builder.CreateSub(head, tail, "size");
+  // size_ptr = &buf.size
+  // size_1 = *size_ptr
+  // size_2 = FIFO_QUEUE_SIZE - size_1
+  // return size_2
+  llvm::Value* size_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                    {builder.getInt32(0), builder.getInt32(3)}, "size_ptr");
+  llvm::Value* size_1 = builder.CreateLoad(size_ptr, "size");
   llvm::Value* size_2 = builder.CreateSub(builder.getInt32(FIFO_QUEUE_SIZE), size_1, "size");
   builder.CreateRet(size_2);
-
-  // } else {
-  builder.SetInsertPoint(wrapped_bb);
-
-  // size = FIFO_QUEUE_SIZE - tail + head
-  llvm::Value* size_3 = builder.CreateSub(builder.getInt32(FIFO_QUEUE_SIZE), tail, "size");
-  llvm::Value* size_4 = builder.CreateAdd(size_3, head, "size");
-  llvm::Value* size_5 = builder.CreateSub(builder.getInt32(FIFO_QUEUE_SIZE), size_4, "size");
-  builder.CreateRet(size_5);
   return true;
 }
 
