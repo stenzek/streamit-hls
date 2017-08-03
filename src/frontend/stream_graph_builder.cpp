@@ -219,7 +219,7 @@ void BuilderState::AddFilter(const char* name)
 
   AST::FilterDeclaration* decl = *iter;
   std::string instance_name = GenerateName(name);
-  Filter* flt = new Filter(decl, instance_name, decl->GetInputType(), decl->GetOutputType());
+  Filter* flt = new Filter(decl, instance_name);
   if (!GetTopNode()->AddChild(this, flt))
     delete flt;
 }

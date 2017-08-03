@@ -86,10 +86,8 @@ void Context::DumpModule(llvm::Module* mod)
 bool Context::VerifyModule(llvm::Module* mod)
 {
   // validate module, should this be here or elsewhere?
-  if (!llvm::verifyModule(*mod, &llvm::outs()))
-    return false;
-
-  return true;
+  // verifyModule returns true if there are errors, false otherwise
+  return !llvm::verifyModule(*mod, &llvm::outs());
 }
 
 unsigned int Context::GenerateNameId()

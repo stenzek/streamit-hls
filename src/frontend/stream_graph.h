@@ -80,7 +80,7 @@ protected:
 class Filter : public Node
 {
 public:
-  Filter(AST::FilterDeclaration* decl, const std::string& name, const Type* input_type, const Type* output_type);
+  Filter(AST::FilterDeclaration* decl, const std::string& name);
   ~Filter() = default;
 
   AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
@@ -167,6 +167,7 @@ public:
 
   const NodeList& GetOutputs() const { return m_outputs; }
   const StringList& GetOutputChannelNames() const { return m_output_channel_names; }
+  void SetDataType(const Type* type);
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* node) override;
@@ -196,6 +197,7 @@ public:
 
   u32 GetIncomingStreams() const { return m_incoming_streams; }
   void AddIncomingStream() { m_incoming_streams++; }
+  void SetDataType(const Type* type);
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* node) override;

@@ -44,6 +44,7 @@ private:
   bool GenerateSplitPushFunction(StreamGraph::Split* split, int mode);
 
   bool GenerateJoinGlobals(StreamGraph::Join* join);
+  bool GenerateJoinSyncFunction(StreamGraph::Join* join);
   bool GenerateJoinPushFunction(StreamGraph::Join* join);
 
   Context* m_context;
@@ -52,9 +53,7 @@ private:
 
   llvm::Type* m_input_buffer_type = nullptr;
   llvm::GlobalVariable* m_input_buffer_var = nullptr;
-
-  llvm::GlobalVariable* m_split_last_index_var = nullptr;
-  llvm::GlobalVariable* m_join_last_index_var = nullptr;
+  llvm::GlobalVariable* m_last_index_var = nullptr;
 };
 
 } // namespace Frontend

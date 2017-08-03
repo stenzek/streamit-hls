@@ -17,8 +17,8 @@ Node::Node(const std::string& name, const Type* input_type, const Type* output_t
 {
 }
 
-Filter::Filter(AST::FilterDeclaration* decl, const std::string& name, const Type* input_type, const Type* output_type)
-  : Node(name, input_type, output_type), m_filter_decl(decl)
+Filter::Filter(AST::FilterDeclaration* decl, const std::string& name)
+  : Node(name, decl->GetInputType(), decl->GetOutputType()), m_filter_decl(decl)
 {
   // Filter has to have a work block (this should already be validated at AST time)
   assert(m_filter_decl->HasWorkBlock());
@@ -87,13 +87,20 @@ bool Pipeline::AddChild(BuilderState* state, Node* node)
     return false;
   }
 
-  if (!m_children.empty())
+  if (m_children.empty())
   {
+    // first child
+    m_input_type = node->GetInputType();
+  }
+  else
+  {
+    // not first child
     Node* back = m_children.back();
     if (!back->ConnectTo(state, node))
       return false;
   }
 
+  m_output_type = node->GetOutputType();
   m_children.push_back(node);
   return true;
 }
@@ -289,6 +296,12 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
     if (!m_split_node->ConnectTo(state, node))
       return false;
 
+    if (m_children.empty())
+    {
+      // first child
+      m_split_node->SetDataType(node->GetInputType());
+    }
+
     m_children.push_back(node);
     return true;
   }
@@ -321,6 +334,7 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
     if (m_children.empty())
     {
       // Can we have an empty splitjoin?
+      // TODO: How does this work with data types..
       m_join_node->AddIncomingStream();
       if (!m_split_node->ConnectTo(state, m_join_node))
         return false;
@@ -329,6 +343,7 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
     }
     else
     {
+      m_join_node->SetDataType(m_children.back()->GetOutputType());
       for (Node* child_node : m_children)
       {
         m_join_node->AddIncomingStream();
@@ -358,6 +373,8 @@ bool SplitJoin::Validate(BuilderState* state)
     return false;
   }
 
+  // TODO: Check types all match
+
   bool result = true;
   result &= m_split_node->Validate(state);
   result &= m_join_node->Validate(state);
@@ -382,6 +399,7 @@ bool Split::AddChild(BuilderState* state, Node* node)
 bool Split::ConnectTo(BuilderState* state, Node* dst)
 {
   m_outputs.push_back(dst->GetInputNode());
+  m_output_channel_names.push_back(dst->GetInputChannelName());
   return true;
 }
 
@@ -403,6 +421,12 @@ void Split::SteadySchedule()
 void Split::AddMultiplicity(u32 count)
 {
   m_multiplicity *= count;
+}
+
+void Split::SetDataType(const Type* type)
+{
+  m_input_type = type;
+  m_output_type = type;
 }
 
 bool Split::Accept(Visitor* visitor)
@@ -450,6 +474,12 @@ Node* Join::GetInputNode()
 std::string Join::GetInputChannelName()
 {
   return StringFromFormat("%s_%u", m_name.c_str(), m_incoming_streams);
+}
+
+void Join::SetDataType(const Type* type)
+{
+  m_input_type = type;
+  m_output_type = type;
 }
 
 bool Join::Accept(Visitor* visitor)
