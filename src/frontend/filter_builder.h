@@ -25,7 +25,7 @@ class FilterBuilder
 {
 public:
   FilterBuilder(Context* context, llvm::Module* mod, const AST::FilterDeclaration* filter_decl,
-                const std::string& instance_name, const std::string& output_instance_name);
+                const std::string& instance_name, const std::string& output_channel_name);
   ~FilterBuilder();
 
   Context* GetContext() const { return m_context; }
@@ -43,20 +43,13 @@ public:
 private:
   llvm::Function* GenerateFunction(AST::FilterWorkBlock* block, const std::string& name);
   bool GenerateGlobals();
-  bool GenerateChannelFunctions();
-  bool GenerateInputBuffer();
-  bool GenerateInputPeekFunction();
-  bool GenerateInputPopFunction();
-  bool GenerateInputPushFunction();
-  bool GenerateInputGetSizeFunction();
-  bool GenerateInputGetSpaceFunction();
-  bool GenerateOutputPushPrototype();
+  bool GenerateChannelPrototypes();
 
   Context* m_context;
   llvm::Module* m_module;
   const AST::FilterDeclaration* m_filter_decl;
   std::string m_instance_name;
-  std::string m_output_instance_name;
+  std::string m_output_channel_name;
   std::unordered_map<const AST::VariableDeclaration*, llvm::GlobalVariable*> m_global_variable_map;
 
   llvm::Function* m_init_function = nullptr;

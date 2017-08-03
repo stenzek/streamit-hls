@@ -47,12 +47,18 @@ bool Filter::ConnectTo(BuilderState* state, Node* dst)
   }
 
   m_output_connection = dst->GetInputNode();
+  m_output_channel_name = dst->GetInputChannelName();
   return true;
 }
 
 Node* Filter::GetInputNode()
 {
   return this;
+}
+
+std::string Filter::GetInputChannelName()
+{
+  return m_name;
 }
 
 void Filter::SteadySchedule()
@@ -134,6 +140,12 @@ Node* Pipeline::GetInputNode()
   return m_children.front()->GetInputNode();
 }
 
+std::string Pipeline::GetInputChannelName()
+{
+  assert(!m_children.empty());
+  return m_children.front()->GetInputChannelName();
+}
+
 void Pipeline::SteadySchedule()
 {
   for (Node* child : m_children)
@@ -194,6 +206,12 @@ Node* SplitJoin::GetInputNode()
 {
   assert(m_split_node != nullptr);
   return m_split_node;
+}
+
+std::string SplitJoin::GetInputChannelName()
+{
+  assert(m_split_node != nullptr);
+  return m_split_node->GetInputChannelName();
 }
 
 void SplitJoin::SteadySchedule()
@@ -303,6 +321,7 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
     if (m_children.empty())
     {
       // Can we have an empty splitjoin?
+      m_join_node->AddIncomingStream();
       if (!m_split_node->ConnectTo(state, m_join_node))
         return false;
 
@@ -312,6 +331,7 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
     {
       for (Node* child_node : m_children)
       {
+        m_join_node->AddIncomingStream();
         if (!child_node->ConnectTo(state, m_join_node))
           return false;
       }
@@ -370,6 +390,11 @@ Node* Split::GetInputNode()
   return this;
 }
 
+std::string Split::GetInputChannelName()
+{
+  return m_name;
+}
+
 void Split::SteadySchedule()
 {
   assert(0 && "Should not be called");
@@ -413,12 +438,18 @@ bool Join::ConnectTo(BuilderState* state, Node* dst)
   }
 
   m_output_connection = dst->GetInputNode();
+  m_output_channel_name = dst->GetInputChannelName();
   return true;
 }
 
 Node* Join::GetInputNode()
 {
   return this;
+}
+
+std::string Join::GetInputChannelName()
+{
+  return StringFromFormat("%s_%u", m_name.c_str(), m_incoming_streams);
 }
 
 bool Join::Accept(Visitor* visitor)

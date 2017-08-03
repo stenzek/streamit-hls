@@ -20,6 +20,7 @@ class SplitJoin;
 class Split;
 class Join;
 using NodeList = std::vector<Node*>;
+using StringList = std::vector<std::string>;
 std::string DumpStreamGraph(Node* root);
 
 class BuilderState;
@@ -60,6 +61,7 @@ public:
 
   // Gets the first filter/node in the pipeline/splitjoin that should be connected to
   virtual Node* GetInputNode() = 0;
+  virtual std::string GetInputChannelName() = 0;
 
   // Schedule for steady state
   virtual void SteadySchedule() = 0;
@@ -84,6 +86,7 @@ public:
   AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
   bool HasOutputConnection() const { return (m_output_connection != nullptr); }
   Node* GetOutputConnection() const { return m_output_connection; }
+  const std::string& GetOutputChannelName() const { return m_output_channel_name; }
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* child) override;
@@ -91,6 +94,7 @@ public:
 
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
+  std::string GetInputChannelName() override;
 
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
@@ -98,6 +102,7 @@ public:
 protected:
   AST::FilterDeclaration* m_filter_decl;
   Node* m_output_connection = nullptr;
+  std::string m_output_channel_name;
 };
 
 class Pipeline : public Node
@@ -114,6 +119,7 @@ public:
 
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
+  std::string GetInputChannelName() override;
 
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
@@ -140,6 +146,7 @@ public:
 
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
+  std::string GetInputChannelName() override;
 
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
@@ -159,6 +166,7 @@ public:
   ~Split() = default;
 
   const NodeList& GetOutputs() const { return m_outputs; }
+  const StringList& GetOutputChannelNames() const { return m_output_channel_names; }
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* node) override;
@@ -166,12 +174,14 @@ public:
 
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
+  std::string GetInputChannelName() override;
 
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
 
 private:
   NodeList m_outputs;
+  StringList m_output_channel_names;
 };
 
 class Join : public Node
@@ -182,6 +192,10 @@ public:
 
   Node* GetOutputConnection() const { return m_output_connection; }
   bool HasOutputConnection() const { return (m_output_connection != nullptr); }
+  const std::string& GetOutputChannelName() const { return m_output_channel_name; }
+
+  u32 GetIncomingStreams() const { return m_incoming_streams; }
+  void AddIncomingStream() { m_incoming_streams++; }
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* node) override;
@@ -189,11 +203,14 @@ public:
 
   bool ConnectTo(BuilderState* state, Node* dst) override;
   Node* GetInputNode() override;
+  std::string GetInputChannelName() override;
 
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
 
 private:
   Node* m_output_connection = nullptr;
+  std::string m_output_channel_name;
+  u32 m_incoming_streams = 0;
 };
 }

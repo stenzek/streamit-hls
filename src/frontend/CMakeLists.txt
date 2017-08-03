@@ -3,13 +3,13 @@ if(NOT LLVM_FOUND)
 endif()
 
 set(SRCS
+    channel_builder.cpp
     constant_expression_builder.cpp
     context.cpp
     expression_builder.cpp
     filter_builder.cpp
     filter_function_builder.cpp
     frontend.cpp
-    splitjoin_builder.cpp
     statement_builder.cpp
     stream_graph.cpp
     stream_graph_builder.cpp

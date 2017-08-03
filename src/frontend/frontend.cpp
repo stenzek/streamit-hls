@@ -1,9 +1,9 @@
 #include "frontend/frontend.h"
 #include <iostream>
 #include "common/log.h"
+#include "frontend/channel_builder.h"
 #include "frontend/context.h"
 #include "frontend/filter_builder.h"
-#include "frontend/splitjoin_builder.h"
 #include "frontend/stream_graph.h"
 #include "frontend/stream_graph_builder.h"
 #include "llvm/IR/Module.h"
@@ -53,10 +53,10 @@ bool GenerateCode(Context* ctx, ParserState* state, StreamGraph::Node* root_node
   ctx->DestroyModule(mod);
 }
 
-class FilterGeneratorVisitor : public StreamGraph::Visitor
+class CodeGeneratorVisitor : public StreamGraph::Visitor
 {
 public:
-  FilterGeneratorVisitor(Context* context, llvm::Module* module) : m_context(context), m_module(module) {}
+  CodeGeneratorVisitor(Context* context, llvm::Module* module) : m_context(context), m_module(module) {}
 
   virtual bool Visit(StreamGraph::Filter* node) override;
   virtual bool Visit(StreamGraph::Pipeline* node) override;
@@ -69,22 +69,25 @@ private:
   llvm::Module* m_module;
 };
 
-bool FilterGeneratorVisitor::Visit(StreamGraph::Filter* node)
+bool CodeGeneratorVisitor::Visit(StreamGraph::Filter* node)
 {
   m_context->LogInfo("Generating filter function set %s for %s", node->GetName().c_str(),
                      node->GetFilterDeclaration()->GetName().c_str());
 
   // Generate function for filter node
-  FilterBuilder fb(m_context, m_module, node->GetFilterDeclaration(), node->GetName(),
-                   node->HasOutputConnection() ? node->GetOutputConnection()->GetName() : "");
+  FilterBuilder fb(m_context, m_module, node->GetFilterDeclaration(), node->GetName(), node->GetOutputChannelName());
   if (!fb.GenerateCode())
     return false;
 
   // Generate fifo queue for the input side of this filter
+  ChannelBuilder cb(m_context, m_module, node->GetName());
+  if (!cb.GenerateCode(node))
+    return false;
+
   return true;
 }
 
-bool FilterGeneratorVisitor::Visit(StreamGraph::Pipeline* node)
+bool CodeGeneratorVisitor::Visit(StreamGraph::Pipeline* node)
 {
   for (StreamGraph::Node* child : node->GetChildren())
   {
@@ -95,7 +98,7 @@ bool FilterGeneratorVisitor::Visit(StreamGraph::Pipeline* node)
   return true;
 }
 
-bool FilterGeneratorVisitor::Visit(StreamGraph::SplitJoin* node)
+bool CodeGeneratorVisitor::Visit(StreamGraph::SplitJoin* node)
 {
   if (!node->GetSplitNode()->Accept(this))
     return false;
@@ -112,23 +115,23 @@ bool FilterGeneratorVisitor::Visit(StreamGraph::SplitJoin* node)
   return true;
 }
 
-bool FilterGeneratorVisitor::Visit(StreamGraph::Split* node)
+bool CodeGeneratorVisitor::Visit(StreamGraph::Split* node)
 {
-  SplitJoinBuilder sb(m_context, m_module, node->GetName());
-  return sb.GenerateSplit(node, 1);
+  ChannelBuilder cb(m_context, m_module, node->GetName());
+  return cb.GenerateCode(node, 1);
 }
 
-bool FilterGeneratorVisitor::Visit(StreamGraph::Join* node)
+bool CodeGeneratorVisitor::Visit(StreamGraph::Join* node)
 {
-  SplitJoinBuilder sb(m_context, m_module, node->GetName());
-  return sb.GenerateJoin(node);
+  ChannelBuilder cb(m_context, m_module, node->GetName());
+  return cb.GenerateCode(node);
 }
 
 bool GenerateFilterFunctions(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node)
 {
   Log::Info("frontend", "Generating filter functions...");
 
-  FilterGeneratorVisitor fgv(ctx, mod);
+  CodeGeneratorVisitor fgv(ctx, mod);
   return root_node->Accept(&fgv);
 }
 
