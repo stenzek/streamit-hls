@@ -38,9 +38,11 @@ bool Builder::GenerateGraph()
   if (!GenerateCode())
     return false;
 
-  m_context->DumpModule(m_module.get());
   if (!m_context->VerifyModule(m_module.get()))
-    m_context->LogError("Module verification failed");
+  {
+    m_context->LogError("Stream graph module verification failed");
+    m_context->DumpModule(m_module.get());
+  }
 
   m_context->LogInfo("Creating execution engine");
   if (!CreateExecutionEngine())

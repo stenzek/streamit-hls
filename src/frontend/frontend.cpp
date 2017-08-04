@@ -4,6 +4,7 @@
 #include "frontend/channel_builder.h"
 #include "frontend/context.h"
 #include "frontend/filter_builder.h"
+#include "frontend/main_loop_builder.h"
 #include "frontend/stream_graph.h"
 #include "frontend/stream_graph_builder.h"
 #include "llvm/IR/Module.h"
@@ -138,12 +139,14 @@ bool GenerateFilterFunctions(Context* ctx, llvm::Module* mod, ParserState* state
 bool GeneratePrimePumpFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node)
 {
   Log::Info("frontend", "Generating prime pump function...");
-  return true;
+
+  MainLoopBuilder builder(ctx, mod, "mod");
+  return builder.GeneratePrimePumpFunction(root_node);
 }
 
 bool GenerateSteadyStateFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node)
 {
-  Log::Info("frontend", "Generating prime pump function...");
+  Log::Info("frontend", "Generating steady state function...");
   return true;
 }
 
