@@ -7,7 +7,11 @@
 #include "frontend/main_loop_builder.h"
 #include "frontend/stream_graph.h"
 #include "frontend/stream_graph_builder.h"
+#include "llvm/ExecutionEngine/ExecutionEngine.h"
+#include "llvm/ExecutionEngine/GenericValue.h"
+#include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/TargetSelect.h"
 #include "parser/parser_state.h"
 
 namespace Frontend
@@ -51,7 +55,8 @@ bool GenerateCode(Context* ctx, ParserState* state, StreamGraph::Node* root_node
   if (!ctx->VerifyModule(mod))
     Log::Error("frontend", "Module verification failed.");
 
-  ctx->DestroyModule(mod);
+  ExecuteMainFunction(ctx, mod);
+  // ctx->DestroyModule(mod);
 }
 
 class CodeGeneratorVisitor : public StreamGraph::Visitor
@@ -158,5 +163,29 @@ bool GenerateMainFunction(Context* ctx, llvm::Module* mod, ParserState* state, S
 
   MainLoopBuilder builder(ctx, mod, "mod");
   return builder.GenerateMainFunction();
+}
+
+bool ExecuteMainFunction(Context* ctx, llvm::Module* mod)
+{
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  llvm::InitializeNativeTargetAsmParser();
+
+  std::string error_msg;
+  std::unique_ptr<llvm::Module> mod_ptr(mod);
+  llvm::ExecutionEngine* execution_engine = llvm::EngineBuilder(std::move(mod_ptr)).setErrorStr(&error_msg).create();
+
+  if (!execution_engine)
+  {
+    ctx->LogError("Failed to create LLVM execution engine: %s", error_msg.c_str());
+    return false;
+  }
+
+  execution_engine->finalizeObject();
+
+  llvm::Function* main_func = execution_engine->FindFunctionNamed("main");
+  assert(main_func && "main function exists in execution engine");
+  execution_engine->runFunction(main_func, {});
+  return true;
 }
 }

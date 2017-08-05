@@ -180,6 +180,7 @@ bool Builder::CreateExecutionEngine()
     return false;
   }
 
+  m_execution_engine->finalizeObject();
   return true;
 }
 

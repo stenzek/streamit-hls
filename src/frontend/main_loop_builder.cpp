@@ -144,7 +144,7 @@ bool MainLoopBuilder::GeneratePrimePumpFunction(StreamGraph::Node* root_node)
       if (!work_func)
         return false;
 
-      run_bb = GenerateFunctionCalls(func, run_bb, work_func, ip2.second->GetMultiplicity());
+      run_bb = GenerateFunctionCalls(func, entry_bb, run_bb, work_func, ip2.second->GetMultiplicity());
     }
 
     builder.SetInsertPoint(run_bb);
@@ -200,7 +200,7 @@ bool MainLoopBuilder::GenerateSteadyStateFunction(StreamGraph::Node* root_node)
                                                               m_context->GetVoidType(), nullptr);
     if (!work_func)
       return false;
-    main_loop_bb = GenerateFunctionCalls(func, main_loop_bb, work_func, ip.second->GetMultiplicity());
+    main_loop_bb = GenerateFunctionCalls(func, entry_bb, main_loop_bb, work_func, ip.second->GetMultiplicity());
   }
 
   // Loop back to start infinitely.
@@ -233,8 +233,9 @@ bool MainLoopBuilder::GenerateMainFunction()
   return true;
 }
 
-llvm::BasicBlock* MainLoopBuilder::GenerateFunctionCalls(llvm::Function* func, llvm::BasicBlock* current_bb,
-                                                         llvm::Constant* call_func, u32 count)
+llvm::BasicBlock* MainLoopBuilder::GenerateFunctionCalls(llvm::Function* func, llvm::BasicBlock* entry_bb,
+                                                         llvm::BasicBlock* current_bb, llvm::Constant* call_func,
+                                                         u32 count)
 {
   llvm::IRBuilder<> builder(current_bb);
 
@@ -250,7 +251,9 @@ llvm::BasicBlock* MainLoopBuilder::GenerateFunctionCalls(llvm::Function* func, l
   llvm::BasicBlock* exit_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
 
   // int i = 0;
+  builder.SetInsertPoint(entry_bb, entry_bb->begin());
   llvm::AllocaInst* i_var = builder.CreateAlloca(m_context->GetIntType(), nullptr, "i");
+  builder.SetInsertPoint(current_bb);
   builder.CreateStore(builder.getInt32(0), i_var);
   builder.CreateBr(compare_bb);
 

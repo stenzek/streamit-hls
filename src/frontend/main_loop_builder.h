@@ -38,8 +38,8 @@ public:
 
 private:
   // Returns the basic block after the loop exits
-  llvm::BasicBlock* GenerateFunctionCalls(llvm::Function* func, llvm::BasicBlock* current_bb, llvm::Constant* call_func,
-                                          u32 count);
+  llvm::BasicBlock* GenerateFunctionCalls(llvm::Function* func, llvm::BasicBlock* entry_bb,
+                                          llvm::BasicBlock* current_bb, llvm::Constant* call_func, u32 count);
 
   Context* m_context;
   llvm::Module* m_module;

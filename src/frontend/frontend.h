@@ -27,4 +27,5 @@ bool GenerateFilterFunctions(Context* ctx, llvm::Module* mod, ParserState* state
 bool GeneratePrimePumpFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node);
 bool GenerateSteadyStateFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node);
 bool GenerateMainFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* node);
+bool ExecuteMainFunction(Context* ctx, llvm::Module* mod);
 }

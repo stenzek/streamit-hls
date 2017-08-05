@@ -6,12 +6,12 @@ int->int pipeline simple4 {
 int->int filter TestFilter {
     //int foo = 1, bar = 2;
     work push 2 {
-        int x = 41, y = 43;
+        //int x = 41, y = 43;
         //int z;
         //x = 42;
-        int[10] some_array;
-        some_array[1] = 5;
-        x = some_array[1];
+        //int[10] some_array;
+        //some_array[1] = 5;
+        //x = some_array[1];
         push(10);
         push(10);
     }
