@@ -34,6 +34,7 @@ public:
   // Prime pump
   bool GeneratePrimePumpFunction(StreamGraph::Node* root_node);
   bool GenerateSteadyStateFunction(StreamGraph::Node* root_node);
+  bool GenerateMainFunction();
 
 private:
   // Returns the basic block after the loop exits

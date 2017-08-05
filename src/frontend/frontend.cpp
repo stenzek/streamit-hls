@@ -147,12 +147,16 @@ bool GeneratePrimePumpFunction(Context* ctx, llvm::Module* mod, ParserState* sta
 bool GenerateSteadyStateFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* root_node)
 {
   Log::Info("frontend", "Generating steady state function...");
-  return true;
+
+  MainLoopBuilder builder(ctx, mod, "mod");
+  return builder.GenerateSteadyStateFunction(root_node);
 }
 
 bool GenerateMainFunction(Context* ctx, llvm::Module* mod, ParserState* state, StreamGraph::Node* node)
 {
   Log::Info("frontend", "Generating main function...");
-  return true;
+
+  MainLoopBuilder builder(ctx, mod, "mod");
+  return builder.GenerateMainFunction();
 }
 }

@@ -175,6 +175,61 @@ bool MainLoopBuilder::GeneratePrimePumpFunction(StreamGraph::Node* root_node)
 
 bool MainLoopBuilder::GenerateSteadyStateFunction(StreamGraph::Node* root_node)
 {
+  FilterListVisitor lv;
+  if (!root_node->Accept(&lv))
+    return false;
+
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(
+    StringFromFormat("%s_steady_state", m_instance_name.c_str()), m_context->GetVoidType(), nullptr);
+  if (!func_cons)
+    return false;
+  llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
+  if (!func)
+    return false;
+
+  llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
+  llvm::BasicBlock* start_loop_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
+  llvm::IRBuilder<> builder(entry_bb);
+  builder.CreateBr(start_loop_bb);
+
+  llvm::BasicBlock* main_loop_bb = start_loop_bb;
+  for (auto ip : lv.GetFilterList())
+  {
+    // Call each filter multiplicity times.
+    llvm::Constant* work_func = m_module->getOrInsertFunction(StringFromFormat("%s_work", ip.second->GetName().c_str()),
+                                                              m_context->GetVoidType(), nullptr);
+    if (!work_func)
+      return false;
+    main_loop_bb = GenerateFunctionCalls(func, main_loop_bb, work_func, ip.second->GetMultiplicity());
+  }
+
+  // Loop back to start infinitely.
+  builder.SetInsertPoint(main_loop_bb);
+  builder.CreateBr(start_loop_bb);
+  return true;
+}
+
+bool MainLoopBuilder::GenerateMainFunction()
+{
+  llvm::Constant* prime_pump_func = m_module->getOrInsertFunction(
+    StringFromFormat("%s_prime_pump", m_instance_name.c_str()), m_context->GetVoidType(), nullptr);
+  llvm::Constant* steady_state_func = m_module->getOrInsertFunction(
+    StringFromFormat("%s_steady_state", m_instance_name.c_str()), m_context->GetVoidType(), nullptr);
+  if (!prime_pump_func || !steady_state_func)
+    return false;
+
+  llvm::Constant* func_cons = m_module->getOrInsertFunction("main", m_context->GetIntType(), nullptr);
+  if (!func_cons)
+    return false;
+  llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
+  if (!func)
+    return false;
+
+  llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
+  llvm::IRBuilder<> builder(entry_bb);
+  builder.CreateCall(prime_pump_func);
+  builder.CreateCall(steady_state_func);
+  builder.CreateRet(builder.getInt32(0));
   return true;
 }
 
@@ -194,21 +249,31 @@ llvm::BasicBlock* MainLoopBuilder::GenerateFunctionCalls(llvm::Function* func, l
   llvm::BasicBlock* body_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
   llvm::BasicBlock* exit_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
 
+  // int i = 0;
   llvm::AllocaInst* i_var = builder.CreateAlloca(m_context->GetIntType(), nullptr, "i");
   builder.CreateStore(builder.getInt32(0), i_var);
   builder.CreateBr(compare_bb);
 
+  // compare:
+  // if (i < count) goto body else goto exit
   builder.SetInsertPoint(compare_bb);
   llvm::Value* i = builder.CreateLoad(i_var, "i");
   llvm::Value* comp_res = builder.CreateICmpULT(i, builder.getInt32(count), "i_comp");
   builder.CreateCondBr(comp_res, body_bb, exit_bb);
 
+  // func()
   builder.SetInsertPoint(body_bb);
   builder.CreateCall(call_func);
+
+  // i = i + 1
   i = builder.CreateLoad(i_var, "i");
   i = builder.CreateAdd(i, builder.getInt32(1), "i");
   builder.CreateStore(i, i_var);
+
+  // goto compare
   builder.CreateBr(compare_bb);
+
+  // exit:
   return exit_bb;
 }
 

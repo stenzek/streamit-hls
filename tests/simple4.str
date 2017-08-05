@@ -1,23 +1,25 @@
-int->int pipeline TestPipeline {
+int->int pipeline simple4 {
     add TestFilter();
     add TestFilter2();
 }
 
 int->int filter TestFilter {
     //int foo = 1, bar = 2;
-    work push 1 {
+    work push 2 {
         int x = 41, y = 43;
         //int z;
         //x = 42;
         int[10] some_array;
         some_array[1] = 5;
         x = some_array[1];
+        push(10);
+        push(10);
     }
 }
 
 int->int filter TestFilter2 {
     work pop 1 {
-        int x = 5;
+        int x = pop();
     }
 }
 
