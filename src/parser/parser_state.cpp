@@ -21,6 +21,7 @@ ParserState::ParserState()
 {
   m_global_lexical_scope = std::make_unique<AST::LexicalScope>(nullptr);
   CreateBuiltinTypes();
+  CreateBuiltinFunctions();
 }
 
 ParserState::~ParserState()
@@ -189,28 +190,39 @@ const Type* ParserState::GetArrayType(const Type* base_type, const std::vector<i
   if (it != m_array_types.end())
     return it->second;
 
-  Type* ty = Type::CreateArrayType(base_type, array_sizes);
+  Type* ty = ArrayType::Create(base_type, array_sizes);
   m_array_types.emplace_back(std::make_pair(base_type, array_sizes), ty);
   return ty;
 }
 
 void ParserState::CreateBuiltinTypes()
 {
-  auto MakeType = [this](const std::string& name, Type::BaseTypeId base_type_id) {
-    Type* out_ref = Type::CreatePrimitiveType(name, base_type_id);
+  auto MakeType = [this](Type::TypeId base_type_id) {
+    Type* out_ref = Type::CreatePrimitive(base_type_id);
     m_global_lexical_scope->AddName(out_ref->GetName(), new AST::TypeReference(out_ref->GetName(), out_ref));
     m_types.emplace(out_ref->GetName(), out_ref);
     return out_ref;
   };
 
-  m_void_type = MakeType("void", Type::BaseTypeId::Void);
-  m_boolean_type = MakeType("boolean", Type::BaseTypeId::Boolean);
-  m_bit_type = MakeType("bit", Type::BaseTypeId::Bit);
-  m_int_type = MakeType("int", Type::BaseTypeId::Int);
-  m_float_type = MakeType("float", Type::BaseTypeId::Float);
+  m_void_type = MakeType(Type::TypeId::Void);
+  m_boolean_type = MakeType(Type::TypeId::Boolean);
+  m_bit_type = MakeType(Type::TypeId::Bit);
+  m_int_type = MakeType(Type::TypeId::Int);
+  m_float_type = MakeType(Type::TypeId::Float);
 
   // Error type doesn't get added to the symbol table
-  m_error_type = Type::CreatePrimitiveType("<error>", Type::BaseTypeId::Error);
+  m_error_type = Type::CreatePrimitive(Type::TypeId::Error);
+}
+
+void ParserState::CreateBuiltinFunctions()
+{
+  auto MakeExternalFunction = [this](const char* name, const Type* return_type,
+                                     const std::vector<const Type*>& arg_types) {
+    AST::FunctionReference* fref = new AST::FunctionReference(name, return_type, arg_types, true);
+    m_global_lexical_scope->AddName(fref->GetSymbolName(), fref);
+  };
+
+  MakeExternalFunction("println", m_void_type, {m_int_type});
 }
 
 bool ParserState::SemanticAnalysis()

@@ -1,5 +1,6 @@
 #include <algorithm>
 #include <cassert>
+#include <sstream>
 #include "parser/ast.h"
 #include "parser/parser_state.h"
 #include "parser/symbol_table.h"
@@ -140,6 +141,12 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
   return true;
 }
 
+bool FunctionDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // TODO
+  return false;
+}
+
 bool SplitStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO
@@ -259,7 +266,14 @@ bool IndexExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
   bool result = true;
   result &= m_array_expression->SemanticAnalysis(state, symbol_table);
   result &= m_index_expression->SemanticAnalysis(state, symbol_table);
-  m_type = Type::GetArrayElementType(state, m_array_expression->GetType());
+
+  if (!m_array_expression->GetType()->IsArrayType())
+  {
+    state->LogError(m_sloc, "Array expression is not an array type");
+    return false;
+  }
+
+  m_type = static_cast<const ArrayType*>(m_array_expression->GetType())->GetArrayElementType(state);
   return result && m_type->IsValid();
 }
 
@@ -394,6 +408,65 @@ bool PopExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_ta
 {
   m_type = state->current_filter->GetInputType();
   return m_type->IsValid();
+}
+
+bool CallExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // Generate the function name
+  std::stringstream ss;
+  ss << m_function_name;
+
+  bool result = true;
+  if (m_args)
+  {
+    for (Node* arg : *m_args)
+    {
+      result &= arg->SemanticAnalysis(state, symbol_table);
+
+      Expression* expr = dynamic_cast<Expression*>(arg);
+      if (!expr)
+      {
+        state->LogError(m_sloc, "Argument is not an expression");
+        result = false;
+        continue;
+      }
+
+      ss << "___" << expr->GetType()->GetName();
+    }
+  }
+
+  std::string function_symbol_name = ss.str();
+  m_function_ref = dynamic_cast<FunctionReference*>(symbol_table->GetName(function_symbol_name));
+  if (!m_function_ref)
+  {
+    state->LogError("Can't find function '%s' with symbol name '%s'", m_function_name.c_str(),
+                    function_symbol_name.c_str());
+    return false;
+  }
+
+  m_type = m_function_ref->GetReturnType();
+  return result;
+}
+
+FunctionReference::FunctionReference(const std::string& name, const Type* return_type,
+                                     const std::vector<const Type*>& param_types, bool builtin)
+  : m_name(name), m_function_type(FunctionType::Create(return_type, param_types)), m_return_type(return_type),
+    m_param_types(param_types), m_builtin(builtin)
+{
+  // Generate symbol name
+  std::stringstream ss;
+  ss << m_name;
+  for (const Type* param_ty : m_param_types)
+    ss << "___" << param_ty->GetName();
+  m_symbol_name = ss.str();
+}
+
+std::string FunctionReference::GetExecutableSymbolName() const
+{
+  if (!m_builtin)
+    return m_symbol_name;
+
+  return StringFromFormat("streamit_%s", m_symbol_name.c_str());
 }
 
 bool PushStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)

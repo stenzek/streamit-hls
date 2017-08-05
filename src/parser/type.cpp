@@ -2,89 +2,79 @@
 #include <cassert>
 #include "parser/parser_state.h"
 
-const std::string& Type::GetName() const
-{
-  return m_name;
-}
-
-const Type* Type::GetBaseType() const
-{
-  return m_base_type;
-}
-
-const Type::BaseTypeId Type::GetBaseTypeId() const
-{
-  return m_base_type_id;
-}
-
-const std::vector<int>& Type::GetArraySizes() const
-{
-  return m_array_sizes;
-}
-
 bool Type::IsValid() const
 {
   return !IsErrorType();
 }
 
+bool Type::IsPrimitiveType() const
+{
+  return m_type_id >= TypeId::Error && m_type_id <= TypeId::Float;
+}
+
 bool Type::IsErrorType() const
 {
-  return m_base_type_id == BaseTypeId::Error;
+  return m_type_id == TypeId::Error;
 }
 
 bool Type::IsArrayType() const
 {
-  return !m_array_sizes.empty();
+  return m_type_id == TypeId::Array;
+}
+
+bool Type::IsStructType() const
+{
+  return m_type_id == TypeId::Struct;
+}
+
+bool Type::IsFunctionType() const
+{
+  return m_type_id == TypeId::Function;
 }
 
 bool Type::HasBooleanBase() const
 {
-  return m_base_type_id == BaseTypeId::Boolean;
+  return m_type_id == TypeId::Boolean || (m_base_type && m_base_type->HasBooleanBase());
 }
 
 bool Type::HasBitBase() const
 {
-  return m_base_type_id == BaseTypeId::Bit;
+  return m_type_id == TypeId::Bit || (m_base_type && m_base_type->HasBitBase());
 }
 
 bool Type::HasIntBase() const
 {
-  return m_base_type_id == BaseTypeId::Int;
+  return m_type_id == TypeId::Int || (m_base_type && m_base_type->HasIntBase());
 }
 
 bool Type::HasFloatBase() const
 {
-  return m_base_type_id == BaseTypeId::Float;
-}
-
-bool Type::HasStructBase() const
-{
-  return m_base_type_id == BaseTypeId::Struct;
+  return m_type_id == TypeId::Float || (m_base_type && m_base_type->HasFloatBase());
 }
 
 bool Type::IsVoid() const
 {
-  return m_base_type_id == BaseTypeId::Void;
+  return m_type_id == TypeId::Void;
 }
 
 bool Type::IsBoolean() const
 {
-  return HasBooleanBase() && !IsArrayType();
+  return m_type_id == TypeId::Boolean;
 }
 
 bool Type::IsBit() const
 {
-  return HasBitBase() && !IsArrayType();
+  return m_type_id == TypeId::Bit;
 }
 
 bool Type::IsInt() const
 {
-  return HasIntBase() && !IsArrayType();
+  return m_type_id == TypeId::Int;
 }
 
 bool Type::IsFloat() const
 {
-  return HasFloatBase() && !IsArrayType();
+  return m_type_id == TypeId::Float;
 }
 
 bool Type::CanImplicitlyConvertTo(const Type* type) const
@@ -102,23 +92,56 @@ bool Type::CanImplicitlyConvertTo(const Type* type) const
 
 bool Type::HasSameArrayTraits(const Type* type) const
 {
-  return m_array_sizes == type->m_array_sizes;
+  if (m_type_id == TypeId::Array && type->m_type_id == TypeId::Array)
+  {
+    return static_cast<const ArrayType*>(this)->GetArraySizes() == static_cast<const ArrayType*>(type)->GetArraySizes();
+  }
+
+  // If one type is not an array, then they're incompatible
+  return !((m_type_id == TypeId::Array && type->m_type_id != TypeId::Array) ||
+           (m_type_id != TypeId::Array && type->m_type_id == TypeId::Array));
 }
 
-Type* Type::CreatePrimitiveType(const std::string& name, BaseTypeId base)
+Type* Type::CreatePrimitive(TypeId base)
 {
+  const char* name;
+  switch (base)
+  {
+  case TypeId::Error:
+    name = "<error>";
+    break;
+  case TypeId::Void:
+    name = "void";
+    break;
+  case TypeId::Boolean:
+    name = "boolean";
+    break;
+  case TypeId::Bit:
+    name = "bit";
+    break;
+  case TypeId::Int:
+    name = "int";
+    break;
+  case TypeId::Float:
+    name = "float";
+    break;
+  default:
+    assert(0 && "unknown primitive type id");
+    return nullptr;
+  }
+
   Type* ty = new Type();
   ty->m_name = name;
-  ty->m_base_type_id = base;
+  ty->m_type_id = base;
   return ty;
 }
 
-Type* Type::CreateArrayType(const Type* base_type, const std::vector<int>& array_sizes)
+Type* ArrayType::Create(const Type* base_type, const std::vector<int>& array_sizes)
 {
-  Type* ty = new Type();
+  ArrayType* ty = new ArrayType();
   assert(base_type && !array_sizes.empty() && base_type->IsValid() && !base_type->IsVoid());
   ty->m_base_type = base_type;
-  ty->m_base_type_id = base_type->m_base_type_id;
+  ty->m_type_id = TypeId::Array;
   ty->m_array_sizes = array_sizes;
   ty->m_name = base_type->GetName();
   for (int sz : array_sizes)
@@ -139,17 +162,25 @@ const Type* Type::GetResultType(ParserState* state, const Type* lhs, const Type*
   return state->GetErrorType();
 }
 
-const Type* Type::GetArrayElementType(ParserState* state, const Type* ty)
+const Type* ArrayType::GetArrayElementType(ParserState* state) const
 {
-  if (ty->m_array_sizes.empty())
+  if (m_array_sizes.empty())
     return state->GetErrorType();
 
   // Last array index, or single-dimension array
-  if (ty->m_array_sizes.size() == 1)
-    return ty->m_base_type;
+  if (m_array_sizes.size() == 1)
+    return m_base_type;
 
   // Drop one of the arrays off, so int[10][11][12] -> int[10][11].
-  std::vector<int> temp = ty->m_array_sizes;
+  std::vector<int> temp = m_array_sizes;
   temp.pop_back();
-  return state->GetArrayType(ty->m_base_type, temp);
+  return state->GetArrayType(m_base_type, temp);
+}
+
+Type* FunctionType::Create(const Type* return_type, const std::vector<const Type*>& param_types)
+{
+  FunctionType* ty = new FunctionType();
+  ty->m_return_type = return_type;
+  ty->m_parameter_types = param_types;
+  return ty;
 }

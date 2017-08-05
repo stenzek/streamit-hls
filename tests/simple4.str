@@ -20,6 +20,7 @@ int->int filter TestFilter {
 int->int filter TestFilter2 {
     work pop 1 {
         int x = pop();
+        println(x);
     }
 }
 

@@ -4,6 +4,8 @@
 #include "frontend/filter_builder.h"
 #include "frontend/filter_function_builder.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/Module.h"
 #include "parser/ast.h"
 #include "parser/type.h"
 
@@ -79,6 +81,9 @@ bool ExpressionBuilder::Visit(AST::BooleanLiteralExpression* node)
 
 bool ExpressionBuilder::Visit(AST::IdentifierExpression* node)
 {
+  if (!node->IsVariableReference())
+    return false;
+
   // Delays loads due to arrays - we want to return the pointer, not load the array
   // m_result_value = m_func_builder->LoadVariable(node->GetReferencedVariable());
   m_result_ptr = m_func_builder->GetVariablePtr(node->GetReferencedVariable());
@@ -372,6 +377,46 @@ bool ExpressionBuilder::Visit(AST::PopExpression* node)
 {
   assert(m_func_builder->GetFilterBuilder()->GetPopFunction() != nullptr);
   m_result_value = GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPopFunction());
+  return IsValid();
+}
+
+bool ExpressionBuilder::Visit(AST::CallExpression* node)
+{
+  const AST::FunctionReference* fref = node->GetFunctionReference();
+  assert(fref != nullptr);
+
+  // Map types
+  llvm::Type* return_type = GetContext()->GetLLVMType(fref->GetReturnType());
+  std::vector<llvm::Type*> param_types;
+  for (const Type* param_ty : fref->GetParameterTypes())
+    param_types.push_back(GetContext()->GetLLVMType(param_ty));
+
+  // Create prototype if it doesn't already exist. This may be external.
+  std::string func_name = fref->GetExecutableSymbolName();
+  llvm::FunctionType* func_type = llvm::FunctionType::get(return_type, param_types, false);
+  llvm::Constant* func = m_func_builder->GetModule()->getOrInsertFunction(func_name, func_type);
+  if (!func)
+  {
+    GetContext()->LogError("Unable to get function '%s'", func_name.c_str());
+    return false;
+  }
+
+  // Get values for each of the parameters
+  std::vector<llvm::Value*> func_params;
+  if (node->HasArgs())
+  {
+    for (size_t i = 0; i < node->GetArgList()->GetNodeList().size(); i++)
+    {
+      // TODO: Implicit conversions here
+      ExpressionBuilder param_eb(m_func_builder);
+      if (!node->GetArgList()->GetNodeList().at(i)->Accept(&param_eb) || !param_eb.IsValid())
+        return false;
+
+      func_params.push_back(param_eb.GetResultValue());
+    }
+  }
+
+  m_result_value = GetIRBuilder().CreateCall(func, func_params);
   return IsValid();
 }
 }

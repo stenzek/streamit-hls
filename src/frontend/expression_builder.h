@@ -35,6 +35,7 @@ public:
   bool Visit(AST::LogicalExpression* node) override;
   bool Visit(AST::PeekExpression* node) override;
   bool Visit(AST::PopExpression* node) override;
+  bool Visit(AST::CallExpression* node) override;
 
 private:
   FilterFunctionBuilder* m_func_builder;

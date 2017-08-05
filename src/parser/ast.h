@@ -173,6 +173,7 @@ class TypeName : public Node
 {
 public:
   TypeName(const SourceLocation& sloc);
+  TypeName(const Type* from_type);
   ~TypeName() = default;
 
   const std::string& GetBaseTypeName() const;
@@ -347,6 +348,58 @@ private:
   NodeList* m_stmts = nullptr;
 };
 
+// Function references map names -> types
+class FunctionReference : public Node
+{
+public:
+  FunctionReference(const std::string& name, const Type* return_type, const std::vector<const Type*>& param_types,
+                    bool builtin);
+  ~FunctionReference() = default;
+
+  const std::string& GetName() const { return m_name; }
+  const Type* GetReturnType() const { return m_return_type; }
+  const std::vector<const Type*>& GetParameterTypes() const { return m_param_types; }
+
+  // Turns println(int) into println___int.
+  const std::string& GetSymbolName() const { return m_symbol_name; }
+
+  // Adds streamit_ prefix to builtin symbols.
+  std::string GetExecutableSymbolName() const;
+
+  void Dump(ASTPrinter* printer) const override {}
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override { return true; }
+  bool Accept(Visitor* visitor) override { return false; }
+
+private:
+  std::string m_name;
+  std::string m_symbol_name;
+  const Type* m_function_type;
+  const Type* m_return_type;
+  std::vector<const Type*> m_param_types;
+  bool m_builtin;
+};
+
+class FunctionDeclaration : public Declaration
+{
+public:
+  FunctionDeclaration(const SourceLocation& sloc, const char* name, TypeName* return_type, NodeList* params,
+                      NodeList* body);
+  ~FunctionDeclaration() = default;
+
+  const std::string& GetName() const { return m_name; }
+
+  void Dump(ASTPrinter* printer) const;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
+  bool Accept(Visitor* visitor);
+
+private:
+  std::string m_name;
+  TypeName* m_return_type_specifier;
+  const Type* m_final_return_type;
+  NodeList* m_params;
+  NodeList* m_body;
+};
+
 class IntegerLiteralExpression : public Expression
 {
 public:
@@ -387,7 +440,8 @@ public:
   IdentifierExpression(const SourceLocation& sloc, const char* identifier);
   ~IdentifierExpression() = default;
 
-  VariableDeclaration* GetReferencedVariable() const;
+  bool IsVariableReference() const { return (m_identifier_declaration != nullptr); }
+  VariableDeclaration* GetReferencedVariable() const { return m_identifier_declaration; }
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
@@ -601,6 +655,29 @@ public:
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
+};
+
+class CallExpression : public Expression
+{
+public:
+  CallExpression(const SourceLocation& sloc, const char* function_name, NodeList* args);
+  ~CallExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  const std::string& GetFunctionName() const { return m_function_name; }
+  const NodeList* GetArgList() const { return m_args; }
+  bool HasArgs() const { return (m_args != nullptr); }
+
+  const FunctionReference* GetFunctionReference() const { return m_function_ref; }
+
+private:
+  std::string m_function_name;
+  NodeList* m_args;
+
+  const FunctionReference* m_function_ref = nullptr;
 };
 
 class PushStatement : public Statement

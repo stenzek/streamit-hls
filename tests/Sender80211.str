@@ -29,8 +29,8 @@ int -> void filter output
 {
 	work pop 1
 	{
-		//println(pop());
-        pop();
+		println(pop());
+        //pop();
 	}
 }
 

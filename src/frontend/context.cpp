@@ -139,21 +139,25 @@ void Context::LogDebug(const char* fmt, ...)
 llvm::Type* Context::CreateLLVMType(const Type* type)
 {
   llvm::Type* llvm_ty;
-  if (!type->HasStructBase())
+  if (type->IsPrimitiveType())
   {
     // Resolve base type -> LLVM type
-    switch (type->GetBaseTypeId())
+    switch (type->GetTypeId())
     {
-    case Type::BaseTypeId::Boolean:
-    case Type::BaseTypeId::Bit:
+    case Type::TypeId::Void:
+      llvm_ty = llvm::Type::getVoidTy(m_llvm_context);
+      break;
+
+    case Type::TypeId::Boolean:
+    case Type::TypeId::Bit:
       llvm_ty = llvm::Type::getInt1Ty(m_llvm_context);
       break;
 
-    case Type::BaseTypeId::Int:
+    case Type::TypeId::Int:
       llvm_ty = llvm::Type::getInt32Ty(m_llvm_context);
       break;
 
-    case Type::BaseTypeId::Float:
+    case Type::TypeId::Float:
       llvm_ty = llvm::Type::getDoubleTy(m_llvm_context);
       break;
 
@@ -161,22 +165,31 @@ llvm::Type* Context::CreateLLVMType(const Type* type)
       assert(0 && "unknown base type");
       return nullptr;
     }
+
+    return llvm_ty;
   }
-  else
+
+  if (type->IsStructType())
   {
     assert(0 && "TODO Implement structs");
     return nullptr;
   }
 
-  // If it's not an array, we're done with the mapping
-  if (!type->IsArrayType())
+  if (type->IsArrayType())
+  {
+    // Get base type
+    auto array_ty = static_cast<const ArrayType*>(type);
+    llvm_ty = GetLLVMType(array_ty->GetBaseType());
+
+    // Work in reverse, so int[10][5][2] would be 2 int[10][5]s, which are 5 int[10]s, which are 10 ints.
+    for (auto it = array_ty->GetArraySizes().rbegin(); it != array_ty->GetArraySizes().rend(); it++)
+      llvm_ty = llvm::ArrayType::get(llvm_ty, *it);
+
     return llvm_ty;
+  }
 
-  // Work in reverse, so int[10][5][2] would be 2 int[10][5]s, which are 5 int[10]s, which are 10 ints.
-  for (auto it = type->GetArraySizes().rbegin(); it != type->GetArraySizes().rend(); it++)
-    llvm_ty = llvm::ArrayType::get(llvm_ty, *it);
-
-  return llvm_ty;
+  assert(0 && "Unknown type");
+  return nullptr;
 }
 }
 

@@ -92,6 +92,7 @@ using namespace AST;
 %type <expr> Initializer
 %type <initializer_list_expr> InitializerList
 /*%type <string_list> IdentifierList*/
+%type <node_list> ArgumentExpressionList
 %type <stmt> Statement
 %type <stmt> ExpressionStatement
 %type <stmt> SelectionStatement
@@ -370,13 +371,18 @@ PrimaryExpression
 PostfixExpression
   : PrimaryExpression { $$ = $1; }
   | PostfixExpression '[' Expression ']' { $$ = new IndexExpression(@1, $1, $3); }
-  /*| PostfixExpression '(' ')'*/
-  /*| PostfixExpression '(' ArgumentExpressionList ')'*/
+  | Identifier '(' ')' { $$ = new CallExpression(@1, $1, new NodeList()); }
+  | Identifier '(' ArgumentExpressionList ')' { $$ = new CallExpression(@1, $1, $3); }
   /*| PostfixExpression '.' Identifier*/
   | PostfixExpression TK_INCREMENT { $$ = new UnaryExpression(@1, UnaryExpression::PostIncrement, $1); }
   | PostfixExpression TK_DECREMENT { $$ = new UnaryExpression(@1, UnaryExpression::PostDecrement, $1); }
   | TK_PEEK '(' Expression ')' { $$ = new PeekExpression(@1, $3); }
   | TK_POP '(' ')' { $$ = new PopExpression(@1); }
+  ;
+
+ArgumentExpressionList
+  : AssignmentExpression { $$ = new NodeList(); $$->AddNode($1); }
+  | ArgumentExpressionList ',' AssignmentExpression { $$ = $1; $$->AddNode($3); }
   ;
 
 UnaryExpression

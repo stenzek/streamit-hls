@@ -54,6 +54,11 @@ bool Visitor::Visit(PopExpression* node)
   return Visit(static_cast<Expression*>(node));
 }
 
+bool Visitor::Visit(CallExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
 bool Visitor::Visit(PeekExpression* node)
 {
   return Visit(static_cast<Expression*>(node));
@@ -115,6 +120,11 @@ bool Visitor::Visit(FilterWorkBlock* node)
 }
 
 bool Visitor::Visit(FilterDeclaration* node)
+{
+  return Visit(static_cast<Declaration*>(node));
+}
+
+bool Visitor::Visit(FunctionDeclaration* node)
 {
   return Visit(static_cast<Declaration*>(node));
 }
@@ -258,7 +268,13 @@ bool PeekExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }
+
 bool PopExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool CallExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }
@@ -327,6 +343,11 @@ bool PipelineDeclaration::Accept(Visitor* visitor)
 }
 
 bool SplitJoinDeclaration::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool FunctionDeclaration::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

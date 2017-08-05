@@ -102,6 +102,21 @@ TypeName::TypeName(const SourceLocation& sloc) : m_sloc(sloc)
 {
 }
 
+TypeName::TypeName(const Type* from_type) : m_sloc{}
+{
+  if (from_type->IsPrimitiveType())
+  {
+    m_base_type_name = from_type->GetName();
+    return;
+  }
+
+  if (from_type->IsArrayType())
+  {
+    m_base_type_name = from_type->GetBaseType()->GetName();
+    m_array_sizes = static_cast<const ArrayType*>(from_type)->GetArraySizes();
+  }
+}
+
 const std::string& TypeName::GetBaseTypeName() const
 {
   return m_base_type_name;
@@ -181,6 +196,12 @@ SplitJoinDeclaration::~SplitJoinDeclaration()
 {
 }
 
+FunctionDeclaration::FunctionDeclaration(const SourceLocation& sloc, const char* name, TypeName* return_type,
+                                         NodeList* params, NodeList* body)
+  : Declaration(sloc), m_name(name), m_return_type_specifier(return_type), m_params(params), m_body(body)
+{
+}
+
 AddStatement::AddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters)
   : Statement(sloc), m_stream_name(filter_name), m_stream_parameters(parameters)
 {
@@ -193,11 +214,6 @@ AddStatement::~AddStatement()
 IdentifierExpression::IdentifierExpression(const SourceLocation& sloc, const char* identifier)
   : Expression(sloc), m_identifier(identifier)
 {
-}
-
-VariableDeclaration* IdentifierExpression::GetReferencedVariable() const
-{
-  return m_identifier_declaration;
 }
 
 IndexExpression::IndexExpression(const SourceLocation& sloc, Expression* array_expr, Expression* index_expr)
@@ -376,6 +392,11 @@ Expression* PeekExpression::GetIndexExpression() const
 }
 
 PopExpression::PopExpression(const SourceLocation& sloc) : Expression(sloc)
+{
+}
+
+CallExpression::CallExpression(const SourceLocation& sloc, const char* function_name, NodeList* args)
+  : Expression(sloc), m_function_name(function_name), m_args(args)
 {
 }
 

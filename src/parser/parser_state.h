@@ -66,6 +66,7 @@ public:
 private:
   bool AutoSetEntryPoint(const char* filename);
   void CreateBuiltinTypes();
+  void CreateBuiltinFunctions();
   bool SemanticAnalysis();
 
   std::string m_current_filename;

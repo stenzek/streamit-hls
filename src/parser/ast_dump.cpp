@@ -74,6 +74,14 @@ void SplitJoinDeclaration::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
+void FunctionDeclaration::Dump(ASTPrinter* printer) const
+{
+  printer->BeginBlock("FunctionDeclaration[name=%s]", m_name.c_str());
+  // for (const Type* param_type : m_parameter_types)
+  // printer->WriteLine("Parameter: %s", param_type->GetName().c_str());
+  printer->EndBlock();
+}
+
 void AddStatement::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("AddStatement[filter=%s]", m_stream_name.c_str());
@@ -205,6 +213,19 @@ void PeekExpression::Dump(ASTPrinter* printer) const
 void PopExpression::Dump(ASTPrinter* printer) const
 {
   printer->WriteLine("PopExpression");
+}
+
+void CallExpression::Dump(ASTPrinter* printer) const
+{
+  printer->BeginBlock("CallExpression: ");
+  printer->WriteLine("function_name = %s (%s)", m_function_name.c_str(),
+                     m_function_ref ? m_function_ref->GetSymbolName().c_str() : "<unresolved>");
+  if (m_args)
+  {
+    printer->Write("parameters = ");
+    m_args->Dump(printer);
+  }
+  printer->EndBlock();
 }
 
 void PushStatement::Dump(ASTPrinter* printer) const
