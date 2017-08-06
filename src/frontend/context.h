@@ -1,6 +1,7 @@
 #pragma once
 #include <memory>
 #include <unordered_map>
+#include <vector>
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LLVMContext.h"
 
@@ -46,6 +47,9 @@ public:
   void LogWarning(const char* fmt, ...);
   void LogInfo(const char* fmt, ...);
   void LogDebug(const char* fmt, ...);
+
+  void BuildDebugPrint(llvm::IRBuilder<>& builder, const char* msg);
+  void BuildDebugPrintf(llvm::IRBuilder<>& builder, const char* fmt, const std::vector<llvm::Value*>& args);
 
 private:
   llvm::Type* CreateLLVMType(const Type* type);

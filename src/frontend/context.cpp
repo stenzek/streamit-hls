@@ -136,6 +136,32 @@ void Context::LogDebug(const char* fmt, ...)
   Log::Debug("frontend", "%s", msg.c_str());
 }
 
+void Context::BuildDebugPrint(llvm::IRBuilder<>& builder, const char* msg)
+{
+  llvm::Module* mod = builder.GetInsertBlock()->getParent()->getParent();
+  llvm::FunctionType* func_ty = llvm::FunctionType::get(GetVoidType(), {GetStringType()}, false);
+  llvm::Constant* func = mod->getOrInsertFunction("streamit_debug_printf", func_ty);
+  if (!func)
+    return;
+
+  builder.CreateCall(func, {builder.CreateGlobalStringPtr(msg)});
+}
+
+void Context::BuildDebugPrintf(llvm::IRBuilder<>& builder, const char* fmt, const std::vector<llvm::Value*>& args)
+{
+  llvm::Module* mod = builder.GetInsertBlock()->getParent()->getParent();
+  llvm::FunctionType* func_ty = llvm::FunctionType::get(GetVoidType(), {GetStringType()}, true);
+  llvm::Constant* func = mod->getOrInsertFunction("streamit_debug_printf", func_ty);
+  if (!func)
+    return;
+
+  std::vector<llvm::Value*> real_args;
+  real_args.push_back(builder.CreateGlobalStringPtr(fmt));
+  if (!args.empty())
+    real_args.insert(real_args.end(), args.begin(), args.end());
+  builder.CreateCall(func, real_args);
+}
+
 llvm::Type* Context::CreateLLVMType(const Type* type)
 {
   llvm::Type* llvm_ty;

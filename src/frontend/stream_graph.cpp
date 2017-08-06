@@ -444,7 +444,7 @@ Join::Join(const std::string& name) : Node(name, nullptr, nullptr)
 {
   m_peek_rate = 0;
   m_pop_rate = 1;
-  m_push_rate = 1;
+  m_push_rate = 0;
 }
 
 bool Join::AddChild(BuilderState* state, Node* node)
@@ -474,6 +474,13 @@ Node* Join::GetInputNode()
 std::string Join::GetInputChannelName()
 {
   return StringFromFormat("%s_%u", m_name.c_str(), m_incoming_streams);
+}
+
+void Join::AddIncomingStream()
+{
+  m_incoming_streams++;
+  // m_pop_rate++;
+  m_push_rate++;
 }
 
 void Join::SetDataType(const Type* type)

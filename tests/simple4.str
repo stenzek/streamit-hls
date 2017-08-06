@@ -1,23 +1,37 @@
 int->int pipeline simple4 {
-    add TestFilter();
-    add TestFilter2();
+    add counter();
+    //add stuff();
+    //add adder();
+    add printer();
 }
 
-int->int filter TestFilter {
-    //int foo = 1, bar = 2;
-    work push 2 {
-        //int x = 41, y = 43;
-        //int z;
-        //x = 42;
-        //int[10] some_array;
-        //some_array[1] = 5;
-        //x = some_array[1];
-        push(10);
-        push(10);
+int->int filter counter {
+    int last = 1;
+    work push 1 {
+        push(last);
+        last = last + 1;
     }
 }
 
-int->int filter TestFilter2 {
+int->int filter adder {
+    work pop 1 push 1 {
+        push(pop() * 2);
+    }
+}
+int->int filter subber {
+    work pop 1 push 1 {
+        push(pop());
+    }
+}
+
+int->int splitjoin stuff {
+    split duplicate;
+    add adder();
+    add subber();
+    join roundrobin;
+}
+
+int->int filter printer {
     work pop 1 {
         int x = pop();
         println(x);

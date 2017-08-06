@@ -1,4 +1,5 @@
 set(SRCS
+    debug.cpp
     println.cpp
 )
 

@@ -179,6 +179,8 @@ bool ChannelBuilder::GenerateFilterPushFunction(StreamGraph::Filter* filter)
   llvm::Value* value = &(*func_args_iter++);
   value->setName("value");
 
+  // m_context->BuildDebugPrintf(builder, StringFromFormat("%s_push %%u", m_instance_name.c_str()).c_str(), {value});
+
   // head_ptr = &buf.head
   // head = *head_ptr
   llvm::Value* head_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
@@ -278,6 +280,7 @@ bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split, int mo
   else
   {
     // duplicate
+    // m_context->BuildDebugPrintf(builder, "duplicate push %d", { value });
     for (llvm::Constant* output_func : output_functions)
       builder.CreateCall(output_func, {value});
   }
@@ -441,6 +444,8 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
     src_stream->setName("src_stream");
     value->setName("value");
 
+    // m_context->BuildDebugPrintf(builder, "join push %d from %d", { value,src_stream });
+
     // head_ptr = &buf.heads[src_stream]
     // head = *head_ptr
     llvm::Value* head_ptr = builder.CreateInBoundsGEP(
@@ -496,7 +501,7 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
     llvm::Value* value = &(*func_args_iter++);
     value->setName("value");
 
-    builder.CreateCall(push_func, {builder.getInt32(i32(source_stream_index)), value});
+    builder.CreateCall(push_func, {builder.getInt32(i32(source_stream_index - 1)), value});
     builder.CreateRetVoid();
   }
 

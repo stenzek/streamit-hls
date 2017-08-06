@@ -196,7 +196,7 @@ public:
   const std::string& GetOutputChannelName() const { return m_output_channel_name; }
 
   u32 GetIncomingStreams() const { return m_incoming_streams; }
-  void AddIncomingStream() { m_incoming_streams++; }
+  void AddIncomingStream();
   void SetDataType(const Type* type);
 
   bool Accept(Visitor* visitor) override;

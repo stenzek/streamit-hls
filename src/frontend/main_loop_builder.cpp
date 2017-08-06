@@ -122,21 +122,32 @@ bool MainLoopBuilder::GeneratePrimePumpFunction(StreamGraph::Node* root_node)
   llvm::BasicBlock* main_loop_bb = start_loop_bb;
   builder.CreateBr(main_loop_bb);
 
+  // Get a list of iterations that have to be tested against.
+  std::vector<u32> iteration_numbers;
   for (auto ip : lv.GetFilterList())
+  {
+    if (std::find(iteration_numbers.begin(), iteration_numbers.end(), ip.first) == iteration_numbers.end())
+      iteration_numbers.push_back(ip.first);
+  }
+
+  for (u32 current_iteration : iteration_numbers)
   {
     llvm::BasicBlock* run_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
     llvm::BasicBlock* next_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
 
-    // if (iteration > #iteration#)
     builder.SetInsertPoint(main_loop_bb);
     llvm::Value* iteration = builder.CreateLoad(iteration_var, "iteration");
-    llvm::Value* comp_res = builder.CreateICmpUGE(iteration, builder.getInt32(ip.first));
+    if (main_loop_bb == start_loop_bb)
+      m_context->BuildDebugPrintf(builder, "prime iteration %d", {iteration});
+
+    // if (iteration > #iteration#)
+    llvm::Value* comp_res = builder.CreateICmpUGE(iteration, builder.getInt32(current_iteration));
     builder.CreateCondBr(comp_res, run_bb, next_bb);
 
     // Generate calls to work functions for all filters with a matching iteration
     for (auto ip2 : lv.GetFilterList())
     {
-      if (ip.first != ip2.first)
+      if (ip2.first != current_iteration)
         continue;
 
       llvm::Constant* work_func = m_module->getOrInsertFunction(
@@ -227,6 +238,7 @@ bool MainLoopBuilder::GenerateMainFunction()
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
+  m_context->BuildDebugPrint(builder, "Entering main");
   builder.CreateCall(prime_pump_func);
   builder.CreateCall(steady_state_func);
   builder.CreateRet(builder.getInt32(0));
