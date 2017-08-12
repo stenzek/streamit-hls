@@ -3,15 +3,16 @@
 #include "llvm/IR/IRBuilder.h"
 #include "parser/ast_visitor.h"
 
+class WrappedLLVMContext;
+
 namespace Frontend
 {
-class Context;
-class FilterFunctionBuilder;
+class FunctionBuilder;
 
 class ConstantExpressionBuilder : public AST::Visitor
 {
 public:
-  ConstantExpressionBuilder(Context* context);
+  ConstantExpressionBuilder(WrappedLLVMContext* context);
   ~ConstantExpressionBuilder();
 
   bool IsValid() const;
@@ -25,7 +26,7 @@ public:
   bool Visit(AST::BinaryExpression* node) override;
 
 private:
-  Context* m_context;
+  WrappedLLVMContext* m_context;
   llvm::Constant* m_result_value = nullptr;
 };
 }

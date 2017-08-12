@@ -1,10 +1,10 @@
 #include <algorithm>
 #include <cassert>
 #include <sstream>
+#include "core/type.h"
 #include "parser/ast.h"
 #include "parser/parser_state.h"
 #include "parser/symbol_table.h"
-#include "parser/type.h"
 
 namespace AST
 {
@@ -273,7 +273,7 @@ bool IndexExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
     return false;
   }
 
-  m_type = static_cast<const ArrayType*>(m_array_expression->GetType())->GetArrayElementType(state);
+  m_type = state->GetArrayElementType(static_cast<const ArrayType*>(m_array_expression->GetType()));
   return result && m_type->IsValid();
 }
 
@@ -294,7 +294,7 @@ bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol
     return false;
 
   // Calculate type of expression
-  m_type = Type::GetResultType(state, m_lhs->GetType(), m_rhs->GetType());
+  m_type = state->GetResultType(m_lhs->GetType(), m_rhs->GetType());
   if (!m_type->IsValid())
   {
     state->LogError(m_sloc, "Cannot determine result type for binary expression of %s and %s",
@@ -312,7 +312,7 @@ bool RelationalExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
     return false;
 
   // Implicit conversions..
-  m_intermediate_type = Type::GetResultType(state, m_lhs->GetType(), m_rhs->GetType());
+  m_intermediate_type = state->GetResultType(m_lhs->GetType(), m_rhs->GetType());
   if (!m_intermediate_type)
   {
     state->LogError(m_sloc, "Cannot determine comparison type of relational expression between %s and %s",

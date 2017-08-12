@@ -1,19 +1,151 @@
-#include "frontend/main_loop_builder.h"
+#include "cputarget/program_builder.h"
 #include <cassert>
 #include <vector>
+#include "common/log.h"
 #include "common/string_helpers.h"
-#include "frontend/context.h"
-#include "frontend/stream_graph.h"
+#include "core/type.h"
+#include "core/wrapped_llvm_context.h"
+#include "cputarget/channel_builder.h"
+#include "cputarget/debug_print_builder.h"
+#include "cputarget/filter_builder.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
-#include "parser/type.h"
+#include "streamgraph/streamgraph.h"
 
-namespace Frontend
+namespace CPUTarget
 {
+ProgramBuilder::ProgramBuilder(WrappedLLVMContext* context, const std::string& module_name)
+  : m_context(context), m_module_name(module_name)
+{
+}
+
+ProgramBuilder::~ProgramBuilder()
+{
+  delete m_module;
+}
+
+std::unique_ptr<llvm::Module> ProgramBuilder::DetachModule()
+{
+  if (!m_module)
+    return nullptr;
+
+  auto modptr = std::unique_ptr<llvm::Module>(m_module);
+  m_module = nullptr;
+  return std::move(modptr);
+}
+
+bool ProgramBuilder::GenerateCode(StreamGraph::StreamGraph* streamgraph)
+{
+  CreateModule();
+
+  if (!GenerateFilterAndChannelFunctions(streamgraph))
+    return false;
+
+  if (!GeneratePrimePumpFunction(streamgraph))
+    return false;
+
+  if (!GenerateSteadyStateFunction(streamgraph))
+    return false;
+
+  if (!GenerateMainFunction())
+    return false;
+
+  return true;
+}
+
+void ProgramBuilder::CreateModule()
+{
+  m_module = m_context->CreateModule(m_module_name.c_str());
+  Log::Info("ProgramBuilder", "Module name is '%s'", m_module_name.c_str());
+}
+
+class CodeGeneratorVisitor : public StreamGraph::Visitor
+{
+public:
+  CodeGeneratorVisitor(WrappedLLVMContext* context, llvm::Module* module) : m_context(context), m_module(module) {}
+
+  virtual bool Visit(StreamGraph::Filter* node) override;
+  virtual bool Visit(StreamGraph::Pipeline* node) override;
+  virtual bool Visit(StreamGraph::SplitJoin* node) override;
+  virtual bool Visit(StreamGraph::Split* node) override;
+  virtual bool Visit(StreamGraph::Join* node) override;
+
+private:
+  WrappedLLVMContext* m_context;
+  llvm::Module* m_module;
+};
+
+bool CodeGeneratorVisitor::Visit(StreamGraph::Filter* node)
+{
+  Log::Info("ProgramBuilder", "Generating filter function set %s for %s", node->GetName().c_str(),
+            node->GetFilterDeclaration()->GetName().c_str());
+
+  // Generate fifo queue for the input side of this filter
+  ChannelBuilder cb(m_context, m_module);
+  if (!cb.GenerateCode(node))
+    return false;
+
+  // Generate functions for filter node
+  FilterBuilder fb(m_context, m_module);
+  if (!fb.GenerateCode(node))
+    return false;
+
+  return true;
+}
+
+bool CodeGeneratorVisitor::Visit(StreamGraph::Pipeline* node)
+{
+  for (StreamGraph::Node* child : node->GetChildren())
+  {
+    if (!child->Accept(this))
+      return false;
+  }
+
+  return true;
+}
+
+bool CodeGeneratorVisitor::Visit(StreamGraph::SplitJoin* node)
+{
+  if (!node->GetSplitNode()->Accept(this))
+    return false;
+
+  for (StreamGraph::Node* child : node->GetChildren())
+  {
+    if (!child->Accept(this))
+      return false;
+  }
+
+  if (!node->GetJoinNode()->Accept(this))
+    return false;
+
+  return true;
+}
+
+bool CodeGeneratorVisitor::Visit(StreamGraph::Split* node)
+{
+  ChannelBuilder cb(m_context, m_module);
+  return cb.GenerateCode(node, 1);
+}
+
+bool CodeGeneratorVisitor::Visit(StreamGraph::Join* node)
+{
+  ChannelBuilder cb(m_context, m_module);
+  return cb.GenerateCode(node);
+}
+
+bool ProgramBuilder::GenerateFilterAndChannelFunctions(StreamGraph::StreamGraph* streamgraph)
+{
+  Log::Info("ProgramBuilder", "Generating filter and channel functions...");
+
+  CodeGeneratorVisitor codegen(m_context, m_module);
+  return streamgraph->GetRootNode()->Accept(&codegen);
+}
+
 class FilterListVisitor : public StreamGraph::Visitor
 {
 public:
@@ -80,38 +212,29 @@ bool FilterListVisitor::Visit(StreamGraph::Join* node)
   return true;
 }
 
-MainLoopBuilder::MainLoopBuilder(Context* context, llvm::Module* mod, const std::string& instance_name)
-  : m_context(context), m_module(mod), m_instance_name(instance_name)
-{
-}
-
-MainLoopBuilder::~MainLoopBuilder()
-{
-}
-
-bool MainLoopBuilder::GeneratePrimePumpFunction(StreamGraph::Node* root_node)
+bool ProgramBuilder::GeneratePrimePumpFunction(StreamGraph::StreamGraph* streamgraph)
 {
   FilterListVisitor lv;
-  if (!root_node->Accept(&lv))
+  if (!streamgraph->GetRootNode()->Accept(&lv))
     return false;
 
-  if (lv.GetFilterList().empty())
+  Log::Info("ProgramBuilder", "Generating prime pump function for %u filter instances...",
+            unsigned(lv.GetFilterList().size()));
+  for (auto ip : lv.GetFilterList())
   {
-    m_context->LogError("No active filters in program.");
-    return false;
+    Log::Info("ProgramBuilder", "Iteration %u: %s (%u multiplicity)", ip.first, ip.second->GetName().c_str(),
+              ip.second->GetMultiplicity());
   }
 
-  for (auto ip : lv.GetFilterList())
-    m_context->LogInfo("Iteration %u: %s (%u multiplicity)", ip.first, ip.second->GetName().c_str(),
-                       ip.second->GetMultiplicity());
-
-  llvm::Constant* func_cons = m_module->getOrInsertFunction(StringFromFormat("%s_prime_pump", m_instance_name.c_str()),
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(StringFromFormat("%s_prime_pump", m_module_name.c_str()),
                                                             m_context->GetVoidType(), nullptr);
   if (!func_cons)
     return false;
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return false;
+
+  func->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
@@ -138,7 +261,7 @@ bool MainLoopBuilder::GeneratePrimePumpFunction(StreamGraph::Node* root_node)
     builder.SetInsertPoint(main_loop_bb);
     llvm::Value* iteration = builder.CreateLoad(iteration_var, "iteration");
     if (main_loop_bb == start_loop_bb)
-      m_context->BuildDebugPrintf(builder, "prime iteration %d", {iteration});
+      BuildDebugPrintf(m_context, builder, "prime iteration %d", {iteration});
 
     // if (iteration > #iteration#)
     llvm::Value* comp_res = builder.CreateICmpUGE(iteration, builder.getInt32(current_iteration));
@@ -184,19 +307,24 @@ bool MainLoopBuilder::GeneratePrimePumpFunction(StreamGraph::Node* root_node)
   return true;
 }
 
-bool MainLoopBuilder::GenerateSteadyStateFunction(StreamGraph::Node* root_node)
+bool ProgramBuilder::GenerateSteadyStateFunction(StreamGraph::StreamGraph* streamgraph)
 {
   FilterListVisitor lv;
-  if (!root_node->Accept(&lv))
+  if (!streamgraph->GetRootNode()->Accept(&lv))
     return false;
 
-  llvm::Constant* func_cons = m_module->getOrInsertFunction(
-    StringFromFormat("%s_steady_state", m_instance_name.c_str()), m_context->GetVoidType(), nullptr);
+  Log::Info("ProgramBuilder", "Generating steady state function for %u filter instances...",
+            unsigned(lv.GetFilterList().size()));
+
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(StringFromFormat("%s_steady_state", m_module_name.c_str()),
+                                                            m_context->GetVoidType(), nullptr);
   if (!func_cons)
     return false;
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return false;
+
+  func->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::BasicBlock* start_loop_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
@@ -220,12 +348,14 @@ bool MainLoopBuilder::GenerateSteadyStateFunction(StreamGraph::Node* root_node)
   return true;
 }
 
-bool MainLoopBuilder::GenerateMainFunction()
+bool ProgramBuilder::GenerateMainFunction()
 {
+  Log::Info("ProgramBuilder", "Generating main function...");
+
   llvm::Constant* prime_pump_func = m_module->getOrInsertFunction(
-    StringFromFormat("%s_prime_pump", m_instance_name.c_str()), m_context->GetVoidType(), nullptr);
+    StringFromFormat("%s_prime_pump", m_module_name.c_str()), m_context->GetVoidType(), nullptr);
   llvm::Constant* steady_state_func = m_module->getOrInsertFunction(
-    StringFromFormat("%s_steady_state", m_instance_name.c_str()), m_context->GetVoidType(), nullptr);
+    StringFromFormat("%s_steady_state", m_module_name.c_str()), m_context->GetVoidType(), nullptr);
   if (!prime_pump_func || !steady_state_func)
     return false;
 
@@ -238,16 +368,16 @@ bool MainLoopBuilder::GenerateMainFunction()
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
-  m_context->BuildDebugPrint(builder, "Entering main");
+  BuildDebugPrint(m_context, builder, "Entering main");
   builder.CreateCall(prime_pump_func);
   builder.CreateCall(steady_state_func);
   builder.CreateRet(builder.getInt32(0));
   return true;
 }
 
-llvm::BasicBlock* MainLoopBuilder::GenerateFunctionCalls(llvm::Function* func, llvm::BasicBlock* entry_bb,
-                                                         llvm::BasicBlock* current_bb, llvm::Constant* call_func,
-                                                         u32 count)
+llvm::BasicBlock* ProgramBuilder::GenerateFunctionCalls(llvm::Function* func, llvm::BasicBlock* entry_bb,
+                                                        llvm::BasicBlock* current_bb, llvm::Constant* call_func,
+                                                        size_t count)
 {
   llvm::IRBuilder<> builder(current_bb);
 
@@ -292,4 +422,4 @@ llvm::BasicBlock* MainLoopBuilder::GenerateFunctionCalls(llvm::Function* func, l
   return exit_bb;
 }
 
-} // namespace Frontend
+} // namespace CPUTarget

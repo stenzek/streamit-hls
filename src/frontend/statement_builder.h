@@ -3,18 +3,18 @@
 #include "llvm/IR/IRBuilder.h"
 #include "parser/ast_visitor.h"
 
+class WrappedLLVMContext;
 namespace Frontend
 {
-class Context;
-class FilterFunctionBuilder;
+class FunctionBuilder;
 
 class StatementBuilder : public AST::Visitor
 {
 public:
-  StatementBuilder(FilterFunctionBuilder* func_builder);
+  StatementBuilder(FunctionBuilder* func_builder);
   ~StatementBuilder();
 
-  Context* GetContext() const;
+  WrappedLLVMContext* GetContext() const;
   llvm::Module* GetModule() const;
   llvm::IRBuilder<>& GetIRBuilder() const;
 
@@ -31,6 +31,6 @@ public:
   bool Visit(AST::JoinStatement* node) override;
 
 private:
-  FilterFunctionBuilder* m_func_builder;
+  FunctionBuilder* m_func_builder;
 };
 }

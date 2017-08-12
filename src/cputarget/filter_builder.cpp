@@ -1,24 +1,70 @@
-#include "frontend/filter_builder.h"
+#include "cputarget/filter_builder.h"
 #include <cassert>
 #include "common/string_helpers.h"
+#include "core/type.h"
+#include "core/wrapped_llvm_context.h"
 #include "frontend/constant_expression_builder.h"
-#include "frontend/context.h"
-#include "frontend/filter_function_builder.h"
+#include "frontend/function_builder.h"
+#include "frontend/state_variables_builder.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
-#include "parser/type.h"
+#include "streamgraph/streamgraph.h"
 
-namespace Frontend
+namespace CPUTarget
 {
+// Dummy interface for push/pop/peek
+struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
+{
+  FragmentBuilder(llvm::Constant* peek_function, llvm::Constant* pop_function, llvm::Constant* push_function)
+    : m_peek_function(peek_function), m_pop_function(pop_function), m_push_function(push_function)
+  {
+  }
 
-FilterBuilder::FilterBuilder(Context* context, llvm::Module* mod, const AST::FilterDeclaration* filter_decl,
-                             const std::string& instance_name, const std::string& output_instance_name)
-  : m_context(context), m_module(mod), m_filter_decl(filter_decl), m_instance_name(instance_name),
-    m_output_channel_name(output_instance_name)
+  llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final
+  {
+    if (!m_pop_function)
+    {
+      // Not valid, should have been caught at semantic analysis time.
+      return nullptr;
+    }
+
+    return builder.CreateCall(m_pop_function);
+  }
+
+  llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) override final
+  {
+    if (!m_peek_function)
+    {
+      // Not valid, should have been caught at semantic analysis time.
+      return nullptr;
+    }
+
+    return builder.CreateCall(m_peek_function, {idx_value});
+  }
+
+  bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
+  {
+    if (!m_push_function)
+    {
+      // Not valid, should have been caught at semantic analysis time.
+      return false;
+    }
+
+    builder.CreateCall(m_push_function, {value});
+    return true;
+  }
+
+private:
+  llvm::Constant* m_peek_function;
+  llvm::Constant* m_pop_function;
+  llvm::Constant* m_push_function;
+};
+
+FilterBuilder::FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod) : m_context(context), m_module(mod)
 {
 }
 
@@ -26,8 +72,12 @@ FilterBuilder::~FilterBuilder()
 {
 }
 
-bool FilterBuilder::GenerateCode()
+bool FilterBuilder::GenerateCode(const StreamGraph::Filter* filter)
 {
+  m_filter_decl = filter->GetFilterDeclaration();
+  m_instance_name = filter->GetName();
+  m_output_channel_name = filter->GetOutputChannelName();
+
   if (!GenerateGlobals() || !GenerateChannelPrototypes())
     return false;
 
@@ -38,6 +88,10 @@ bool FilterBuilder::GenerateCode()
     if (!m_init_function)
       return false;
   }
+  else
+  {
+    m_init_function = nullptr;
+  }
 
   if (m_filter_decl->HasPreworkBlock())
   {
@@ -46,6 +100,10 @@ bool FilterBuilder::GenerateCode()
     if (!m_prework_function)
       return false;
   }
+  else
+  {
+    m_prework_function = nullptr;
+  }
 
   if (m_filter_decl->HasWorkBlock())
   {
@@ -53,6 +111,10 @@ bool FilterBuilder::GenerateCode()
     m_work_function = GenerateFunction(m_filter_decl->GetWorkBlock(), name);
     if (!m_work_function)
       return false;
+  }
+  else
+  {
+    m_work_function = nullptr;
   }
 
   return true;
@@ -67,8 +129,12 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   if (!func)
     return nullptr;
 
+  // All our filter functions should be private/static. This way they can be inlined.
+  func->setLinkage(llvm::GlobalValue::PrivateLinkage);
+
   // Start at the entry basic block for the work function.
-  FilterFunctionBuilder entry_bb_builder(m_context, m_module, this, "entry", func);
+  FragmentBuilder fragment_builder(m_peek_function, m_pop_function, m_push_function);
+  Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, func);
 
   // Add global variable references
   for (const auto& it : m_global_variable_map)
@@ -83,74 +149,18 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   return func;
 }
 
-/// Creates LLVM global variables for each filter state variable
-/// Also creates initializers where they are constant
-class GlobalVariableBuilder : public AST::Visitor
-{
-public:
-  GlobalVariableBuilder(Context* context_, llvm::Module* mod_, const std::string& prefix_)
-    : context(context_), mod(mod_), prefix(prefix_)
-  {
-  }
-
-  bool Visit(AST::Node* node) override
-  {
-    assert(0 && "Fallback handler executed");
-    return false;
-  }
-
-  bool Visit(AST::VariableDeclaration* node) override
-  {
-    llvm::Constant* initializer = nullptr;
-    if (node->HasInitializer())
-    {
-      // The complex initializers should have already been moved to init()
-      assert(node->GetInitializer()->IsConstant());
-
-      // The types should be the same..
-      assert(node->GetInitializer()->GetType() == node->GetType());
-
-      // Translate to a LLVM constant
-      ConstantExpressionBuilder ceb(context);
-      if (node->HasInitializer() && (!node->GetInitializer()->Accept(&ceb) || !ceb.IsValid()))
-        return false;
-
-      initializer = ceb.GetResultValue();
-    }
-
-    // Generate the name for it
-    std::string var_name = StringFromFormat("%s_%s", prefix.c_str(), node->GetName().c_str());
-
-    // Create LLVM global var
-    llvm::Type* llvm_ty = context->GetLLVMType(node->GetType());
-    llvm::GlobalVariable* llvm_var =
-      new llvm::GlobalVariable(*mod, llvm_ty, true, llvm::GlobalValue::PrivateLinkage, initializer, var_name);
-
-    if (initializer)
-      llvm_var->setConstant(false);
-
-    global_var_map.emplace(node, llvm_var);
-    return true;
-  }
-
-  Context* context;
-  llvm::Module* mod;
-  std::string prefix;
-  std::unordered_map<const AST::VariableDeclaration*, llvm::GlobalVariable*> global_var_map;
-};
-
 bool FilterBuilder::GenerateGlobals()
 {
   if (!m_filter_decl->HasStateVariables())
     return true;
 
   // Visit the state variable declarations, generating LLVM variables for them
-  GlobalVariableBuilder gvb(m_context, m_module, m_instance_name);
+  Frontend::StateVariablesBuilder gvb(m_context, m_module, m_instance_name);
   if (!m_filter_decl->GetStateVariables()->Accept(&gvb))
     return false;
 
   // And copy the table, ready to insert to the function builders
-  m_global_variable_map = std::move(gvb.global_var_map);
+  m_global_variable_map = gvb.GetVariableMap();
   return true;
 }
 
@@ -187,4 +197,4 @@ bool FilterBuilder::GenerateChannelPrototypes()
   return true;
 }
 
-} // namespace Frontend
+} // namespace CPUTarget

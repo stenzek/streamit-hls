@@ -1,17 +1,16 @@
 #include "frontend/expression_builder.h"
 #include <cassert>
-#include "frontend/context.h"
-#include "frontend/filter_builder.h"
-#include "frontend/filter_function_builder.h"
+#include "core/type.h"
+#include "core/wrapped_llvm_context.h"
+#include "frontend/function_builder.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
-#include "parser/type.h"
 
 namespace Frontend
 {
-ExpressionBuilder::ExpressionBuilder(FilterFunctionBuilder* func_builder) : m_func_builder(func_builder)
+ExpressionBuilder::ExpressionBuilder(FunctionBuilder* func_builder) : m_func_builder(func_builder)
 {
 }
 
@@ -19,7 +18,7 @@ ExpressionBuilder::~ExpressionBuilder()
 {
 }
 
-Context* ExpressionBuilder::GetContext() const
+WrappedLLVMContext* ExpressionBuilder::GetContext() const
 {
   return m_func_builder->GetContext();
 }
@@ -367,16 +366,13 @@ bool ExpressionBuilder::Visit(AST::PeekExpression* node)
 
   // TODO: Implicit conversions
   assert(node->GetIndexExpression()->GetType()->IsInt());
-  assert(m_func_builder->GetFilterBuilder()->GetPeekFunction() != nullptr);
-  m_result_value =
-    GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPeekFunction(), {index_eb.GetResultValue()});
+  m_result_value = m_func_builder->GetTargetFragmentBuilder()->BuildPeek(GetIRBuilder(), index_eb.GetResultValue());
   return IsValid();
 }
 
 bool ExpressionBuilder::Visit(AST::PopExpression* node)
 {
-  assert(m_func_builder->GetFilterBuilder()->GetPopFunction() != nullptr);
-  m_result_value = GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPopFunction());
+  m_result_value = m_func_builder->GetTargetFragmentBuilder()->BuildPop(GetIRBuilder());
   return IsValid();
 }
 

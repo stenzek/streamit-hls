@@ -304,29 +304,33 @@ void ParserState::DumpAST()
 
   LogInfo("Entry point: %s", m_entry_point_name.c_str());
 }
-const Type* ParserState::GetErrorType()
+
+const Type* ParserState::GetResultType(const Type* lhs, const Type* rhs)
 {
-  return m_error_type;
+  // same type -> same type
+  if (lhs == rhs)
+    return lhs;
+
+  // int + float -> float
+  if ((lhs->IsInt() || rhs->IsInt()) && (lhs->IsFloat() || rhs->IsFloat()))
+    return GetFloatType();
+
+  return GetErrorType();
 }
 
-const Type* ParserState::GetBooleanType()
+const Type* ParserState::GetArrayElementType(const ArrayType* ty)
 {
-  return m_boolean_type;
-}
+  if (ty->GetArraySizes().empty())
+    return GetErrorType();
 
-const Type* ParserState::GetBitType()
-{
-  return m_bit_type;
-}
+  // Last array index, or single-dimension array
+  if (ty->GetArraySizes().size() == 1)
+    return ty->GetBaseType();
 
-const Type* ParserState::GetIntType()
-{
-  return m_int_type;
-}
-
-const Type* ParserState::GetFloatType()
-{
-  return m_float_type;
+  // Drop one of the arrays off, so int[10][11][12] -> int[10][11].
+  std::vector<int> temp = ty->GetArraySizes();
+  temp.pop_back();
+  return GetArrayType(ty->GetBaseType(), temp);
 }
 
 void yyerror(ParserState* state, const char* s)

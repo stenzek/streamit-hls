@@ -1,64 +1,33 @@
-#include "frontend/filter_function_builder.h"
+#include "frontend/function_builder.h"
 #include <cassert>
-#include "frontend/context.h"
+#include "core/wrapped_llvm_context.h"
 #include "frontend/expression_builder.h"
-#include "frontend/filter_builder.h"
 #include "frontend/statement_builder.h"
 #include "parser/ast.h"
 
 namespace Frontend
 {
 
-FilterFunctionBuilder::FilterFunctionBuilder(Context* ctx, llvm::Module* mod, FilterBuilder* fb,
-                                             const std::string& name, llvm::Function* func)
-  : m_context(ctx), m_module(mod), m_filter_builder(fb), m_name(name), m_func(func),
+FunctionBuilder::FunctionBuilder(WrappedLLVMContext* ctx, llvm::Module* mod, TargetFragmentBuilder* target_builder,
+                                 llvm::Function* func)
+  : m_context(ctx), m_module(mod), m_target_builder(target_builder), m_func(func),
     m_entry_basic_block(llvm::BasicBlock::Create(ctx->GetLLVMContext(), "entry", func)),
     m_current_ir_builder(m_entry_basic_block)
 {
   m_current_basic_block = m_entry_basic_block;
 }
 
-FilterFunctionBuilder::~FilterFunctionBuilder()
+FunctionBuilder::~FunctionBuilder()
 {
 }
 
-Context* FilterFunctionBuilder::GetContext() const
-{
-  return m_context;
-}
-
-llvm::Module* FilterFunctionBuilder::GetModule() const
-{
-  return m_module;
-}
-
-FilterBuilder* FilterFunctionBuilder::GetFilterBuilder() const
-{
-  return m_filter_builder;
-}
-
-llvm::BasicBlock* FilterFunctionBuilder::GetEntryBasicBlock() const
-{
-  return m_current_basic_block;
-}
-
-llvm::BasicBlock* FilterFunctionBuilder::GetCurrentBasicBlock() const
-{
-  return m_current_basic_block;
-}
-
-llvm::IRBuilder<>& FilterFunctionBuilder::GetCurrentIRBuilder()
-{
-  return m_current_ir_builder;
-}
-
-void FilterFunctionBuilder::AddGlobalVariable(const AST::VariableDeclaration* var, llvm::GlobalVariable* gvar)
+void FunctionBuilder::AddGlobalVariable(const AST::VariableDeclaration* var, llvm::GlobalVariable* gvar)
 {
   assert(m_vars.find(var) == m_vars.end());
   m_vars.emplace(var, gvar);
 }
 
-llvm::AllocaInst* FilterFunctionBuilder::CreateVariable(const AST::VariableDeclaration* var)
+llvm::AllocaInst* FunctionBuilder::CreateVariable(const AST::VariableDeclaration* var)
 {
   llvm::Type* ty = GetContext()->GetLLVMType(var->GetType());
   if (!ty)
@@ -70,7 +39,7 @@ llvm::AllocaInst* FilterFunctionBuilder::CreateVariable(const AST::VariableDecla
   return ai;
 }
 
-llvm::Value* FilterFunctionBuilder::GetVariablePtr(const AST::VariableDeclaration* var)
+llvm::Value* FunctionBuilder::GetVariablePtr(const AST::VariableDeclaration* var)
 {
   auto it = m_vars.find(var);
   if (it == m_vars.end())
@@ -82,7 +51,7 @@ llvm::Value* FilterFunctionBuilder::GetVariablePtr(const AST::VariableDeclaratio
   return it->second;
 }
 
-llvm::Value* FilterFunctionBuilder::LoadVariable(const AST::VariableDeclaration* var)
+llvm::Value* FunctionBuilder::LoadVariable(const AST::VariableDeclaration* var)
 {
   auto it = m_vars.find(var);
   if (it == m_vars.end())
@@ -94,7 +63,7 @@ llvm::Value* FilterFunctionBuilder::LoadVariable(const AST::VariableDeclaration*
   return m_current_ir_builder.CreateLoad(it->second);
 }
 
-void FilterFunctionBuilder::StoreVariable(const AST::VariableDeclaration* var, llvm::Value* val)
+void FunctionBuilder::StoreVariable(const AST::VariableDeclaration* var, llvm::Value* val)
 {
   auto it = m_vars.find(var);
   if (it == m_vars.end())
@@ -106,60 +75,60 @@ void FilterFunctionBuilder::StoreVariable(const AST::VariableDeclaration* var, l
   m_current_ir_builder.CreateStore(val, it->second);
 }
 
-llvm::BasicBlock* FilterFunctionBuilder::NewBasicBlock(const std::string& name)
+llvm::BasicBlock* FunctionBuilder::NewBasicBlock(const std::string& name)
 {
   llvm::BasicBlock* old_bb = m_current_basic_block;
   SwitchBasicBlock(llvm::BasicBlock::Create(GetContext()->GetLLVMContext(), name, m_func));
   return old_bb;
 }
 
-void FilterFunctionBuilder::SwitchBasicBlock(llvm::BasicBlock* new_bb)
+void FunctionBuilder::SwitchBasicBlock(llvm::BasicBlock* new_bb)
 {
   m_current_basic_block = new_bb;
   m_current_ir_builder.SetInsertPoint(m_current_basic_block);
 }
 
-llvm::BasicBlock* FilterFunctionBuilder::GetCurrentBreakBasicBlock() const
+llvm::BasicBlock* FunctionBuilder::GetCurrentBreakBasicBlock() const
 {
   assert(!m_break_basic_block_stack.empty());
   return m_break_basic_block_stack.top();
 }
 
-void FilterFunctionBuilder::PushBreakBasicBlock(llvm::BasicBlock* bb)
+void FunctionBuilder::PushBreakBasicBlock(llvm::BasicBlock* bb)
 {
   m_break_basic_block_stack.push(bb);
 }
 
-void FilterFunctionBuilder::PopBreakBasicBlock()
+void FunctionBuilder::PopBreakBasicBlock()
 {
   assert(!m_break_basic_block_stack.empty());
   m_break_basic_block_stack.pop();
 }
 
-llvm::BasicBlock* FilterFunctionBuilder::GetCurrentContinueBasicBlock() const
+llvm::BasicBlock* FunctionBuilder::GetCurrentContinueBasicBlock() const
 {
   assert(!m_continue_basic_block_stack.empty());
   return m_continue_basic_block_stack.top();
 }
 
-void FilterFunctionBuilder::PushContinueBasicBlock(llvm::BasicBlock* bb)
+void FunctionBuilder::PushContinueBasicBlock(llvm::BasicBlock* bb)
 {
   m_continue_basic_block_stack.push(bb);
 }
 
-void FilterFunctionBuilder::PopContinueBasicBlock()
+void FunctionBuilder::PopContinueBasicBlock()
 {
   assert(!m_continue_basic_block_stack.empty());
   m_continue_basic_block_stack.pop();
 }
 
-bool FilterFunctionBuilder::Visit(AST::Node* node)
+bool FunctionBuilder::Visit(AST::Node* node)
 {
   assert(0 && "Fallback visit method called.");
   return false;
 }
 
-bool FilterFunctionBuilder::Visit(AST::VariableDeclaration* node)
+bool FunctionBuilder::Visit(AST::VariableDeclaration* node)
 {
   auto var = CreateVariable(node);
   if (!var)
@@ -185,7 +154,7 @@ bool FilterFunctionBuilder::Visit(AST::VariableDeclaration* node)
   return true;
 }
 
-bool FilterFunctionBuilder::Visit(AST::Statement* node)
+bool FunctionBuilder::Visit(AST::Statement* node)
 {
   StatementBuilder stmt_builder(this);
   return node->Accept(&stmt_builder);

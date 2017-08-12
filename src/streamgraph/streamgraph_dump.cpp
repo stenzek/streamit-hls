@@ -2,7 +2,7 @@
 #include <cstdarg>
 #include <sstream>
 #include "common/string_helpers.h"
-#include "frontend/stream_graph.h"
+#include "streamgraph/streamgraph.h"
 
 namespace StreamGraph
 {
@@ -156,11 +156,11 @@ bool StreamGraphDumpVisitor::Visit(Join* node)
   return true;
 }
 
-std::string DumpStreamGraph(Node* root)
+std::string StreamGraph::Dump()
 {
   StreamGraphDumpVisitor visitor;
   visitor.WriteLine("digraph G {");
-  root->Accept(&visitor);
+  m_root_node->Accept(&visitor);
   visitor.WriteLine("}");
   return visitor.ToString();
 }

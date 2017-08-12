@@ -1,8 +1,8 @@
-#include "frontend/stream_graph.h"
+#include "streamgraph/streamgraph.h"
 #include <cassert>
 #include "common/string_helpers.h"
-#include "frontend/stream_graph_builder.h"
 #include "parser/ast.h"
+#include "streamgraph/streamgraph_builder.h"
 
 namespace StreamGraph
 {
@@ -10,6 +10,15 @@ static bool IsStream(Node* node)
 {
   return (dynamic_cast<Filter*>(node) != nullptr || dynamic_cast<Pipeline*>(node) != nullptr ||
           dynamic_cast<SplitJoin*>(node) != nullptr);
+}
+
+StreamGraph::StreamGraph(Node* root) : m_root_node(root)
+{
+}
+
+StreamGraph::~StreamGraph()
+{
+  delete m_root_node;
 }
 
 Node::Node(const std::string& name, const Type* input_type, const Type* output_type)

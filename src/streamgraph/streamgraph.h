@@ -1,9 +1,12 @@
 #pragma once
+#include <memory>
 #include <string>
 #include <vector>
 #include "common/types.h"
 
 class Type;
+class ParserState;
+class WrappedLLVMContext;
 
 namespace AST
 {
@@ -12,7 +15,7 @@ class FilterDeclaration;
 
 namespace StreamGraph
 {
-
+class BuilderState;
 class Node;
 class Filter;
 class Pipeline;
@@ -21,9 +24,21 @@ class Split;
 class Join;
 using NodeList = std::vector<Node*>;
 using StringList = std::vector<std::string>;
-std::string DumpStreamGraph(Node* root);
 
-class BuilderState;
+class StreamGraph
+{
+public:
+  StreamGraph(Node* root);
+  ~StreamGraph();
+
+  Node* GetRootNode() const { return m_root_node; }
+  std::string Dump();
+
+private:
+  Node* m_root_node;
+};
+
+std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, ParserState* parser);
 
 class Visitor
 {

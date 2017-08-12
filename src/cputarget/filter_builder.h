@@ -1,6 +1,8 @@
 #pragma once
 #include <unordered_map>
 
+class WrappedLLVMContext;
+
 namespace llvm
 {
 class Constant;
@@ -17,18 +19,20 @@ class FilterWorkBlock;
 class VariableDeclaration;
 }
 
-namespace Frontend
+namespace StreamGraph
 {
-class Context;
+class Filter;
+}
 
+namespace CPUTarget
+{
 class FilterBuilder
 {
 public:
-  FilterBuilder(Context* context, llvm::Module* mod, const AST::FilterDeclaration* filter_decl,
-                const std::string& instance_name, const std::string& output_channel_name);
+  FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod);
   ~FilterBuilder();
 
-  Context* GetContext() const { return m_context; }
+  WrappedLLVMContext* GetContext() const { return m_context; }
   const AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
   const std::string& GetNamePrefix() const { return m_instance_name; }
   llvm::Function* GetInitFunction() const { return m_init_function; }
@@ -38,16 +42,16 @@ public:
   llvm::Constant* GetPopFunction() const { return m_pop_function; }
   llvm::Constant* GetPushFunction() const { return m_push_function; }
 
-  bool GenerateCode();
+  bool GenerateCode(const StreamGraph::Filter* filter);
 
 private:
   llvm::Function* GenerateFunction(AST::FilterWorkBlock* block, const std::string& name);
   bool GenerateGlobals();
   bool GenerateChannelPrototypes();
 
-  Context* m_context;
+  WrappedLLVMContext* m_context;
   llvm::Module* m_module;
-  const AST::FilterDeclaration* m_filter_decl;
+  const AST::FilterDeclaration* m_filter_decl = nullptr;
   std::string m_instance_name;
   std::string m_output_channel_name;
   std::unordered_map<const AST::VariableDeclaration*, llvm::GlobalVariable*> m_global_variable_map;
@@ -56,11 +60,9 @@ private:
   llvm::Function* m_prework_function = nullptr;
   llvm::Function* m_work_function = nullptr;
 
-  llvm::Type* m_input_buffer_type = nullptr;
-  llvm::GlobalVariable* m_input_buffer_var = nullptr;
   llvm::Constant* m_peek_function = nullptr;
   llvm::Constant* m_pop_function = nullptr;
   llvm::Constant* m_push_function = nullptr;
 };
 
-} // namespace Frontend
+} // namespace CPUTarget

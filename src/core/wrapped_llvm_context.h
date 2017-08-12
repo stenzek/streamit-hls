@@ -2,31 +2,24 @@
 #include <memory>
 #include <unordered_map>
 #include <vector>
-#include "llvm/IR/IRBuilder.h"
-#include "llvm/IR/LLVMContext.h"
 
 namespace llvm
 {
+class LLVMContext;
 class Constant;
 class Module;
 class Type;
 class Value;
 }
-namespace AST
-{
-class FilterDeclaration;
-}
 class Type;
 
-namespace Frontend
-{
-class Context
+class WrappedLLVMContext
 {
 public:
-  Context();
-  ~Context();
+  WrappedLLVMContext();
+  ~WrappedLLVMContext();
 
-  llvm::LLVMContext& GetLLVMContext() { return m_llvm_context; }
+  llvm::LLVMContext& GetLLVMContext() { return *m_llvm_context; }
   llvm::Type* GetLLVMType(const Type* type);
 
   llvm::Type* GetVoidType();
@@ -48,17 +41,18 @@ public:
   void LogInfo(const char* fmt, ...);
   void LogDebug(const char* fmt, ...);
 
-  void BuildDebugPrint(llvm::IRBuilder<>& builder, const char* msg);
-  void BuildDebugPrintf(llvm::IRBuilder<>& builder, const char* fmt, const std::vector<llvm::Value*>& args);
+  // void BuildDebugPrint(llvm::IRBuilder<>& builder, const char* msg);
+  // void BuildDebugPrintf(llvm::IRBuilder<>& builder, const char* fmt, const std::vector<llvm::Value*>& args);
+
+  static std::unique_ptr<WrappedLLVMContext> Create();
 
 private:
   llvm::Type* CreateLLVMType(const Type* type);
 
-  llvm::LLVMContext m_llvm_context;
+  std::unique_ptr<llvm::LLVMContext> m_llvm_context;
 
   using TypeMap = std::unordered_map<const Type*, llvm::Type*>;
   TypeMap m_type_map;
 
   int m_id_counter = 1;
 };
-}

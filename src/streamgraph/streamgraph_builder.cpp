@@ -1,4 +1,4 @@
-#include "frontend/stream_graph_builder.h"
+#include "streamgraph/streamgraph_builder.h"
 #include <algorithm>
 #include <cassert>
 #include <cstdarg>
@@ -7,9 +7,8 @@
 #include <stack>
 #include "common/log.h"
 #include "common/string_helpers.h"
-#include "frontend/context.h"
-#include "frontend/stream_graph.h"
-#include "frontend/stream_graph_function_builder.h"
+#include "core/type.h"
+#include "core/wrapped_llvm_context.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
@@ -18,13 +17,14 @@
 #include "llvm/Support/TargetSelect.h"
 #include "parser/ast.h"
 #include "parser/parser_state.h"
-#include "parser/type.h"
+#include "streamgraph/streamgraph.h"
+#include "streamgraph/streamgraph_function_builder.h"
 
 static std::unique_ptr<StreamGraph::BuilderState> s_builder_state;
 
 namespace StreamGraph
 {
-Builder::Builder(Frontend::Context* context, ParserState* state) : m_context(context), m_parser_state(state)
+Builder::Builder(WrappedLLVMContext* context, ParserState* state) : m_context(context), m_parser_state(state)
 {
   m_module = std::unique_ptr<llvm::Module>(m_context->CreateModule("streamgraph"));
 }
@@ -133,7 +133,7 @@ bool Builder::GenerateStreamFunction(AST::StreamDeclaration* decl)
   assert(iter != m_function_map.end());
   m_context->LogDebug("Generating stream function for %s", decl->GetName().c_str());
 
-  Frontend::StreamGraphFunctionBuilder builder(m_context, m_module.get(), decl->GetName(), iter->second);
+  StreamGraphFunctionBuilder builder(m_context, m_module.get(), iter->second);
   return decl->Accept(&builder);
 }
 
@@ -280,7 +280,7 @@ void BuilderState::EndSplitJoin(const char* name)
     delete p;
 }
 
-void BuilderState::Split(int mode)
+void BuilderState::SplitJoinSplit(int mode)
 {
   if (!HasTopNode())
   {
@@ -289,12 +289,12 @@ void BuilderState::Split(int mode)
   }
 
   std::string instance_name = GenerateName("split");
-  StreamGraph::Split* split = new StreamGraph::Split(instance_name);
+  Split* split = new Split(instance_name);
   if (!GetTopNode()->AddChild(this, split))
     delete split;
 }
 
-void BuilderState::Join()
+void BuilderState::SplitJoinJoin()
 {
   if (!HasTopNode())
   {
@@ -303,7 +303,7 @@ void BuilderState::Join()
   }
 
   std::string instance_name = GenerateName("join");
-  StreamGraph::Join* join = new StreamGraph::Join(instance_name);
+  Join* join = new Join(instance_name);
   if (!GetTopNode()->AddChild(this, join))
     delete join;
 }
@@ -318,7 +318,7 @@ bool BuilderState::HasTopNode() const
   return !m_node_stack.empty();
 }
 
-StreamGraph::Node* BuilderState::GetTopNode()
+Node* BuilderState::GetTopNode()
 {
   assert(!m_node_stack.empty());
   return m_node_stack.top();
@@ -328,8 +328,17 @@ void BuilderState::Error(const char* fmt, ...)
 {
   va_list ap;
   va_start(ap, fmt);
-  Log::Error("frontend", "%s", StringFromFormatV(fmt, ap).c_str());
+  Log::Error("stream_graph", "%s", StringFromFormatV(fmt, ap).c_str());
   va_end(ap);
+}
+
+std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, ParserState* parser)
+{
+  Builder builder(context, parser);
+  if (!builder.GenerateGraph() || !builder.GetStartNode())
+    return nullptr;
+
+  return std::make_unique<StreamGraph>(builder.GetStartNode());
 }
 
 } // namespace Frontend
@@ -371,12 +380,12 @@ EXPORT void StreamGraphBuilder_Split(int mode)
 {
   const char* mode_str = (mode == 0) ? "duplicate" : "roundrobin";
   Log::Debug("frontend", "StreamGraph Split %s", mode_str);
-  s_builder_state->Split(mode);
+  s_builder_state->SplitJoinSplit(mode);
 }
 EXPORT void StreamGraphBuilder_Join()
 {
   Log::Debug("frontend", "StreamGraph Join");
-  s_builder_state->Join();
+  s_builder_state->SplitJoinJoin();
 }
 EXPORT void StreamGraphBuilder_AddFilter(const char* name)
 {

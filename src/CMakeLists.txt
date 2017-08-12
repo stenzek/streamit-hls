@@ -1,6 +1,15 @@
+# Pull in LLVM includes for everything for consistency.
+if(LLVM_FOUND)
+  add_definitions("${LLVM_DEFINITIONS}")
+  include_directories("${LLVM_INCLUDE_DIRS}")
+else()
+  message(WARNING "LLVM not found, compile will likely fail.")
+endif()
+
 add_subdirectory(common)
+add_subdirectory(core)
 add_subdirectory(parser)
 add_subdirectory(frontend)
-add_subdirectory(ast_dump)
-add_subdirectory(compiler)
-add_subdirectory(runtime_library)
+add_subdirectory(streamgraph)
+add_subdirectory(cputarget)
+add_subdirectory(cpucompiler)

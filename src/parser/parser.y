@@ -1,11 +1,11 @@
 %{
 #include <cassert>
 #include <cstring>
+#include "core/type.h"
 #include "parser/scanner.h"
 #include "parser/parser_defines.h"
 #include "parser/parser_state.h"
 #include "parser/ast.h"
-#include "parser/type.h"
 
 using namespace AST;
 

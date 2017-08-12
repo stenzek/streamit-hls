@@ -1,17 +1,16 @@
 #include "frontend/statement_builder.h"
 #include <cassert>
-#include "frontend/context.h"
+#include "core/type.h"
+#include "core/wrapped_llvm_context.h"
 #include "frontend/expression_builder.h"
-#include "frontend/filter_builder.h"
-#include "frontend/filter_function_builder.h"
+#include "frontend/function_builder.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
-#include "parser/type.h"
 
 namespace Frontend
 {
-StatementBuilder::StatementBuilder(FilterFunctionBuilder* bb_builder) : m_func_builder(bb_builder)
+StatementBuilder::StatementBuilder(FunctionBuilder* bb_builder) : m_func_builder(bb_builder)
 {
 }
 
@@ -19,7 +18,7 @@ StatementBuilder::~StatementBuilder()
 {
 }
 
-Context* StatementBuilder::GetContext() const
+WrappedLLVMContext* StatementBuilder::GetContext() const
 {
   return m_func_builder->GetContext();
 }
@@ -182,12 +181,7 @@ bool StatementBuilder::Visit(AST::PushStatement* node)
   if (!node->GetValueExpression()->Accept(&eb) || !eb.IsValid())
     return false;
 
-  // TODO: Implicit type conversion
-  assert(node->GetValueExpression()->GetType() ==
-         m_func_builder->GetFilterBuilder()->GetFilterDeclaration()->GetOutputType());
-  assert(m_func_builder->GetFilterBuilder()->GetPushFunction() != nullptr);
-  GetIRBuilder().CreateCall(m_func_builder->GetFilterBuilder()->GetPushFunction(), {eb.GetResultValue()});
-  return true;
+  return m_func_builder->GetTargetFragmentBuilder()->BuildPush(GetIRBuilder(), eb.GetResultValue());
 }
 
 bool StatementBuilder::Visit(AST::AddStatement* node)

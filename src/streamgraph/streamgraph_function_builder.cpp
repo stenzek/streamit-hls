@@ -1,22 +1,33 @@
-#include "frontend/stream_graph_function_builder.h"
+#include "streamgraph/streamgraph_function_builder.h"
 #include <cassert>
-#include "frontend/context.h"
+#include "core/wrapped_llvm_context.h"
 #include "frontend/expression_builder.h"
-#include "frontend/filter_builder.h"
 #include "frontend/statement_builder.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
 
-namespace Frontend
+namespace StreamGraph
 {
-StreamGraphFunctionBuilder::StreamGraphFunctionBuilder(Context* ctx, llvm::Module* mod, const std::string& name,
-                                                       llvm::Function* func)
-  : FilterFunctionBuilder(ctx, mod, nullptr, name, func)
+// Dummy interface for push/pop/peek
+struct StreamGraphTargetFragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
+{
+  StreamGraphTargetFragmentBuilder() = default;
+  ~StreamGraphTargetFragmentBuilder() = default;
+
+  llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final { return nullptr; }
+  llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) override final { return nullptr; }
+  bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final { return false; }
+};
+
+StreamGraphFunctionBuilder::StreamGraphFunctionBuilder(WrappedLLVMContext* ctx, llvm::Module* mod, llvm::Function* func)
+  : Frontend::FunctionBuilder(ctx, mod, new StreamGraphTargetFragmentBuilder(), func)
 {
 }
 
 StreamGraphFunctionBuilder::~StreamGraphFunctionBuilder()
 {
+  delete m_target_builder;
+  m_target_builder = nullptr;
 }
 
 bool StreamGraphFunctionBuilder::Visit(AST::FilterDeclaration* node)

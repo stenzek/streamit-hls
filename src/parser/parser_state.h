@@ -4,8 +4,8 @@
 #include <memory>
 #include <string>
 #include <vector>
+#include "core/type.h"
 #include "parser/ast.h"
-#include "parser/type.h"
 
 class ParserState
 {
@@ -49,11 +49,15 @@ public:
   const Type* GetArrayType(const Type* base_type, const std::vector<int>& array_sizes);
 
   // Primitive type instances
-  const Type* GetErrorType();
-  const Type* GetBooleanType();
-  const Type* GetBitType();
-  const Type* GetIntType();
-  const Type* GetFloatType();
+  const Type* GetErrorType() const { return m_error_type; }
+  const Type* GetBooleanType() const { return m_boolean_type; }
+  const Type* GetBitType() const { return m_bit_type; }
+  const Type* GetIntType() const { return m_int_type; }
+  const Type* GetFloatType() const { return m_float_type; }
+
+  // Implicit type conversions
+  const Type* GetResultType(const Type* lhs, const Type* rhs);
+  const Type* GetArrayElementType(const ArrayType* ty);
 
   // Filters can't be nested? So this should be sufficient.
   // TODO: Kinda messy though. Maybe would be better placed in the symbol table.

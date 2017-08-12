@@ -3,6 +3,9 @@
 #include <stack>
 #include <unordered_map>
 
+class ParserState;
+class WrappedLLVMContext;
+
 namespace llvm
 {
 class Constant;
@@ -11,13 +14,10 @@ class Function;
 class GlobalVariable;
 class Module;
 }
+
 namespace AST
 {
 class StreamDeclaration;
-}
-namespace Frontend
-{
-class Context;
 }
 
 namespace StreamGraph
@@ -25,14 +25,12 @@ namespace StreamGraph
 class Node;
 }
 
-class ParserState;
-
 namespace StreamGraph
 {
 class Builder
 {
 public:
-  Builder(Frontend::Context* context, ParserState* state);
+  Builder(WrappedLLVMContext* context, ParserState* state);
   ~Builder();
 
   Node* GetStartNode() const { return m_start_node; }
@@ -49,7 +47,7 @@ private:
   bool CreateExecutionEngine();
   void ExecuteMain();
 
-  Frontend::Context* m_context;
+  WrappedLLVMContext* m_context;
   ParserState* m_parser_state;
   std::unique_ptr<llvm::Module> m_module;
   std::unordered_map<const AST::StreamDeclaration*, llvm::Function*> m_function_map;
@@ -73,8 +71,8 @@ public:
   void EndPipeline(const char* name);
   void BeginSplitJoin(const char* name);
   void EndSplitJoin(const char* name);
-  void Split(int mode);
-  void Join();
+  void SplitJoinSplit(int mode);
+  void SplitJoinJoin();
 
   std::string GenerateName(const char* prefix);
   void Error(const char* fmt, ...);

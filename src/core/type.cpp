@@ -1,6 +1,6 @@
-#include "parser/type.h"
+#include "core/type.h"
 #include <cassert>
-#include "parser/parser_state.h"
+#include "common/string_helpers.h"
 
 bool Type::IsValid() const
 {
@@ -147,34 +147,6 @@ Type* ArrayType::Create(const Type* base_type, const std::vector<int>& array_siz
   for (int sz : array_sizes)
     ty->m_name += StringFromFormat("[%d]", sz);
   return ty;
-}
-
-const Type* Type::GetResultType(ParserState* state, const Type* lhs, const Type* rhs)
-{
-  // same type -> same type
-  if (lhs == rhs)
-    return lhs;
-
-  // int + float -> float
-  if ((lhs->IsInt() || rhs->IsInt()) && (lhs->IsFloat() || rhs->IsFloat()))
-    return state->GetFloatType();
-
-  return state->GetErrorType();
-}
-
-const Type* ArrayType::GetArrayElementType(ParserState* state) const
-{
-  if (m_array_sizes.empty())
-    return state->GetErrorType();
-
-  // Last array index, or single-dimension array
-  if (m_array_sizes.size() == 1)
-    return m_base_type;
-
-  // Drop one of the arrays off, so int[10][11][12] -> int[10][11].
-  std::vector<int> temp = m_array_sizes;
-  temp.pop_back();
-  return state->GetArrayType(m_base_type, temp);
 }
 
 Type* FunctionType::Create(const Type* return_type, const std::vector<const Type*>& param_types)

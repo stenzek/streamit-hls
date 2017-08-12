@@ -1,23 +1,24 @@
-#include "frontend/channel_builder.h"
+#include "cputarget/channel_builder.h"
 #include <cassert>
 #include <vector>
+#include "common/log.h"
 #include "common/string_helpers.h"
-#include "frontend/context.h"
-#include "frontend/stream_graph.h"
+#include "core/type.h"
+#include "core/wrapped_llvm_context.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
-#include "parser/type.h"
+#include "streamgraph/streamgraph.h"
 
-namespace Frontend
+namespace CPUTarget
 {
 constexpr unsigned int FIFO_QUEUE_SIZE = 64;
 
-ChannelBuilder::ChannelBuilder(Context* context, llvm::Module* mod, const std::string& instance_name)
-  : m_context(context), m_module(mod), m_instance_name(instance_name)
+ChannelBuilder::ChannelBuilder(WrappedLLVMContext* context, llvm::Module* mod) : m_context(context), m_module(mod)
 {
 }
 
@@ -27,6 +28,7 @@ ChannelBuilder::~ChannelBuilder()
 
 bool ChannelBuilder::GenerateCode(StreamGraph::Filter* filter)
 {
+  m_instance_name = filter->GetName();
   if (filter->GetFilterDeclaration()->GetInputType()->IsVoid())
     return true;
 
@@ -36,11 +38,13 @@ bool ChannelBuilder::GenerateCode(StreamGraph::Filter* filter)
 
 bool ChannelBuilder::GenerateCode(StreamGraph::Split* split, int mode)
 {
+  m_instance_name = split->GetName();
   return (GenerateSplitGlobals(split, mode) && GenerateSplitPushFunction(split, mode));
 }
 
 bool ChannelBuilder::GenerateCode(StreamGraph::Join* join)
 {
+  m_instance_name = join->GetName();
   return (GenerateJoinGlobals(join) && GenerateJoinSyncFunction(join) && GenerateJoinPushFunction(join));
 }
 
@@ -83,6 +87,8 @@ bool ChannelBuilder::GenerateFilterPeekFunction(StreamGraph::Filter* filter)
   if (!func)
     return false;
 
+  func->setLinkage(llvm::GlobalValue::PrivateLinkage);
+
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
 
@@ -122,6 +128,8 @@ bool ChannelBuilder::GenerateFilterPopFunction(StreamGraph::Filter* filter)
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return false;
+
+  func->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
@@ -171,6 +179,8 @@ bool ChannelBuilder::GenerateFilterPushFunction(StreamGraph::Filter* filter)
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return false;
+
+  func->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
@@ -250,7 +260,7 @@ bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split, int mo
                                                          m_context->GetVoidType(), data_ty, nullptr);
     if (!func)
     {
-      m_context->LogError("Failed to get function pointer '%s_push'", output_name.c_str());
+      Log::Error("ChannelBuilder", "Failed to get function pointer '%s_push'", output_name.c_str());
       return false;
     }
 
@@ -265,6 +275,8 @@ bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split, int mo
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return false;
+
+  func->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
@@ -333,7 +345,7 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
     StringFromFormat("%s_push", join->GetOutputChannelName().c_str()), m_context->GetVoidType(), data_ty, nullptr);
   if (!output_func)
   {
-    m_context->LogError("Failed to get output function '%s_push'", join->GetOutputChannelName().c_str());
+    Log::Error("ChannelBuilder", "Failed to get output function '%s_push'", join->GetOutputChannelName().c_str());
     return false;
   }
 
@@ -344,6 +356,8 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return false;
+
+  func->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry_bb", func);
   llvm::BasicBlock* compare_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "compare_bb", func);
@@ -420,7 +434,7 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
                                                             m_context->GetVoidType(), nullptr);
   if (!sync_func)
   {
-    m_context->LogError("Failed to get sync function '%s_sync'", m_instance_name.c_str());
+    Log::Error("ChannelBuilder", "Failed to get sync function '%s_sync'", m_instance_name.c_str());
     return false;
   }
 
@@ -434,6 +448,8 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
     llvm::Function* func = llvm::cast<llvm::Function>(push_func);
     if (!func)
       return false;
+
+    func->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
     llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
     llvm::IRBuilder<> builder(entry_bb);

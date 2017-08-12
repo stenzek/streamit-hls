@@ -5,30 +5,36 @@
 #include "llvm/IR/IRBuilder.h"
 #include "parser/ast_visitor.h"
 
+class WrappedLLVMContext;
+
 namespace Frontend
 {
-class Context;
-class FilterBuilder;
-
-class FilterFunctionBuilder : public AST::Visitor
+class FunctionBuilder : public AST::Visitor
 {
 public:
+  struct TargetFragmentBuilder
+  {
+    virtual llvm::Value* BuildPop(llvm::IRBuilder<>& builder) = 0;
+    virtual llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) = 0;
+    virtual bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) = 0;
+  };
+
   using VariableTable = std::unordered_map<const AST::VariableDeclaration*, llvm::Value*>;
 
-  FilterFunctionBuilder(Context* ctx, llvm::Module* mod, FilterBuilder* fb, const std::string& name,
-                        llvm::Function* func);
-  ~FilterFunctionBuilder();
+  FunctionBuilder(WrappedLLVMContext* ctx, llvm::Module* mod, TargetFragmentBuilder* target_builder,
+                  llvm::Function* func);
+  ~FunctionBuilder();
 
   bool Visit(AST::Node* node) override;
   bool Visit(AST::VariableDeclaration* node) override;
   bool Visit(AST::Statement* node) override;
 
-  Context* GetContext() const;
-  llvm::Module* GetModule() const;
-  FilterBuilder* GetFilterBuilder() const;
-  llvm::BasicBlock* GetEntryBasicBlock() const;
-  llvm::BasicBlock* GetCurrentBasicBlock() const;
-  llvm::IRBuilder<>& GetCurrentIRBuilder();
+  WrappedLLVMContext* GetContext() const { return m_context; }
+  llvm::Module* GetModule() const { return m_module; }
+  TargetFragmentBuilder* GetTargetFragmentBuilder() const { return m_target_builder; }
+  llvm::BasicBlock* GetEntryBasicBlock() const { return m_entry_basic_block; }
+  llvm::BasicBlock* GetCurrentBasicBlock() const { return m_current_basic_block; }
+  llvm::IRBuilder<>& GetCurrentIRBuilder() { return m_current_ir_builder; }
 
   void AddGlobalVariable(const AST::VariableDeclaration* var, llvm::GlobalVariable* gvar);
   llvm::AllocaInst* CreateVariable(const AST::VariableDeclaration* var);
@@ -51,11 +57,9 @@ public:
   void PopContinueBasicBlock();
 
 protected:
-  Context* m_context;
+  WrappedLLVMContext* m_context;
   llvm::Module* m_module;
-  FilterBuilder* m_filter_builder;
-  FilterFunctionBuilder* m_parent;
-  std::string m_name;
+  TargetFragmentBuilder* m_target_builder;
   llvm::Function* m_func;
   llvm::BasicBlock* m_entry_basic_block;
   llvm::BasicBlock* m_current_basic_block;

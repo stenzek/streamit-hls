@@ -51,8 +51,6 @@ public:
 
   static Type* CreatePrimitive(TypeId base);
 
-  static const Type* GetResultType(ParserState* state, const Type* lhs, const Type* rhs);
-
 protected:
   Type() = default;
 
@@ -67,7 +65,6 @@ public:
   ~ArrayType() = default;
 
   const std::vector<int>& GetArraySizes() const { return m_array_sizes; }
-  const Type* GetArrayElementType(ParserState* state) const;
 
   static Type* Create(const Type* base_type, const std::vector<int>& array_sizes);
 

@@ -1,15 +1,14 @@
 #include "frontend/constant_expression_builder.h"
 #include <cassert>
-#include "frontend/context.h"
-#include "frontend/filter_function_builder.h"
+#include "core/type.h"
+#include "core/wrapped_llvm_context.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constants.h"
 #include "parser/ast.h"
-#include "parser/type.h"
 
 namespace Frontend
 {
-ConstantExpressionBuilder::ConstantExpressionBuilder(Context* context) : m_context(context)
+ConstantExpressionBuilder::ConstantExpressionBuilder(WrappedLLVMContext* context) : m_context(context)
 {
 }
 
