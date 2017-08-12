@@ -6,8 +6,11 @@
 #include "common/log.h"
 #include "core/wrapped_llvm_context.h"
 #include "hlstarget/program_builder.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Signals.h"
+#include "llvm/Support/raw_ostream.h"
 #include "parser/ast.h"
 #include "parser/ast_printer.h"
 #include "parser/parser_state.h"
@@ -213,10 +216,18 @@ void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod)
   ctx->DumpModule(mod);
 }
 
+extern void addCBackendPasses(llvm::legacy::PassManagerBase& PM, llvm::raw_pwrite_stream& Out);
+
 void WriteCFile(WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename)
 {
   Log::Info("HLSCompiler", "Writing C code to %s...", filename);
-  Log::Error("HLSCompiler", "fixme");
+
+  std::error_code ec;
+  llvm::raw_fd_ostream os(filename, ec, llvm::sys::fs::F_None);
+
+  llvm::legacy::PassManager pm;
+  addCBackendPasses(pm, os);
+  pm.run(*mod);
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
