@@ -1,5 +1,5 @@
 #include <cstdarg>
-#include "common/log.h"
+#include <cstdio>
 
 // TODO: Move this elsewhere
 #if defined(_WIN32) || defined(__CYGWIN__)
@@ -10,13 +10,15 @@
 
 extern "C" void streamit_debug_print(const char* msg)
 {
-  Log::Debug("debug", "%s", msg);
+  std::fprintf(stdout, "streamit_debug_print: %s\n", msg);
 }
 
 extern "C" void streamit_debug_printf(const char* fmt, ...)
 {
   std::va_list ap;
   va_start(ap, fmt);
-  Log::Writev("debug", __FUNCTION__, LOGLEVEL_DEV, fmt, ap);
+  std::fprintf(stdout, "streamit_debug_print: ");
+  std::vfprintf(stdout, fmt, ap);
+  std::fprintf(stdout, "\n");
   va_end(ap);
 }

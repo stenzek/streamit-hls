@@ -40,20 +40,20 @@ bool Builder::GenerateGraph()
 
   if (!m_context->VerifyModule(m_module.get()))
   {
-    m_context->LogError("Stream graph module verification failed");
+    Log::Error("StreamGraphBuilder", "Stream graph module verification failed");
     m_context->DumpModule(m_module.get());
   }
 
-  m_context->LogInfo("Creating execution engine");
+  Log::Info("StreamGraphBuilder", "Creating execution engine");
   if (!CreateExecutionEngine())
     return false;
 
-  m_context->LogInfo("Executing main");
+  Log::Info("StreamGraphBuilder", "Executing main");
   ExecuteMain();
 
   if (!m_start_node)
   {
-    m_context->LogError("No root node found.");
+    Log::Error("StreamGraphBuilder", "No root node found.");
     return false;
   }
 
@@ -131,7 +131,7 @@ bool Builder::GenerateStreamFunction(AST::StreamDeclaration* decl)
 {
   auto iter = m_function_map.find(decl);
   assert(iter != m_function_map.end());
-  m_context->LogDebug("Generating stream function for %s", decl->GetName().c_str());
+  Log::Debug("StreamGraphBuilder", "Generating stream function for %s", decl->GetName().c_str());
 
   StreamGraphFunctionBuilder builder(m_context, m_module.get(), iter->second);
   return decl->Accept(&builder);
@@ -176,7 +176,7 @@ bool Builder::CreateExecutionEngine()
 
   if (!m_execution_engine)
   {
-    m_context->LogError("Failed to create LLVM execution engine: %s", error_msg.c_str());
+    Log::Error("StreamGraphBuilder", "Failed to create LLVM execution engine: %s", error_msg.c_str());
     return false;
   }
 
@@ -357,40 +357,40 @@ extern "C" {
 EXPORT void StreamGraphBuilder_BeginPipeline(const char* name)
 {
   // Begin new pipeline
-  Log::Debug("frontend", "StreamGraph BeginPipeline %s", name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph BeginPipeline %s", name);
   s_builder_state->BeginPipeline(name);
 }
 EXPORT void StreamGraphBuilder_EndPipeline(const char* name)
 {
   // End pipeline and add to parent
-  Log::Debug("frontend", "StreamGraph EndPipeline %s", name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph EndPipeline %s", name);
   s_builder_state->EndPipeline(name);
 }
 EXPORT void StreamGraphBuilder_BeginSplitJoin(const char* name)
 {
-  Log::Debug("frontend", "StreamGraph BeginSplitJoin %s", name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph BeginSplitJoin %s", name);
   s_builder_state->BeginSplitJoin(name);
 }
 EXPORT void StreamGraphBuilder_EndSplitJoin(const char* name)
 {
-  Log::Debug("frontend", "StreamGraph EndSplitJoin %s", name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph EndSplitJoin %s", name);
   s_builder_state->EndSplitJoin(name);
 }
 EXPORT void StreamGraphBuilder_Split(int mode)
 {
   const char* mode_str = (mode == 0) ? "duplicate" : "roundrobin";
-  Log::Debug("frontend", "StreamGraph Split %s", mode_str);
+  Log::Debug("StreamGraphBuilder", "StreamGraph Split %s", mode_str);
   s_builder_state->SplitJoinSplit(mode);
 }
 EXPORT void StreamGraphBuilder_Join()
 {
-  Log::Debug("frontend", "StreamGraph Join");
+  Log::Debug("StreamGraphBuilder", "StreamGraph Join");
   s_builder_state->SplitJoinJoin();
 }
 EXPORT void StreamGraphBuilder_AddFilter(const char* name)
 {
   // Direct add to current
-  Log::Debug("frontend", "StreamGraph AddFilter %s", name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph AddFilter %s", name);
   s_builder_state->AddFilter(name);
 }
 }

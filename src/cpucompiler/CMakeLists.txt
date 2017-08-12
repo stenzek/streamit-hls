@@ -8,7 +8,7 @@ target_include_directories(streamit-cpu-compiler PRIVATE "${CMAKE_CURRENT_BINARY
 target_link_libraries(streamit-cpu-compiler common core parser frontend streamgraph cputarget)
 
 if(LLVM_FOUND)
-    llvm_map_components_to_libnames(llvm_libs support core executionengine mcjit native)
+    llvm_map_components_to_libnames(llvm_libs support core executionengine mcjit native bitwriter)
     target_link_libraries(streamit-cpu-compiler ${llvm_libs})
 endif()
 
