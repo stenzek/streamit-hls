@@ -7,6 +7,7 @@
 #include "frontend/constant_expression_builder.h"
 #include "frontend/function_builder.h"
 #include "frontend/state_variables_builder.h"
+#include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -20,12 +21,12 @@ namespace HLSTarget
 // Dummy interface for push/pop/peek
 struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
-  FragmentBuilder() {}
+  FragmentBuilder(llvm::Value* in_ptr, llvm::Value* out_ptr) : m_in_ptr(in_ptr), m_out_ptr(out_ptr) {}
 
   llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final
   {
-    Log::Warning("BuildPop", "fixme");
-    return builder.getInt32(0);
+    assert(m_in_ptr != nullptr);
+    return builder.CreateLoad(m_in_ptr, true, "pop");
   }
 
   llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) override final
@@ -36,11 +37,14 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 
   bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
   {
-    Log::Warning("BuildPush", "fixme");
+    assert(m_out_ptr != nullptr);
+    builder.CreateStore(value, m_out_ptr, true);
     return true;
   }
 
 private:
+  llvm::Value* m_in_ptr;
+  llvm::Value* m_out_ptr;
 };
 
 FilterBuilder::FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod) : m_context(context), m_module(mod)
@@ -78,14 +82,47 @@ bool FilterBuilder::GenerateCode(const StreamGraph::Filter* filter)
 llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, const std::string& name)
 {
   assert(m_module->getFunction(name.c_str()) == nullptr);
+
   llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), ret_type, nullptr);
+  llvm::SmallVector<llvm::Type*, 2> params;
+
+  if (!m_filter_decl->GetInputType()->IsVoid())
+  {
+    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+    llvm::Type* pointer_ty = llvm::PointerType::get(llvm_ty, 0);
+    assert(pointer_ty != nullptr);
+    params.push_back(pointer_ty);
+  }
+  if (!m_filter_decl->GetOutputType()->IsVoid())
+  {
+    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
+    llvm::Type* pointer_ty = llvm::PointerType::get(llvm_ty, 0);
+    assert(pointer_ty != nullptr);
+    params.push_back(pointer_ty);
+  }
+
+  llvm::FunctionType* func_type = llvm::FunctionType::get(ret_type, params, false);
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), func_type);
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   if (!func)
     return nullptr;
 
+  llvm::Value* in_ptr = nullptr;
+  llvm::Value* out_ptr = nullptr;
+  auto args_iter = func->arg_begin();
+  if (!m_filter_decl->GetInputType()->IsVoid())
+  {
+    in_ptr = &(*args_iter++);
+    in_ptr->setName("in_ptr");
+  }
+  if (!m_filter_decl->GetOutputType()->IsVoid())
+  {
+    out_ptr = &(*args_iter++);
+    out_ptr->setName("out_ptr");
+  }
+
   // Start at the entry basic block for the work function.
-  FragmentBuilder fragment_builder;
+  FragmentBuilder fragment_builder(in_ptr, out_ptr);
   Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, func);
 
   // Add global variable references
