@@ -11,7 +11,10 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Transforms/Scalar.h"
 #include "parser/ast.h"
 #include "streamgraph/streamgraph.h"
 
@@ -37,12 +40,28 @@ std::unique_ptr<llvm::Module> ProgramBuilder::DetachModule()
   return std::move(modptr);
 }
 
+static bool debug_opt = false;
+
 bool ProgramBuilder::GenerateCode(StreamGraph::StreamGraph* streamgraph)
 {
   CreateModule();
 
   if (!GenerateFilterFunctions(streamgraph))
     return false;
+
+  if (debug_opt)
+  {
+    Log::Info("ProgramBuilder", "IR prior to optimization");
+    m_context->DumpModule(m_module);
+  }
+
+  OptimizeModule();
+
+  if (debug_opt)
+  {
+    Log::Info("ProgramBuilder", "IR after optimization");
+    m_context->DumpModule(m_module);
+  }
 
   return true;
 }
@@ -126,6 +145,37 @@ bool ProgramBuilder::GenerateFilterFunctions(StreamGraph::StreamGraph* streamgra
 
   CodeGeneratorVisitor codegen(m_context, m_module);
   return streamgraph->GetRootNode()->Accept(&codegen);
+}
+
+void ProgramBuilder::OptimizeModule()
+{
+  Log::Info("ProgramBuilder", "Optimizing LLVM IR...");
+
+  llvm::legacy::FunctionPassManager fpm(m_module);
+  llvm::legacy::PassManager mpm;
+
+  // Use standard -O2 optimizations, except disable loop unrolling.
+  llvm::PassManagerBuilder builder;
+  builder.OptLevel = 2;
+  builder.DisableTailCalls = true;
+  builder.DisableUnrollLoops = true;
+
+  // Add loop unrolling passes afterwards with more aggressive parameters.
+  builder.addExtension(llvm::PassManagerBuilder::EP_LoopOptimizerEnd,
+                       [](const llvm::PassManagerBuilder& builder, llvm::legacy::PassManagerBase& pm) {
+                         pm.add(llvm::createLoopUnrollPass(-1 /* threshold */, -1 /* count */, -1 /* allowpartial */,
+                                                           -1 /* runtime */, -1 /* upperbound */));
+                       });
+
+  builder.populateFunctionPassManager(fpm);
+  builder.populateModulePassManager(mpm);
+
+  fpm.doInitialization();
+  for (llvm::Function& F : *m_module)
+    fpm.run(F);
+  fpm.doFinalization();
+
+  mpm.run(*m_module);
 }
 
 } // namespace HLSTarget

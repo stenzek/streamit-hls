@@ -39,6 +39,7 @@ public:
 private:
   void CreateModule();
   bool GenerateFilterFunctions(StreamGraph::StreamGraph* streamgraph);
+  void OptimizeModule();
 
   WrappedLLVMContext* m_context;
   std::string m_module_name;
