@@ -75,8 +75,6 @@ class CWriter : public FunctionPass, public InstVisitor<CWriter>
 
   std::set<Type*> TypedefDeclTypes;
   std::set<Type*> SelectDeclTypes;
-  std::set<std::pair<CmpInst::Predicate, VectorType*>> CmpDeclTypes;
-  std::set<std::pair<CastInst::CastOps, std::pair<Type*, Type*>>> CastOpDeclTypes;
   std::set<std::pair<unsigned, Type*>> InlineOpDeclTypes;
   std::set<Type*> CtorDeclTypes;
 
@@ -221,9 +219,6 @@ private:
   void visitStoreInst(StoreInst& I);
   void visitGetElementPtrInst(GetElementPtrInst& I);
   void visitVAArgInst(VAArgInst& I);
-
-  void visitInsertElementInst(InsertElementInst& I);
-  void visitExtractElementInst(ExtractElementInst& I);
 
   void visitInsertValueInst(InsertValueInst& I);
   void visitExtractValueInst(ExtractValueInst& I);

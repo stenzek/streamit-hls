@@ -57,8 +57,6 @@ static bool isEmptyType(Type* Ty)
   if (StructType* STy = dyn_cast<StructType>(Ty))
     return STy->getNumElements() == 0 ||
            std::all_of(STy->element_begin(), STy->element_end(), [](Type* T) { return isEmptyType(T); });
-  if (VectorType* VTy = dyn_cast<VectorType>(Ty))
-    return VTy->getNumElements() == 0 || isEmptyType(VTy->getElementType());
   if (ArrayType* ATy = dyn_cast<ArrayType>(Ty))
     return ATy->getNumElements() == 0 || isEmptyType(ATy->getElementType());
   return Ty->isVoidTy();
@@ -200,23 +198,6 @@ raw_ostream& CWriter::printTypeString(raw_ostream& Out, Type* Ty, bool isSigned)
     return Out << "f32";
   case Type::DoubleTyID:
     return Out << "f64";
-  case Type::X86_FP80TyID:
-    return Out << "f80";
-  case Type::PPC_FP128TyID:
-  case Type::FP128TyID:
-    return Out << "f128";
-
-  case Type::X86_MMXTyID:
-    return Out << (isSigned ? "i32y2" : "u32y2");
-
-  case Type::VectorTyID:
-  {
-    TypedefDeclTypes.insert(Ty);
-    VectorType* VTy = cast<VectorType>(Ty);
-    assert(VTy->getNumElements() != 0);
-    printTypeString(Out, VTy->getElementType(), isSigned);
-    return Out << "x" << VTy->getNumElements();
-  }
 
   case Type::ArrayTyID:
   {
@@ -358,15 +339,6 @@ raw_ostream& CWriter::printSimpleType(raw_ostream& Out, Type* Ty, bool isSigned)
     return Out << "float";
   case Type::DoubleTyID:
     return Out << "double";
-  // Lacking emulation of FP80 on PPC, etc., we assume whichever of these is
-  // present matches host 'long double'.
-  case Type::X86_FP80TyID:
-  case Type::PPC_FP128TyID:
-  case Type::FP128TyID:
-    return Out << "long double";
-
-  case Type::X86_MMXTyID:
-    return Out << (isSigned ? "int32_t" : "uint32_t") << " __attribute__((vector_size(8)))";
 
   default:
 #ifndef NDEBUG
@@ -384,7 +356,7 @@ raw_ostream& CWriter::printTypeName(raw_ostream& Out, Type* Ty, bool isSigned,
 {
   if (Ty->isSingleValueType() || Ty->isVoidTy())
   {
-    if (!Ty->isPointerTy() && !Ty->isVectorTy())
+    if (!Ty->isPointerTy())
       return printSimpleType(Out, Ty, isSigned);
   }
 
@@ -1728,8 +1700,6 @@ bool CWriter::doFinalization(Module& M)
   UnnamedFunctionIDs.clear();
   TypedefDeclTypes.clear();
   SelectDeclTypes.clear();
-  CmpDeclTypes.clear();
-  CastOpDeclTypes.clear();
   InlineOpDeclTypes.clear();
   CtorDeclTypes.clear();
   prototypesToGen.clear();
@@ -1955,265 +1925,29 @@ void CWriter::generateHeader(Module& M)
   // Loop over all select operations
   for (std::set<Type*>::iterator it = SelectDeclTypes.begin(), end = SelectDeclTypes.end(); it != end; ++it)
   {
-    // static FORCEINLINE Rty llvm_select_u8x4(<bool x 4> condition, <u8 x 4> iftrue, <u8 x 4> ifnot) {
-    //   Rty r = {
-    //     condition[0] ? iftrue[0] : ifnot[0],
-    //     condition[1] ? iftrue[1] : ifnot[1],
-    //     condition[2] ? iftrue[2] : ifnot[2],
-    //     condition[3] ? iftrue[3] : ifnot[3]
-    //   };
-    //   return r;
-    // }
     Out << "static FORCEINLINE ";
     printTypeNameUnaligned(Out, *it, false);
     Out << " llvm_select_";
     printTypeString(Out, *it, false);
-    Out << "(";
-    if (isa<VectorType>(*it))
-      printTypeNameUnaligned(Out, VectorType::get(Type::getInt1Ty((*it)->getContext()), (*it)->getVectorNumElements()),
-                             false);
-    else
-      Out << "bool";
-    Out << " condition, ";
+    Out << "(bool condition, ";
     printTypeNameUnaligned(Out, *it, false);
     Out << " iftrue, ";
     printTypeNameUnaligned(Out, *it, false);
-    Out << " ifnot) {\n  ";
-    printTypeNameUnaligned(Out, *it, false);
-    Out << " r;\n";
-    if (isa<VectorType>(*it))
-    {
-      unsigned n, l = (*it)->getVectorNumElements();
-      for (n = 0; n < l; n++)
-      {
-        Out << "  r.vector[" << n << "] = condition.vector[" << n << "] ? iftrue.vector[" << n << "] : ifnot.vector["
-            << n << "];\n";
-      }
-    }
-    else
-    {
-      Out << "  r = condition ? iftrue : ifnot;\n";
-    }
-    Out << "  return r;\n}\n";
+    Out << " ifnot) {\n";
+    Out << "  return condition ? iftrue : ifnot;\n}\n";
   }
 
-  // Loop over all compare operations
-  for (std::set<std::pair<CmpInst::Predicate, VectorType*>>::iterator it = CmpDeclTypes.begin(),
-                                                                      end = CmpDeclTypes.end();
-       it != end; ++it)
-  {
-    // static FORCEINLINE <bool x 4> llvm_icmp_ge_u8x4(<u8 x 4> l, <u8 x 4> r) {
-    //   Rty c = {
-    //     l[0] >= r[0],
-    //     l[1] >= r[1],
-    //     l[2] >= r[2],
-    //     l[3] >= r[3],
-    //   };
-    //   return c;
-    // }
-    unsigned n, l = (*it).second->getVectorNumElements();
-    VectorType* RTy = VectorType::get(Type::getInt1Ty((*it).second->getContext()), l);
-    bool isSigned = CmpInst::isSigned((*it).first);
-    Out << "static FORCEINLINE ";
-    printTypeName(Out, RTy, isSigned);
-    if (CmpInst::isFPPredicate((*it).first))
-      Out << " llvm_fcmp_";
-    else
-      Out << " llvm_icmp_";
-    Out << getCmpPredicateName((*it).first) << "_";
-    printTypeString(Out, (*it).second, isSigned);
-    Out << "(";
-    printTypeNameUnaligned(Out, (*it).second, isSigned);
-    Out << " l, ";
-    printTypeNameUnaligned(Out, (*it).second, isSigned);
-    Out << " r) {\n  ";
-    printTypeName(Out, RTy, isSigned);
-    Out << " c;\n";
-    for (n = 0; n < l; n++)
-    {
-      Out << "  c.vector[" << n << "] = ";
-      if (CmpInst::isFPPredicate((*it).first))
-      {
-        Out << "llvm_fcmp_ " << getCmpPredicateName((*it).first) << "(l.vector[" << n << "], r.vector[" << n << "]);\n";
-      }
-      else
-      {
-        Out << "l.vector[" << n << "]";
-        switch ((*it).first)
-        {
-        case CmpInst::ICMP_EQ:
-          Out << " == ";
-          break;
-        case CmpInst::ICMP_NE:
-          Out << " != ";
-          break;
-        case CmpInst::ICMP_ULE:
-        case CmpInst::ICMP_SLE:
-          Out << " <= ";
-          break;
-        case CmpInst::ICMP_UGE:
-        case CmpInst::ICMP_SGE:
-          Out << " >= ";
-          break;
-        case CmpInst::ICMP_ULT:
-        case CmpInst::ICMP_SLT:
-          Out << " < ";
-          break;
-        case CmpInst::ICMP_UGT:
-        case CmpInst::ICMP_SGT:
-          Out << " > ";
-          break;
-        default:
-#ifndef NDEBUG
-          errs() << "Invalid icmp predicate!" << (*it).first;
-#endif
-          llvm_unreachable(0);
-        }
-        Out << "r.vector[" << n << "];\n";
-      }
-    }
-    Out << "  return c;\n}\n";
-  }
-
-  // Loop over all (vector) cast operations
-  for (std::set<std::pair<CastInst::CastOps, std::pair<Type*, Type*>>>::iterator it = CastOpDeclTypes.begin(),
-                                                                                 end = CastOpDeclTypes.end();
-       it != end; ++it)
-  {
-    // static FORCEINLINE <u32 x 4> llvm_ZExt_u8x4_u32x4(<u8 x 4> in) { // Src->isVector == Dst->isVector
-    //   Rty out = {
-    //     in[0],
-    //     in[1],
-    //     in[2],
-    //     in[3]
-    //   };
-    //   return out;
-    // }
-    // static FORCEINLINE u32 llvm_BitCast_u8x4_u32(<u8 x 4> in) { // Src->bitsSize == Dst->bitsSize
-    //   union {
-    //     <u8 x 4> in;
-    //     u32 out;
-    //   } cast;
-    //   cast.in = in;
-    //   return cast.out;
-    // }
-    CastInst::CastOps opcode = (*it).first;
-    Type* SrcTy = (*it).second.first;
-    Type* DstTy = (*it).second.second;
-    bool SrcSigned, DstSigned;
-    switch (opcode)
-    {
-    default:
-      SrcSigned = false;
-      DstSigned = false;
-    case Instruction::SIToFP:
-      SrcSigned = true;
-      DstSigned = false;
-    case Instruction::FPToSI:
-      SrcSigned = false;
-      DstSigned = true;
-    case Instruction::SExt:
-      SrcSigned = true;
-      DstSigned = true;
-    }
-
-    Out << "static FORCEINLINE ";
-    printTypeName(Out, DstTy, DstSigned);
-    Out << " llvm_" << Instruction::getOpcodeName(opcode) << "_";
-    printTypeString(Out, SrcTy, false);
-    Out << "_";
-    printTypeString(Out, DstTy, false);
-    Out << "(";
-    printTypeNameUnaligned(Out, SrcTy, SrcSigned);
-    Out << " in) {\n";
-    if (opcode == Instruction::BitCast)
-    {
-      Out << "  union {\n    ";
-      printTypeName(Out, SrcTy, SrcSigned);
-      Out << " in;\n    ";
-      printTypeName(Out, DstTy, DstSigned);
-      Out << " out;\n  } cast;\n";
-      Out << "  cast.in = in;\n  return cast.out;\n}\n";
-    }
-    else if (isa<VectorType>(DstTy))
-    {
-      Out << "  ";
-      printTypeName(Out, DstTy, DstSigned);
-      Out << " out;\n";
-      unsigned n, l = DstTy->getVectorNumElements();
-      assert(SrcTy->getVectorNumElements() == l);
-      for (n = 0; n < l; n++)
-      {
-        Out << "  out.vector[" << n << "] = in.vector[" << n << "];\n";
-      }
-      Out << "  return out;\n}\n";
-    }
-    else
-    {
-      Out << "#ifndef __emulate_i128\n";
-      // easy case first: compiler supports i128 natively
-      Out << "  return in;\n";
-      Out << "#else\n";
-      Out << "  ";
-      printTypeName(Out, DstTy, DstSigned);
-      Out << " out;\n";
-      Out << "  LLVM";
-      switch (opcode)
-      {
-      case Instruction::UIToFP:
-        Out << "UItoFP";
-        break;
-      case Instruction::SIToFP:
-        Out << "SItoFP";
-        break;
-      case Instruction::Trunc:
-        Out << "Trunc";
-        break;
-      // case Instruction::FPExt:
-      // case Instruction::FPTrunc:
-      case Instruction::ZExt:
-        Out << "ZExt";
-        break;
-      case Instruction::FPToUI:
-        Out << "FPtoUI";
-        break;
-      case Instruction::SExt:
-        Out << "SExt";
-        break;
-      case Instruction::FPToSI:
-        Out << "FPtoSI";
-        break;
-      default:
-        llvm_unreachable("Invalid cast opcode for i128");
-      }
-      Out << "(" << SrcTy->getPrimitiveSizeInBits() << ", &in, " << DstTy->getPrimitiveSizeInBits() << ", &out);\n";
-      Out << "  return out;\n";
-      Out << "#endif\n";
-      Out << "}\n";
-    }
-  }
-
-  // Loop over all simple vector operations
+  // Loop over all simple operations
   for (std::set<std::pair<unsigned, Type*>>::iterator it = InlineOpDeclTypes.begin(), end = InlineOpDeclTypes.end();
        it != end; ++it)
   {
-    // static FORCEINLINE <u32 x 4> llvm_BinOp_u32x4(<u32 x 4> a, <u32 x 4> b) {
-    //   Rty r = {
-    //      a[0] OP b[0],
-    //      a[1] OP b[1],
-    //      a[2] OP b[2],
-    //      a[3] OP b[3],
-    //   };
-    //   return r;
-    // }
     unsigned opcode = (*it).first;
     Type* OpTy = (*it).second;
-    Type* ElemTy = isa<VectorType>(OpTy) ? OpTy->getVectorElementType() : OpTy;
     bool shouldCast;
     bool isSigned;
     opcodeNeedsCast(opcode, shouldCast, isSigned);
 
-    Out << "static FORCEINLINE ";
+    Out << "FORCEINLINE ";
     printTypeName(Out, OpTy);
     if (opcode == BinaryNeg)
     {
@@ -2221,7 +1955,7 @@ void CWriter::generateHeader(Module& M)
       printTypeString(Out, OpTy, false);
       Out << "(";
       printTypeNameUnaligned(Out, OpTy, isSigned);
-      Out << " a) {\n  ";
+      Out << " a) {\n";
     }
     else if (opcode == BinaryNot)
     {
@@ -2229,7 +1963,7 @@ void CWriter::generateHeader(Module& M)
       printTypeString(Out, OpTy, false);
       Out << "(";
       printTypeNameUnaligned(Out, OpTy, isSigned);
-      Out << " a) {\n  ";
+      Out << " a) {\n";
     }
     else
     {
@@ -2239,331 +1973,93 @@ void CWriter::generateHeader(Module& M)
       printTypeNameUnaligned(Out, OpTy, isSigned);
       Out << " a, ";
       printTypeNameUnaligned(Out, OpTy, isSigned);
-      Out << " b) {\n  ";
+      Out << " b) {\n";
     }
 
-    printTypeName(Out, OpTy);
     // C can't handle non-power-of-two integer types
     unsigned mask = 0;
-    if (ElemTy->isIntegerTy())
+    if (OpTy->isIntegerTy())
     {
-      IntegerType* ITy = static_cast<IntegerType*>(ElemTy);
+      IntegerType* ITy = static_cast<IntegerType*>(OpTy);
       if (!ITy->isPowerOf2ByteWidth())
         mask = ITy->getBitMask();
     }
-
-    if (isa<VectorType>(OpTy))
+ 
+    Out << "  return ";
+    if (mask)
+      Out << "(";
+    if (opcode == BinaryNeg)
     {
-      Out << " r;\n";
-      unsigned n, l = OpTy->getVectorNumElements();
-      for (n = 0; n < l; n++)
-      {
-        Out << "  r.vector[" << n << "] = ";
-        if (mask)
-          Out << "(";
-        if (opcode == BinaryNeg)
-        {
-          Out << "-a.vector[" << n << "]";
-        }
-        else if (opcode == BinaryNot)
-        {
-          Out << "~a.vector[" << n << "]";
-        }
-        else if (opcode == Instruction::FRem)
-        {
-          // Output a call to fmod/fmodf instead of emitting a%b
-          if (ElemTy->isFloatTy())
-            Out << "fmodf(a.vector[" << n << "], b.vector[" << n << "])";
-          else if (ElemTy->isDoubleTy())
-            Out << "fmod(a.vector[" << n << "], b.vector[" << n << "])";
-          else // all 3 flavors of long double
-            Out << "fmodl(a.vector[" << n << "], b.vector[" << n << "])";
-        }
-        else
-        {
-          Out << "a.vector[" << n << "]";
-          switch (opcode)
-          {
-          case Instruction::Add:
-          case Instruction::FAdd:
-            Out << " + ";
-            break;
-          case Instruction::Sub:
-          case Instruction::FSub:
-            Out << " - ";
-            break;
-          case Instruction::Mul:
-          case Instruction::FMul:
-            Out << " * ";
-            break;
-          case Instruction::URem:
-          case Instruction::SRem:
-          case Instruction::FRem:
-            Out << " % ";
-            break;
-          case Instruction::UDiv:
-          case Instruction::SDiv:
-          case Instruction::FDiv:
-            Out << " / ";
-            break;
-          case Instruction::And:
-            Out << " & ";
-            break;
-          case Instruction::Or:
-            Out << " | ";
-            break;
-          case Instruction::Xor:
-            Out << " ^ ";
-            break;
-          case Instruction::Shl:
-            Out << " << ";
-            break;
-          case Instruction::LShr:
-          case Instruction::AShr:
-            Out << " >> ";
-            break;
-          default:
-#ifndef NDEBUG
-            errs() << "Invalid operator type!" << opcode;
-#endif
-            llvm_unreachable(0);
-          }
-          Out << "b.vector[" << n << "]";
-        }
-        if (mask)
-          Out << ") & " << mask;
-        Out << ";\n";
-      }
+      Out << "-a";
     }
-    else if (OpTy->getPrimitiveSizeInBits() > 64)
+    else if (opcode == BinaryNot)
     {
-      Out << " r;\n";
-      Out << "#ifndef __emulate_i128\n";
-      // easy case first: compiler supports i128 natively
-      Out << "  r = ";
-      if (opcode == BinaryNeg)
-      {
-        Out << "-a;\n";
-      }
-      else if (opcode == BinaryNot)
-      {
-        Out << "~a;\n";
-      }
-      else
-      {
-        Out << "a";
-        switch (opcode)
-        {
-        case Instruction::Add:
-          Out << " + ";
-          break;
-        case Instruction::Sub:
-          Out << " - ";
-          break;
-        case Instruction::Mul:
-          Out << " * ";
-          break;
-        case Instruction::URem:
-        case Instruction::SRem:
-          Out << " % ";
-          break;
-        case Instruction::UDiv:
-        case Instruction::SDiv:
-          Out << " / ";
-          break;
-        case Instruction::And:
-          Out << " & ";
-          break;
-        case Instruction::Or:
-          Out << " | ";
-          break;
-        case Instruction::Xor:
-          Out << " ^ ";
-          break;
-        case Instruction::Shl:
-          Out << " << ";
-          break;
-        case Instruction::LShr:
-        case Instruction::AShr:
-          Out << " >> ";
-          break;
-        default:
-#ifndef NDEBUG
-          errs() << "Invalid operator type!" << opcode;
-#endif
-          llvm_unreachable(0);
-        }
-        Out << "b;\n";
-      }
-      Out << "#else\n";
-      // emulated twos-complement i128 math
-      if (opcode == BinaryNeg)
-      {
-        Out << "  r.hi = ~a.hi;\n";
-        Out << "  r.lo = ~a.lo + 1;\n";
-        Out << "  if (r.lo == 0) r.hi += 1;\n"; // overflow: carry the one
-      }
-      else if (opcode == BinaryNot)
-      {
-        Out << "  r.hi = ~a.hi;\n";
-        Out << "  r.lo = ~a.lo;\n";
-      }
-      else if (opcode == Instruction::And)
-      {
-        Out << "  r.hi = a.hi & b.hi;\n";
-        Out << "  r.lo = a.lo & b.lo;\n";
-      }
-      else if (opcode == Instruction::Or)
-      {
-        Out << "  r.hi = a.hi | b.hi;\n";
-        Out << "  r.lo = a.lo | b.lo;\n";
-      }
-      else if (opcode == Instruction::Xor)
-      {
-        Out << "  r.hi = a.hi ^ b.hi;\n";
-        Out << "  r.lo = a.lo ^ b.lo;\n";
-      }
-      else if (opcode == Instruction::Shl)
-      { // reminder: undef behavior if b >= 128
-        Out << "  if (b.lo >= 64) {\n";
-        Out << "    r.hi = (a.lo << (b.lo - 64));\n";
-        Out << "    r.lo = 0;\n";
-        Out << "  } else if (b.lo == 0) {\n";
-        Out << "    r.hi = a.hi;\n";
-        Out << "    r.lo = a.lo;\n";
-        Out << "  } else {\n";
-        Out << "    r.hi = (a.hi << b.lo) | (a.lo >> (64 - b.lo));\n";
-        Out << "    r.lo = a.lo << b.lo;\n";
-        Out << "  }\n";
-      }
-      else
-      {
-        // everything that hasn't been manually implemented above
-        Out << "  LLVM";
-        switch (opcode)
-        {
-        // case BinaryNeg: Out << "Neg"; break;
-        // case BinaryNot: Out << "FlipAllBits"; break;
-        case Instruction::Add:
-          Out << "Add";
-          break;
-        case Instruction::Sub:
-          Out << "Sub";
-          break;
-        case Instruction::Mul:
-          Out << "Mul";
-          break;
-        case Instruction::URem:
-          Out << "URem";
-          break;
-        case Instruction::SRem:
-          Out << "SRem";
-          break;
-        case Instruction::UDiv:
-          Out << "UDiv";
-          break;
-        case Instruction::SDiv:
-          Out << "SDiv";
-          break;
-        // case Instruction::And:  Out << "And"; break;
-        // case Instruction::Or:   Out << "Or"; break;
-        // case Instruction::Xor:  Out << "Xor"; break;
-        // case Instruction::Shl: Out << "Shl"; break;
-        case Instruction::LShr:
-          Out << "LShr";
-          break;
-        case Instruction::AShr:
-          Out << "AShr";
-          break;
-        default:
-#ifndef NDEBUG
-          errs() << "Invalid operator type!" << opcode;
-#endif
-          llvm_unreachable(0);
-        }
-        Out << "(16, &a, &b, &r);\n";
-      }
-      Out << "#endif\n";
+      Out << "~a";
+    }
+    else if (opcode == Instruction::FRem)
+    {
+      // Output a call to fmod/fmodf instead of emitting a%b
+      if (OpTy->isFloatTy())
+        Out << "fmodf(a, b)";
+      else if (OpTy->isDoubleTy())
+        Out << "fmod(a, b)";
+      else // all 3 flavors of long double
+        Out << "fmodl(a, b)";
     }
     else
     {
-      Out << " r = ";
-      if (mask)
-        Out << "(";
-      if (opcode == BinaryNeg)
+      Out << "a";
+      switch (opcode)
       {
-        Out << "-a";
-      }
-      else if (opcode == BinaryNot)
-      {
-        Out << "~a";
-      }
-      else if (opcode == Instruction::FRem)
-      {
-        // Output a call to fmod/fmodf instead of emitting a%b
-        if (ElemTy->isFloatTy())
-          Out << "fmodf(a, b)";
-        else if (ElemTy->isDoubleTy())
-          Out << "fmod(a, b)";
-        else // all 3 flavors of long double
-          Out << "fmodl(a, b)";
-      }
-      else
-      {
-        Out << "a";
-        switch (opcode)
-        {
-        case Instruction::Add:
-        case Instruction::FAdd:
-          Out << " + ";
-          break;
-        case Instruction::Sub:
-        case Instruction::FSub:
-          Out << " - ";
-          break;
-        case Instruction::Mul:
-        case Instruction::FMul:
-          Out << " * ";
-          break;
-        case Instruction::URem:
-        case Instruction::SRem:
-        case Instruction::FRem:
-          Out << " % ";
-          break;
-        case Instruction::UDiv:
-        case Instruction::SDiv:
-        case Instruction::FDiv:
-          Out << " / ";
-          break;
-        case Instruction::And:
-          Out << " & ";
-          break;
-        case Instruction::Or:
-          Out << " | ";
-          break;
-        case Instruction::Xor:
-          Out << " ^ ";
-          break;
-        case Instruction::Shl:
-          Out << " << ";
-          break;
-        case Instruction::LShr:
-        case Instruction::AShr:
-          Out << " >> ";
-          break;
-        default:
+      case Instruction::Add:
+      case Instruction::FAdd:
+        Out << " + ";
+        break;
+      case Instruction::Sub:
+      case Instruction::FSub:
+        Out << " - ";
+        break;
+      case Instruction::Mul:
+      case Instruction::FMul:
+        Out << " * ";
+        break;
+      case Instruction::URem:
+      case Instruction::SRem:
+      case Instruction::FRem:
+        Out << " % ";
+        break;
+      case Instruction::UDiv:
+      case Instruction::SDiv:
+      case Instruction::FDiv:
+        Out << " / ";
+        break;
+      case Instruction::And:
+        Out << " & ";
+        break;
+      case Instruction::Or:
+        Out << " | ";
+        break;
+      case Instruction::Xor:
+        Out << " ^ ";
+        break;
+      case Instruction::Shl:
+        Out << " << ";
+        break;
+      case Instruction::LShr:
+      case Instruction::AShr:
+        Out << " >> ";
+        break;
+      default:
 #ifndef NDEBUG
-          errs() << "Invalid operator type!" << opcode;
+        errs() << "Invalid operator type!" << opcode;
 #endif
-          llvm_unreachable(0);
-        }
-        Out << "b";
-        if (mask)
-          Out << ") & " << mask;
+        llvm_unreachable(0);
       }
-      Out << ";\n";
+      Out << "b";
+      if (mask)
+        Out << ") & " << mask;
     }
-    Out << "  return r;\n}\n";
+    Out << ";\n}\n";
   }
 
   // Loop over all inline constructors
@@ -2582,8 +2078,7 @@ void CWriter::generateHeader(Module& M)
     Out << "(";
     StructType* STy = dyn_cast<StructType>(*it);
     ArrayType* ATy = dyn_cast<ArrayType>(*it);
-    VectorType* VTy = dyn_cast<VectorType>(*it);
-    unsigned e = (STy ? STy->getNumElements() : (ATy ? ATy->getNumElements() : VTy->getNumElements()));
+    unsigned e = (STy ? STy->getNumElements() : ATy->getNumElements());
     bool printed = false;
     for (unsigned i = 0; i != e; ++i)
     {
@@ -2611,8 +2106,6 @@ void CWriter::generateHeader(Module& M)
         Out << "\n  r.field" << i << " = x" << i << ";";
       else if (ATy)
         Out << "\n  r.array[" << i << "] = x" << i << ";";
-      else if (VTy)
-        Out << "\n  r.vector[" << i << "] = x" << i << ";";
       else
         assert(0);
     }
@@ -2661,7 +2154,7 @@ void CWriter::declareOneGlobalVariable(GlobalVariable* I)
     // complete.  If the value is an aggregate, print out { 0 }, and let
     // the compiler figure out the rest of the zeros.
     Out << " = ";
-    if (I->getInitializer()->getType()->isStructTy() || I->getInitializer()->getType()->isVectorTy())
+    if (I->getInitializer()->getType()->isStructTy())
     {
       Out << "{ 0 }";
     }
@@ -3227,16 +2720,11 @@ void CWriter::visitBinaryOperator(BinaryOperator& I)
     // types too small to work with directly
     needsCast = true;
   }
-  else if (I.getType()->getPrimitiveSizeInBits() > 64)
-  {
-    // types too big to work with directly
-    needsCast = true;
-  }
   bool shouldCast;
   bool castIsSigned;
   opcodeNeedsCast(I.getOpcode(), shouldCast, castIsSigned);
 
-  if (I.getType()->isVectorTy() || needsCast || shouldCast)
+  if (needsCast || shouldCast)
   {
     Type* VTy = I.getOperand(0)->getType();
     unsigned opcode;
@@ -3380,23 +2868,6 @@ void CWriter::visitBinaryOperator(BinaryOperator& I)
 
 void CWriter::visitICmpInst(ICmpInst& I)
 {
-  if (I.getType()->isVectorTy() || I.getOperand(0)->getType()->getPrimitiveSizeInBits() > 64)
-  {
-    Out << "llvm_icmp_" << getCmpPredicateName(I.getPredicate()) << "_";
-    printTypeString(Out, I.getOperand(0)->getType(), I.isSigned());
-    Out << "(";
-    writeOperand(I.getOperand(0), ContextCasted);
-    Out << ", ";
-    writeOperand(I.getOperand(1), ContextCasted);
-    Out << ")";
-    if (VectorType* VTy = dyn_cast<VectorType>(I.getOperand(0)->getType()))
-    {
-      CmpDeclTypes.insert(std::pair<CmpInst::Predicate, VectorType*>(I.getPredicate(), VTy));
-      TypedefDeclTypes.insert(I.getType()); // insert type not necessarily visible above
-    }
-    return;
-  }
-
   // Write out the cast of the instruction's value back to the proper type
   // if necessary.
   bool NeedsClosingParens = writeInstructionCast(I);
@@ -3444,23 +2915,6 @@ void CWriter::visitICmpInst(ICmpInst& I)
 
 void CWriter::visitFCmpInst(FCmpInst& I)
 {
-  if (I.getType()->isVectorTy())
-  {
-    Out << "llvm_fcmp_" << getCmpPredicateName(I.getPredicate()) << "_";
-    printTypeString(Out, I.getOperand(0)->getType(), I.isSigned());
-    Out << "(";
-    writeOperand(I.getOperand(0), ContextCasted);
-    Out << ", ";
-    writeOperand(I.getOperand(1), ContextCasted);
-    Out << ")";
-    if (VectorType* VTy = dyn_cast<VectorType>(I.getOperand(0)->getType()))
-    {
-      CmpDeclTypes.insert(std::pair<CmpInst::Predicate, VectorType*>(I.getPredicate(), VTy));
-      TypedefDeclTypes.insert(I.getType()); // insert type not necessarily visible above
-    }
-    return;
-  }
-
   Out << "llvm_fcmp_" << getCmpPredicateName(I.getPredicate()) << "(";
   // Write the first operand
   writeOperand(I.getOperand(0), ContextCasted);
@@ -3495,21 +2949,6 @@ void CWriter::visitCastInst(CastInst& I)
 {
   Type* DstTy = I.getType();
   Type* SrcTy = I.getOperand(0)->getType();
-
-  if (DstTy->isVectorTy() || SrcTy->isVectorTy() || DstTy->getPrimitiveSizeInBits() > 64 ||
-      SrcTy->getPrimitiveSizeInBits() > 64)
-  {
-    Out << "llvm_" << I.getOpcodeName() << "_";
-    printTypeString(Out, SrcTy, false);
-    Out << "_";
-    printTypeString(Out, DstTy, false);
-    Out << "(";
-    writeOperand(I.getOperand(0), ContextCasted);
-    Out << ")";
-    CastOpDeclTypes.insert(
-      std::pair<Instruction::CastOps, std::pair<Type*, Type*>>(I.getOpcode(), std::pair<Type*, Type*>(SrcTy, DstTy)));
-    return;
-  }
 
   if (isFPIntBitCast(I))
   {
@@ -3620,19 +3059,6 @@ void CWriter::printIntrinsicDefinition(FunctionType* funT, unsigned Opcode, std:
   }
   assert(numParams > 0 && numParams < 26);
 
-  if (isa<VectorType>(retT))
-  {
-    // this looks general, but is only actually used for ctpop, ctlz, cttz
-    Type** devecFunParams = (Type**)alloca(sizeof(Type*) * numParams);
-    for (i = 0; i < numParams; i++)
-    {
-      devecFunParams[(int)i] = funT->params()[(int)i]->getScalarType();
-    }
-    FunctionType* devecFunT = FunctionType::get(funT->getReturnType()->getScalarType(),
-                                                makeArrayRef(devecFunParams, numParams), funT->isVarArg());
-    printIntrinsicDefinition(devecFunT, Opcode, OpName + "_devec", Out);
-  }
-
   // static FORCEINLINE Rty _llvm_op_ixx(unsigned ixx a, unsigned ixx b) {
   //   Rty r;
   //   <opcode here>
@@ -3666,23 +3092,7 @@ void CWriter::printIntrinsicDefinition(FunctionType* funT, unsigned Opcode, std:
   printTypeName(Out, retT);
   Out << " r;\n";
 
-  if (isa<VectorType>(retT))
-  {
-    for (i = 0; i < numParams; i++)
-    {
-      Out << "  r.vector[" << (int)i << "] = " << OpName << "_devec(";
-      for (char j = 0; j < numParams; j++)
-      {
-        Out << (char)('a' + j);
-        if (isa<VectorType>(funT->params()[j]))
-          Out << ".vector[" << (int)i << "]";
-        if (j != numParams - 1)
-          Out << ", ";
-      }
-      Out << ");\n";
-    }
-  }
-  else if (elemIntT)
+  if (elemIntT)
   {
     // handle integer ops
     assert(isSupportedIntegerSize(*elemIntT) && "CBackend does not support arbitrary size integers.");
@@ -3792,16 +3202,6 @@ void CWriter::printIntrinsicDefinition(FunctionType* funT, unsigned Opcode, std:
     else if (elemT->isDoubleTy())
     {
       suffix = "";
-    }
-    else if (elemT->isFP128Ty())
-    {
-    }
-    else if (elemT->isX86_FP80Ty())
-    {
-    }
-    else if (elemT->isPPC_FP128Ty())
-    {
-      suffix = "l";
     }
     else
     {
@@ -4170,7 +3570,6 @@ void CWriter::visitAllocaInst(AllocaInst& I)
 
 void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_iterator E)
 {
-
   // If there are no indices, just print out the pointer.
   if (I == E)
   {
@@ -4178,28 +3577,7 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
     return;
   }
 
-  // Find out if the last index is into a vector.  If so, we have to print this
-  // specially.  Since vectors can't have elements of indexable type, only the
-  // last index could possibly be of a vector element.
-  VectorType* LastIndexIsVector = 0;
-  {
-    for (gep_type_iterator TmpI = I; TmpI != E; ++TmpI)
-      LastIndexIsVector = dyn_cast<VectorType>(TmpI.getIndexedType());
-  }
-
   Out << "(";
-
-  // If the last index is into a vector, we can't print it as &a[i][j] because
-  // we can't index into a vector with j in GCC.  Instead, emit this as
-  // (((float*)&a[i])+j)
-  // TODO: this is no longer true now that we don't represent vectors using gcc-extentions
-  if (LastIndexIsVector)
-  {
-    Out << "((";
-    printTypeName(Out, PointerType::getUnqual(LastIndexIsVector->getElementType()));
-    Out << ")(";
-  }
-
   Out << '&';
 
   // If the first index is 0 (very typical) we can do a number of
@@ -4239,9 +3617,7 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
 
   for (; I != E; ++I)
   {
-    assert(I.getOperand()
-             ->getType()
-             ->isIntegerTy()); // TODO: indexing a Vector with a Vector is valid, but we don't support it here
+    assert(I.getOperand()->getType()->isIntegerTy());
     if (I.isStruct())
     {
       Out << ".field" << cast<ConstantInt>(I.getOperand())->getZExtValue();
@@ -4249,12 +3625,6 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
     else if (I.getIndexedType()->isArrayTy())
     {
       Out << ".array[";
-      writeOperandWithCast(I.getOperand(), Instruction::GetElementPtr);
-      Out << ']';
-    }
-    else if (!I.getIndexedType()->isVectorTy())
-    {
-      Out << '[';
       writeOperandWithCast(I.getOperand(), Instruction::GetElementPtr);
       Out << ']';
     }
@@ -4331,42 +3701,6 @@ void CWriter::visitVAArgInst(VAArgInst& I)
   Out << ", ";
   printTypeName(Out, I.getType());
   Out << ");\n ";
-}
-
-void CWriter::visitInsertElementInst(InsertElementInst& I)
-{
-  // Start by copying the entire aggregate value into the result variable.
-  writeOperand(I.getOperand(0));
-  Type* EltTy = I.getType()->getElementType();
-  assert(I.getOperand(1)->getType() == EltTy);
-  if (isEmptyType(EltTy))
-    return;
-
-  // Then do the insert to update the field.
-  Out << ";\n  ";
-  Out << GetValueName(&I) << ".vector[";
-  writeOperand(I.getOperand(2));
-  Out << "] = ";
-  writeOperand(I.getOperand(1), ContextCasted);
-}
-
-void CWriter::visitExtractElementInst(ExtractElementInst& I)
-{
-  assert(!isEmptyType(I.getType()));
-  if (isa<UndefValue>(I.getOperand(0)))
-  {
-    Out << "(";
-    printTypeName(Out, I.getType());
-    Out << ") 0/*UNDEF*/";
-  }
-  else
-  {
-    Out << "(";
-    writeOperand(I.getOperand(0));
-    Out << ").vector[";
-    writeOperand(I.getOperand(1));
-    Out << "]";
-  }
 }
 
 void CWriter::visitInsertValueInst(InsertValueInst& IVI)
