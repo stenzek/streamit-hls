@@ -129,7 +129,6 @@ private:
                                                                                                       CallingConv::C));
   raw_ostream& printStructDeclaration(raw_ostream& Out, StructType* Ty);
   raw_ostream& printArrayDeclaration(raw_ostream& Out, ArrayType* Ty);
-  raw_ostream& printVectorDeclaration(raw_ostream& Out, VectorType* Ty);
 
   raw_ostream& printTypeName(raw_ostream& Out, Type* Ty, bool isSigned = false,
                              std::pair<AttributeSet, CallingConv::ID> PAL = std::make_pair(AttributeSet(),
@@ -143,7 +142,6 @@ private:
                               std::pair<AttributeSet, CallingConv::ID> PAL = std::make_pair(AttributeSet(),
                                                                                             CallingConv::C));
   std::string getArrayName(ArrayType* AT);
-  std::string getVectorName(VectorType* VT, bool Aligned);
 
   enum OperandContext
   {
@@ -166,9 +164,7 @@ private:
 
   void writeOperandWithCast(Value* Operand, ICmpInst& I);
   bool writeInstructionCast(Instruction& I);
-  void writeMemoryAccess(Value* Operand, Type* OperandType, bool IsVolatile, unsigned Alignment);
-
-  std::string InterpretASMConstraint(InlineAsm::ConstraintInfo& c);
+  void writeMemoryAccess(Value* Operand, Type* OperandType, bool IsVolatile);
 
   void lowerIntrinsics(Function& F);
   /// Prints the definition of the intrinsic function F. Supports the
@@ -191,7 +187,6 @@ private:
   void printConstantWithCast(Constant* CPV, unsigned Opcode);
   bool printConstExprCast(ConstantExpr* CE);
   void printConstantArray(ConstantArray* CPA, enum OperandContext Context);
-  void printConstantVector(ConstantVector* CV, enum OperandContext Context);
   void printConstantDataSequential(ConstantDataSequential* CDS, enum OperandContext Context);
   bool printConstantString(Constant* C, enum OperandContext Context);
 
@@ -199,7 +194,6 @@ private:
   bool isAddressExposed(Value* V) const;
   bool isInlinableInst(Instruction& I) const;
   AllocaInst* isDirectAlloca(Value* V) const;
-  bool isInlineAsm(Instruction& I) const;
 
   // Instruction visitation functions
   friend class InstVisitor<CWriter>;
@@ -220,7 +214,6 @@ private:
   void visitCastInst(CastInst& I);
   void visitSelectInst(SelectInst& I);
   void visitCallInst(CallInst& I);
-  void visitInlineAsm(CallInst& I);
   bool visitBuiltinCall(CallInst& I, Intrinsic::ID ID);
 
   void visitAllocaInst(AllocaInst& I);
@@ -231,7 +224,6 @@ private:
 
   void visitInsertElementInst(InsertElementInst& I);
   void visitExtractElementInst(ExtractElementInst& I);
-  void visitShuffleVectorInst(ShuffleVectorInst& SVI);
 
   void visitInsertValueInst(InsertValueInst& I);
   void visitExtractValueInst(ExtractValueInst& I);

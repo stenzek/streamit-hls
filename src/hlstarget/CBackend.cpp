@@ -98,14 +98,6 @@ bool CWriter::isInlinableInst(Instruction& I) const
     // Don't inline a load across a store or other bad things!
     return false;
 
-  // Must not be used in inline asm, extractelement, or shufflevector.
-  if (I.hasOneUse())
-  {
-    Instruction& User = cast<Instruction>(*I.user_back());
-    if (isInlineAsm(User))
-      return false;
-  }
-
   // Only inline instruction it if it's use is in the same BB as the inst.
   return I.getParent() == cast<Instruction>(I.user_back())->getParent();
 }
@@ -124,14 +116,6 @@ AllocaInst* CWriter::isDirectAlloca(Value* V) const
   if (AI->getParent() != &AI->getParent()->getParent()->getEntryBlock())
     return 0;
   return AI;
-}
-
-// isInlineAsm - Check if the instruction is a call to an inline asm chunk.
-bool CWriter::isInlineAsm(Instruction& I) const
-{
-  if (CallInst* CI = dyn_cast<CallInst>(&I))
-    return isa<InlineAsm>(CI->getCalledValue());
-  return false;
 }
 
 bool CWriter::runOnFunction(Function& F)
@@ -282,18 +266,6 @@ std::string CWriter::getArrayName(ArrayType* AT)
   return "struct l_array_" + utostr(AT->getNumElements()) + '_' + CBEMangle(ArrayInnards.str());
 }
 
-std::string CWriter::getVectorName(VectorType* VT, bool Aligned)
-{
-  std::string astr;
-  raw_string_ostream VectorInnards(astr);
-  // Vectors are handled like arrays
-  assert(!isEmptyType(VT));
-  if (Aligned)
-    Out << "__MSALIGN__(" << TD->getABITypeAlignment(VT) << ") ";
-  printTypeName(VectorInnards, VT->getElementType(), false);
-  return "struct l_vector_" + utostr(VT->getNumElements()) + '_' + CBEMangle(VectorInnards.str());
-}
-
 static const std::string getCmpPredicateName(CmpInst::Predicate P)
 {
   switch (P)
@@ -376,12 +348,10 @@ raw_ostream& CWriter::printSimpleType(raw_ostream& Out, Type* Ty, bool isSigned)
       return Out << (isSigned ? "int16_t" : "uint16_t");
     else if (NumBits <= 32)
       return Out << (isSigned ? "int32_t" : "uint32_t");
-    else if (NumBits <= 64)
-      return Out << (isSigned ? "int64_t" : "uint64_t");
     else
     {
-      assert(NumBits <= 128 && "Bit widths > 128 not implemented yet");
-      return Out << (isSigned ? "int128_t" : "uint128_t");
+      assert(NumBits <= 64 && "Bit widths > 64 not implemented yet");
+      return Out << (isSigned ? "int64_t" : "uint64_t");
     }
   }
   case Type::FloatTyID:
@@ -446,12 +416,6 @@ raw_ostream& CWriter::printTypeName(raw_ostream& Out, Type* Ty, bool isSigned,
     return Out << getArrayName(cast<ArrayType>(Ty));
   }
 
-  case Type::VectorTyID:
-  {
-    TypedefDeclTypes.insert(Ty);
-    return Out << getVectorName(cast<VectorType>(Ty), true);
-  }
-
   default:
 #ifndef NDEBUG
     errs() << "Unexpected type: " << *Ty << "\n";
@@ -462,21 +426,11 @@ raw_ostream& CWriter::printTypeName(raw_ostream& Out, Type* Ty, bool isSigned,
 
 raw_ostream& CWriter::printTypeNameUnaligned(raw_ostream& Out, Type* Ty, bool isSigned)
 {
-  if (VectorType* VTy = dyn_cast<VectorType>(Ty))
-  {
-    // MSVC doesn't handle __declspec(align) on parameters,
-    // but we specify it for Vector (hoping the compiler will vectorize it)
-    // so we need to avoid it sometimes
-    TypedefDeclTypes.insert(VTy);
-    return Out << getVectorName(VTy, false);
-  }
   return printTypeName(Out, Ty, isSigned);
 }
 
 raw_ostream& CWriter::printStructDeclaration(raw_ostream& Out, StructType* STy)
 {
-  if (STy->isPacked())
-    Out << "#ifdef _MSC_VER\n#pragma pack(push, 1)\n#endif\n";
   Out << getStructName(STy) << " {\n";
   unsigned Idx = 0;
   for (StructType::element_iterator I = STy->element_begin(), E = STy->element_end(); I != E; ++I, Idx++)
@@ -492,11 +446,7 @@ raw_ostream& CWriter::printStructDeclaration(raw_ostream& Out, StructType* STy)
       Out << ";\n";
   }
   Out << '}';
-  if (STy->isPacked())
-    Out << " __attribute__ ((packed))";
   Out << ";\n";
-  if (STy->isPacked())
-    Out << "#ifdef _MSC_VER\n#pragma pack(pop)\n#endif\n";
   return Out;
 }
 
@@ -515,7 +465,7 @@ raw_ostream& CWriter::printFunctionProto(raw_ostream& Out, FunctionType* FTy,
   AttributeSet& PAL = Attrs.first;
 
   if (PAL.hasAttribute(AttributeSet::FunctionIndex, Attribute::NoReturn))
-    Out << "__noreturn ";
+    Out << "NORETURN ";
 
   // Should this function actually return a struct by-value?
   bool isStructReturn = PAL.hasAttribute(1, Attribute::StructRet) || PAL.hasAttribute(2, Attribute::StructRet);
@@ -531,23 +481,6 @@ raw_ostream& CWriter::printFunctionProto(raw_ostream& Out, FunctionType* FTy,
   printTypeName(Out, RetTy,
                 /*isSigned=*/PAL.hasAttribute(AttributeSet::ReturnIndex, Attribute::SExt));
 
-  switch (Attrs.second)
-  {
-  case CallingConv::C:
-    break;
-  case CallingConv::X86_StdCall:
-    Out << " __stdcall";
-    break;
-  case CallingConv::X86_FastCall:
-    Out << " __fastcall";
-    break;
-  case CallingConv::X86_ThisCall:
-    Out << " __thiscall";
-    break;
-  default:
-    assert(0 && "Encountered Unhandled Calling Convention");
-    break;
-  }
   Out << ' ' << Name << '(';
 
   unsigned Idx = 1;
@@ -616,17 +549,6 @@ raw_ostream& CWriter::printArrayDeclaration(raw_ostream& Out, ArrayType* ATy)
   return Out;
 }
 
-raw_ostream& CWriter::printVectorDeclaration(raw_ostream& Out, VectorType* VTy)
-{
-  assert(!isEmptyType(VTy));
-  // Vectors are printed like arrays
-  Out << getVectorName(VTy, false) << " {\n  ";
-  printTypeName(Out, VTy->getElementType());
-  Out << " vector[" << utostr(VTy->getNumElements()) << "];\n} __attribute__((aligned(" << TD->getABITypeAlignment(VTy)
-      << ")));\n";
-  return Out;
-}
-
 void CWriter::printConstantArray(ConstantArray* CPA, enum OperandContext Context)
 {
   printConstant(cast<Constant>(CPA->getOperand(0)), Context);
@@ -634,16 +556,6 @@ void CWriter::printConstantArray(ConstantArray* CPA, enum OperandContext Context
   {
     Out << ", ";
     printConstant(cast<Constant>(CPA->getOperand(i)), Context);
-  }
-}
-
-void CWriter::printConstantVector(ConstantVector* CP, enum OperandContext Context)
-{
-  printConstant(cast<Constant>(CP->getOperand(0)), Context);
-  for (unsigned i = 1, e = CP->getNumOperands(); i != e; ++i)
-  {
-    Out << ", ";
-    printConstant(cast<Constant>(CP->getOperand(i)), Context);
   }
 }
 
@@ -1040,36 +952,9 @@ void CWriter::printConstant(Constant* CPV, enum OperandContext Context)
   }
   else if (isa<UndefValue>(CPV) && CPV->getType()->isSingleValueType())
   {
-    if (CPV->getType()->isVectorTy())
-    {
-      if (Context == ContextStatic)
-      {
-        Out << "{}";
-        return;
-      }
-      VectorType* VT = cast<VectorType>(CPV->getType());
-      assert(!isEmptyType(VT));
-      CtorDeclTypes.insert(VT);
-      Out << "/*undef*/llvm_ctor_";
-      printTypeString(Out, VT, false);
-      Out << "(";
-      Constant* Zero = Constant::getNullValue(VT->getElementType());
-      unsigned NumElts = VT->getNumElements();
-      for (unsigned i = 0; i != NumElts; ++i)
-      {
-        if (i)
-          Out << ", ";
-        printConstant(Zero, ContextCasted);
-      }
-      Out << ")";
-    }
-    else
-    {
-      Constant* Zero = Constant::getNullValue(CPV->getType());
-      Out << "/*UNDEF*/";
-      return printConstant(Zero, Context);
-    }
-    return;
+    Constant* Zero = Constant::getNullValue(CPV->getType());
+    Out << "/*UNDEF*/";
+    return printConstant(Zero, Context);
   }
 
   if (ConstantInt* CI = dyn_cast<ConstantInt>(CPV))
@@ -1107,14 +992,6 @@ void CWriter::printConstant(Constant* CPV, enum OperandContext Context)
     {
       Out << "UINT64_C(" << CI->getZExtValue() << ")";
     }
-    else if (Ty->getPrimitiveSizeInBits() <= 128)
-    {
-      const APInt& V = CI->getValue();
-      const APInt& Vlo = V.getLoBits(64);
-      const APInt& Vhi = V.getHiBits(64);
-      Out << (Context == ContextStatic ? "UINT128_C" : "llvm_ctor_u128");
-      Out << "(UINT64_C(" << Vhi.getZExtValue() << "), UINT64_C(" << Vlo.getZExtValue() << "))";
-    }
     return;
   }
 
@@ -1122,9 +999,6 @@ void CWriter::printConstant(Constant* CPV, enum OperandContext Context)
   {
   case Type::FloatTyID:
   case Type::DoubleTyID:
-  case Type::X86_FP80TyID:
-  case Type::PPC_FP128TyID:
-  case Type::FP128TyID:
   {
     ConstantFP* FPC = cast<ConstantFP>(CPV);
     std::map<const ConstantFP*, unsigned>::iterator I = FPConstantMap.find(FPC);
@@ -1241,45 +1115,6 @@ void CWriter::printConstant(Constant* CPV, enum OperandContext Context)
       }
     }
     Out << (Context == ContextStatic ? " } }" : ")"); // Arrays are wrapped in struct types.
-    break;
-  }
-
-  case Type::VectorTyID:
-  {
-    VectorType* VT = cast<VectorType>(CPV->getType());
-    assert(VT->getNumElements() != 0 && !isEmptyType(VT));
-    if (Context != ContextStatic)
-    {
-      CtorDeclTypes.insert(VT);
-      Out << "llvm_ctor_";
-      printTypeString(Out, VT, false);
-      Out << "(";
-      Context = ContextCasted;
-    }
-    else
-    {
-      Out << "{ ";
-    }
-    if (ConstantVector* CV = dyn_cast<ConstantVector>(CPV))
-    {
-      printConstantVector(CV, Context);
-    }
-    else if (ConstantDataSequential* CDS = dyn_cast<ConstantDataSequential>(CPV))
-    {
-      printConstantDataSequential(CDS, Context);
-    }
-    else
-    {
-      assert(isa<ConstantAggregateZero>(CPV) || isa<UndefValue>(CPV));
-      Constant* CZ = Constant::getNullValue(VT->getElementType());
-      printConstant(CZ, Context);
-      for (unsigned i = 1, e = VT->getNumElements(); i != e; ++i)
-      {
-        Out << ", ";
-        printConstant(CZ, Context);
-      }
-    }
-    Out << (Context == ContextStatic ? " }" : ")");
     break;
   }
 
@@ -1705,73 +1540,13 @@ static void generateCompilerSpecificCode(raw_ostream& Out, const DataLayout* TD)
       << "#if defined(__CYGWIN__) || defined(__MINGW32__)\n"
       << "#define  alloca(x) __builtin_alloca((x))\n"
       << "#define _alloca(x) __builtin_alloca((x))\n"
-      << "#elif defined(__APPLE__)\n"
-      << "extern void *__builtin_alloca(unsigned long);\n"
-      << "#define alloca(x) __builtin_alloca(x)\n"
-      << "#define longjmp _longjmp\n"
-      << "#define setjmp _setjmp\n"
-      << "#elif defined(__sun__)\n"
-      << "#if defined(__sparcv9)\n"
-      << "extern void *__builtin_alloca(unsigned long);\n"
-      << "#else\n"
-      << "extern void *__builtin_alloca(unsigned int);\n"
-      << "#endif\n"
-      << "#define alloca(x) __builtin_alloca(x)\n"
-      << "#elif defined(__FreeBSD__) || defined(__NetBSD__) || defined(__OpenBSD__) || defined(__DragonFly__) || "
-         "defined(__arm__)\n"
-      << "#define alloca(x) __builtin_alloca(x)\n"
-      << "#elif defined(_MSC_VER)\n"
-      << "#define alloca(x) _alloca(x)\n"
       << "#else\n"
       << "#include <alloca.h>\n"
       << "#endif\n\n";
 
-  // On Mac OS X, "external weak" is spelled "__attribute__((weak_import))".
-  Out << "#if defined(__GNUC__) && defined(__APPLE_CC__)\n"
-      << "#define __EXTERNAL_WEAK__ __attribute__((weak_import))\n"
-      << "#elif defined(__GNUC__)\n"
-      << "#define __EXTERNAL_WEAK__ __attribute__((weak))\n"
-      << "#else\n"
-      << "#define __EXTERNAL_WEAK__\n"
-      << "#endif\n\n";
-
-  // For now, turn off the weak linkage attribute on Mac OS X. (See above.)
-  Out << "#if defined(__GNUC__) && defined(__APPLE_CC__)\n"
-      << "#define __ATTRIBUTE_WEAK__\n"
-      << "#elif defined(__GNUC__)\n"
-      << "#define __ATTRIBUTE_WEAK__ __attribute__((weak))\n"
-      << "#else\n"
-      << "#define __ATTRIBUTE_WEAK__\n"
-      << "#endif\n\n";
-
-  // Add hidden visibility support. FIXME: APPLE_CC?
-  Out << "#if defined(__GNUC__)\n"
-      << "#define __HIDDEN__ __attribute__((visibility(\"hidden\")))\n"
-      << "#endif\n\n";
-
-  // Define unaligned-load helper macro
-  Out << "#ifdef _MSC_VER\n";
-  Out << "#define __UNALIGNED_LOAD__(type, align, op) *((type __unaligned*)op)\n";
-  Out << "#else\n";
-  Out << "#define __UNALIGNED_LOAD__(type, align, op) ((struct { type data __attribute__((packed, aligned(align))); "
-         "}*)op)->data\n";
-  Out << "#endif\n\n";
-
-  // Define unaligned-load helper macro
-  Out << "#ifdef _MSC_VER\n";
-  Out << "#define __MSALIGN__(X) __declspec(align(X))\n";
-  Out << "#else\n";
-  Out << "#define __MSALIGN__(X)\n";
-  Out << "#endif\n\n";
-
   // Define compatibility macros to help msvc look more like gcc/clang
-  Out << "#ifdef _MSC_VER\n";
-  Out << "#define __builtin_unreachable() __assume(0)\n";
-  Out << "#define __noreturn __declspec(noreturn)\n";
-  Out << "#else\n";
-  Out << "#define __noreturn __attribute__((noreturn))\n";
-  Out << "#define __forceinline __attribute__((always_inline))\n";
-  Out << "#endif\n\n";
+  Out << "#define NORETURN __attribute__((noreturn))\n";
+  Out << "#define FORCEINLINE __attribute__((always_inline))\n";
 
   // Define NaN and Inf as GCC builtins if using GCC
   // From the GCC documentation:
@@ -1811,8 +1586,6 @@ static void generateCompilerSpecificCode(raw_ostream& Out, const DataLayout* TD)
       //<< "#define LLVM_NANSF(NanStr) __builtin_nansf(NanStr) /* Float */\n"
       << "#define LLVM_INF           __builtin_inf()         /* Double */\n"
       << "#define LLVM_INFF          __builtin_inff()        /* Float */\n"
-      << "#define LLVM_PREFETCH(addr,rw,locality) "
-         "__builtin_prefetch(addr,rw,locality)\n"
       << "#define __ATTRIBUTE_CTOR__ __attribute__((constructor))\n"
       << "#define __ATTRIBUTE_DTOR__ __attribute__((destructor))\n"
       << "#else\n"
@@ -1822,78 +1595,8 @@ static void generateCompilerSpecificCode(raw_ostream& Out, const DataLayout* TD)
       //<< "#define LLVM_NANSF(NanStr) ((single)NAN)           /* Float */\n"
       << "#define LLVM_INF           ((double)INFINITY)      /* Double */\n"
       << "#define LLVM_INFF          ((float)INFINITY)       /* Float */\n"
-      << "#define LLVM_PREFETCH(addr,rw,locality)            /* PREFETCH */\n"
       << "#define __ATTRIBUTE_CTOR__ \"__attribute__((constructor)) not supported on this compiler\"\n"
       << "#define __ATTRIBUTE_DTOR__ \"__attribute__((destructor)) not supported on this compiler\"\n"
-      << "#endif\n\n";
-
-  Out << "#if !defined(__GNUC__) || __GNUC__ < 4 /* Old GCC's, or compilers not GCC */ \n"
-      << "#define __builtin_stack_save() 0   /* not implemented */\n"
-      << "#define __builtin_stack_restore(X) /* noop */\n"
-      << "#endif\n\n";
-
-  // Output typedefs for 128-bit integers
-  Out << "#if defined(__GNUC__) && defined(__LP64__) /* 128-bit integer types */\n"
-      << "typedef int __attribute__((mode(TI))) int128_t;\n"
-      << "typedef unsigned __attribute__((mode(TI))) uint128_t;\n"
-      << "#define UINT128_C(hi, lo) (((uint128_t)(hi) << 64) | (uint128_t)(lo))\n"
-      << "static __forceinline uint128_t llvm_ctor_u128(uint64_t hi, uint64_t lo) {"
-      << " return UINT128_C(hi, lo); }\n"
-      << "static __forceinline bool llvm_icmp_eq_u128(uint128_t l, uint128_t r) {"
-      << " return l == r; }\n"
-      << "static __forceinline bool llvm_icmp_ne_u128(uint128_t l, uint128_t r) {"
-      << " return l != r; }\n"
-      << "static __forceinline bool llvm_icmp_ule_u128(uint128_t l, uint128_t r) {"
-      << " return l <= r; }\n"
-      << "static __forceinline bool llvm_icmp_sle_i128(int128_t l, int128_t r) {"
-      << " return l <= r; }\n"
-      << "static __forceinline bool llvm_icmp_uge_u128(uint128_t l, uint128_t r) {"
-      << " return l >= r; }\n"
-      << "static __forceinline bool llvm_icmp_sge_i128(int128_t l, int128_t r) {"
-      << " return l >= r; }\n"
-      << "static __forceinline bool llvm_icmp_ult_u128(uint128_t l, uint128_t r) {"
-      << " return l < r; }\n"
-      << "static __forceinline bool llvm_icmp_slt_i128(int128_t l, int128_t r) {"
-      << " return l < r; }\n"
-      << "static __forceinline bool llvm_icmp_ugt_u128(uint128_t l, uint128_t r) {"
-      << " return l > r; }\n"
-      << "static __forceinline bool llvm_icmp_sgt_i128(int128_t l, int128_t r) {"
-      << " return l > r; }\n"
-
-      << "#else /* manual 128-bit types */\n"
-      // TODO: field order should be reversed for big-endian
-      << "typedef struct { uint64_t lo; uint64_t hi; } uint128_t;\n"
-      << "typedef uint128_t int128_t;\n"
-      << "#define UINT128_C(hi, lo) {(lo), (hi)}\n" // only use in Static context
-      << "static __forceinline uint128_t llvm_ctor_u128(uint64_t hi, uint64_t lo) {"
-      << " uint128_t r; r.lo = lo; r.hi = hi; return r; }\n"
-      << "static __forceinline bool llvm_icmp_eq_u128(uint128_t l, uint128_t r) {"
-      << " return l.hi == r.hi && l.lo == r.lo; }\n"
-      << "static __forceinline bool llvm_icmp_ne_u128(uint128_t l, uint128_t r) {"
-      << " return l.hi != r.hi || l.lo != r.lo; }\n"
-      << "static __forceinline bool llvm_icmp_ule_u128(uint128_t l, uint128_t r) {"
-      << " return l.hi < r.hi ? 1 : (l.hi == r.hi ? l.lo <= l.lo : 0); }\n"
-      << "static __forceinline bool llvm_icmp_sle_i128(int128_t l, int128_t r) {"
-      << " return (int64_t)l.hi < (int64_t)r.hi ? 1 : (l.hi == r.hi ? (int64_t)l.lo <= (int64_t)l.lo : 0); }\n"
-      << "static __forceinline bool llvm_icmp_uge_u128(uint128_t l, uint128_t r) {"
-      << " return l.hi > r.hi ? 1 : (l.hi == r.hi ? l.lo >= l.hi : 0); }\n"
-      << "static __forceinline bool llvm_icmp_sge_i128(int128_t l, int128_t r) {"
-      << " return (int64_t)l.hi > (int64_t)r.hi ? 1 : (l.hi == r.hi ? (int64_t)l.lo >= (int64_t)l.lo : 0); }\n"
-      << "static __forceinline bool llvm_icmp_ult_u128(uint128_t l, uint128_t r) {"
-      << " return l.hi < r.hi ? 1 : (l.hi == r.hi ? l.lo < l.hi : 0); }\n"
-      << "static __forceinline bool llvm_icmp_slt_i128(int128_t l, int128_t r) {"
-      << " return (int64_t)l.hi < (int64_t)r.hi ? 1 : (l.hi == r.hi ? (int64_t)l.lo < (int64_t)l.lo : 0); }\n"
-      << "static __forceinline bool llvm_icmp_ugt_u128(uint128_t l, uint128_t r) {"
-      << " return l.hi > r.hi ? 1 : (l.hi == r.hi ? l.lo > l.hi : 0); }\n"
-      << "static __forceinline bool llvm_icmp_sgt_i128(int128_t l, int128_t r) {"
-      << " return (int64_t)l.hi > (int64_t)r.hi ? 1 : (l.hi == r.hi ? (int64_t)l.lo > (int64_t)l.lo : 0); }\n"
-      << "#define __emulate_i128\n"
-      << "#endif\n\n";
-
-  // We output GCC specific attributes to preserve 'linkonce'ness on globals.
-  // If we aren't being compiled with GCC, just drop these attributes.
-  Out << "#ifdef _MSC_VER  /* Can only support \"linkonce\" vars with GCC */\n"
-      << "#define __attribute__(X)\n"
       << "#endif\n\n";
 }
 
@@ -2063,11 +1766,10 @@ void CWriter::generateHeader(Module& M)
   // get declaration for alloca
   Out << "/* Provide Declarations */\n";
   Out << "#include <stdarg.h>\n";  // Varargs support
-  Out << "#include <setjmp.h>\n";  // Unwind support
   Out << "#include <limits.h>\n";  // With overflow intrinsics support.
   Out << "#include <stdint.h>\n";  // Sized integer support
   Out << "#include <math.h>\n";    // definitions for some math functions and numeric constants
-  Out << "#include <APInt-C.h>\n"; // Implementations of many llvm intrinsics
+  //Out << "#include <APInt-C.h>\n"; // Implementations of many llvm intrinsics
   // Provide a definition for `bool' if not compiling with a C++ compiler.
   Out << "#ifndef __cplusplus\ntypedef unsigned char bool;\n#endif\n";
   Out << "\n";
@@ -2077,39 +1779,7 @@ void CWriter::generateHeader(Module& M)
   Out << "\n\n/* Support for floating point constants */\n"
       << "typedef uint64_t ConstantDoubleTy;\n"
       << "typedef uint32_t ConstantFloatTy;\n"
-      << "typedef struct { uint64_t f1; uint16_t f2; "
-         "uint16_t pad[3]; } ConstantFP80Ty;\n"
-      // This is used for both kinds of 128-bit long double; meaning differs.
-      << "typedef struct { uint64_t f1; uint64_t f2; }"
-         " ConstantFP128Ty;\n"
       << "\n\n/* Global Declarations */\n";
-
-  // First output all the declarations for the program, because C requires
-  // Functions & globals to be declared before they are used.
-  if (!M.getModuleInlineAsm().empty())
-  {
-    Out << "\n/* Module asm statements */\n"
-        << "__asm__ (";
-
-    // Split the string into lines, to make it easier to read the .ll file.
-    std::string Asm = M.getModuleInlineAsm();
-    size_t CurPos = 0;
-    size_t NewLine = Asm.find_first_of('\n', CurPos);
-    while (NewLine != std::string::npos)
-    {
-      // We found a newline, print the portion of the asm string from the
-      // last newline up to this newline.
-      Out << "\"";
-      PrintEscapedString(std::string(Asm.begin() + CurPos, Asm.begin() + NewLine), Out);
-      Out << "\\n\"\n";
-      CurPos = NewLine + 1;
-      NewLine = Asm.find_first_of('\n', CurPos);
-    }
-    Out << "\"";
-    PrintEscapedString(std::string(Asm.begin() + CurPos, Asm.end()), Out);
-    Out << "\");\n"
-        << "/* End Module asm statements */\n";
-  }
 
   // collect any remaining types
   raw_null_ostream NullOut;
@@ -2131,31 +1801,13 @@ void CWriter::generateHeader(Module& M)
       if (!I->isDeclaration() || isEmptyType(I->getType()->getPointerElementType()))
         continue;
 
-      if (I->hasDLLImportStorageClass())
-        Out << "__declspec(dllimport) ";
-      else if (I->hasDLLExportStorageClass())
-        Out << "__declspec(dllexport) ";
-
       if (I->hasExternalLinkage() || I->hasExternalWeakLinkage() || I->hasCommonLinkage())
         Out << "extern ";
       else
         continue; // Internal Global
 
-      // Thread Local Storage
-      if (I->isThreadLocal())
-        Out << "__thread ";
-
       Type* ElTy = I->getType()->getElementType();
-      unsigned Alignment = I->getAlignment();
-      bool IsOveraligned = Alignment && Alignment > TD->getABITypeAlignment(ElTy);
-      if (IsOveraligned)
-        Out << "__MSALIGN__(" << Alignment << ") ";
       printTypeName(Out, ElTy, false) << ' ' << GetValueName(&(*I));
-      if (IsOveraligned)
-        Out << " __attribute__((aligned(" << Alignment << ")))";
-
-      if (I->hasExternalWeakLinkage())
-        Out << " __EXTERNAL_WEAK__";
       Out << ";\n";
     }
   }
@@ -2211,20 +1863,11 @@ void CWriter::generateHeader(Module& M)
         I->getName() == "___chkstk_ms")
       continue;
 
-    if (I->hasDLLImportStorageClass())
-      Out << "__declspec(dllimport) ";
-    else if (I->hasDLLExportStorageClass())
-      Out << "__declspec(dllexport) ";
-
     if (I->hasLocalLinkage())
       Out << "static ";
     if (I->hasExternalWeakLinkage())
       Out << "extern ";
     printFunctionProto(Out, &(*I));
-    if (I->hasWeakLinkage() || I->hasLinkOnceLinkage())
-      Out << " __ATTRIBUTE_WEAK__";
-    if (I->hasExternalWeakLinkage())
-      Out << " __EXTERNAL_WEAK__";
     if (StaticCtors.count(&(*I)))
       Out << " __ATTRIBUTE_CTOR__";
     if (StaticDtors.count(&(*I)))
@@ -2258,28 +1901,12 @@ void CWriter::generateHeader(Module& M)
       if (I->hasLocalLinkage())
         continue; // Internal Global
 
-      if (I->hasDLLImportStorageClass())
-        Out << "__declspec(dllimport) ";
-      else if (I->hasDLLExportStorageClass())
-        Out << "__declspec(dllexport) ";
-
-      // Thread Local Storage
-      if (I->isThreadLocal())
-        Out << "__thread ";
-
       Type* ElTy = I->getType()->getElementType();
-      unsigned Alignment = I->getAlignment();
-      bool IsOveraligned = Alignment && Alignment > TD->getABITypeAlignment(ElTy);
-      if (IsOveraligned)
-        Out << "__MSALIGN__(" << Alignment << ") ";
+
       // GetValueName would resolve the alias, which is not what we want,
       // so use getName directly instead (assuming that the Alias has a name...)
       printTypeName(Out, ElTy, false) << " *" << I->getName();
-      if (IsOveraligned)
-        Out << " __attribute__((aligned(" << Alignment << ")))";
 
-      if (I->hasExternalWeakLinkage())
-        Out << " __EXTERNAL_WEAK__";
       Out << " = ";
       writeOperand(I->getAliasee(), ContextStatic);
       Out << ";\n";
@@ -2288,45 +1915,47 @@ void CWriter::generateHeader(Module& M)
 
   Out << "\n\n/* LLVM Intrinsic Builtin Function Bodies */\n";
 
-  // Emit some helper functions for dealing with FCMP instruction's
-  // predicates
-  Out << "static __forceinline int llvm_fcmp_ord(double X, double Y) { ";
+#if 0
+  // Currently not used due to no floating-point support
+  // Emit some helper functions for dealing with FCMP instruction's predicates
+  Out << "static FORCEINLINE int llvm_fcmp_ord(double X, double Y) { ";
   Out << "return X == X && Y == Y; }\n";
-  Out << "static __forceinline int llvm_fcmp_uno(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_uno(double X, double Y) { ";
   Out << "return X != X || Y != Y; }\n";
-  Out << "static __forceinline int llvm_fcmp_ueq(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_ueq(double X, double Y) { ";
   Out << "return X == Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static __forceinline int llvm_fcmp_une(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_une(double X, double Y) { ";
   Out << "return X != Y; }\n";
-  Out << "static __forceinline int llvm_fcmp_ult(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_ult(double X, double Y) { ";
   Out << "return X <  Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static __forceinline int llvm_fcmp_ugt(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_ugt(double X, double Y) { ";
   Out << "return X >  Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static __forceinline int llvm_fcmp_ule(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_ule(double X, double Y) { ";
   Out << "return X <= Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static __forceinline int llvm_fcmp_uge(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_uge(double X, double Y) { ";
   Out << "return X >= Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static __forceinline int llvm_fcmp_oeq(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_oeq(double X, double Y) { ";
   Out << "return X == Y ; }\n";
-  Out << "static __forceinline int llvm_fcmp_one(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_one(double X, double Y) { ";
   Out << "return X != Y && llvm_fcmp_ord(X, Y); }\n";
-  Out << "static __forceinline int llvm_fcmp_olt(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_olt(double X, double Y) { ";
   Out << "return X <  Y ; }\n";
-  Out << "static __forceinline int llvm_fcmp_ogt(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_ogt(double X, double Y) { ";
   Out << "return X >  Y ; }\n";
-  Out << "static __forceinline int llvm_fcmp_ole(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_ole(double X, double Y) { ";
   Out << "return X <= Y ; }\n";
-  Out << "static __forceinline int llvm_fcmp_oge(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_oge(double X, double Y) { ";
   Out << "return X >= Y ; }\n";
-  Out << "static __forceinline int llvm_fcmp_0(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_0(double X, double Y) { ";
   Out << "return 0; }\n";
-  Out << "static __forceinline int llvm_fcmp_1(double X, double Y) { ";
+  Out << "static FORCEINLINE int llvm_fcmp_1(double X, double Y) { ";
   Out << "return 1; }\n";
+#endif
 
   // Loop over all select operations
   for (std::set<Type*>::iterator it = SelectDeclTypes.begin(), end = SelectDeclTypes.end(); it != end; ++it)
   {
-    // static __forceinline Rty llvm_select_u8x4(<bool x 4> condition, <u8 x 4> iftrue, <u8 x 4> ifnot) {
+    // static FORCEINLINE Rty llvm_select_u8x4(<bool x 4> condition, <u8 x 4> iftrue, <u8 x 4> ifnot) {
     //   Rty r = {
     //     condition[0] ? iftrue[0] : ifnot[0],
     //     condition[1] ? iftrue[1] : ifnot[1],
@@ -2335,7 +1964,7 @@ void CWriter::generateHeader(Module& M)
     //   };
     //   return r;
     // }
-    Out << "static __forceinline ";
+    Out << "static FORCEINLINE ";
     printTypeNameUnaligned(Out, *it, false);
     Out << " llvm_select_";
     printTypeString(Out, *it, false);
@@ -2373,7 +2002,7 @@ void CWriter::generateHeader(Module& M)
                                                                       end = CmpDeclTypes.end();
        it != end; ++it)
   {
-    // static __forceinline <bool x 4> llvm_icmp_ge_u8x4(<u8 x 4> l, <u8 x 4> r) {
+    // static FORCEINLINE <bool x 4> llvm_icmp_ge_u8x4(<u8 x 4> l, <u8 x 4> r) {
     //   Rty c = {
     //     l[0] >= r[0],
     //     l[1] >= r[1],
@@ -2385,7 +2014,7 @@ void CWriter::generateHeader(Module& M)
     unsigned n, l = (*it).second->getVectorNumElements();
     VectorType* RTy = VectorType::get(Type::getInt1Ty((*it).second->getContext()), l);
     bool isSigned = CmpInst::isSigned((*it).first);
-    Out << "static __forceinline ";
+    Out << "static FORCEINLINE ";
     printTypeName(Out, RTy, isSigned);
     if (CmpInst::isFPPredicate((*it).first))
       Out << " llvm_fcmp_";
@@ -2451,7 +2080,7 @@ void CWriter::generateHeader(Module& M)
                                                                                  end = CastOpDeclTypes.end();
        it != end; ++it)
   {
-    // static __forceinline <u32 x 4> llvm_ZExt_u8x4_u32x4(<u8 x 4> in) { // Src->isVector == Dst->isVector
+    // static FORCEINLINE <u32 x 4> llvm_ZExt_u8x4_u32x4(<u8 x 4> in) { // Src->isVector == Dst->isVector
     //   Rty out = {
     //     in[0],
     //     in[1],
@@ -2460,7 +2089,7 @@ void CWriter::generateHeader(Module& M)
     //   };
     //   return out;
     // }
-    // static __forceinline u32 llvm_BitCast_u8x4_u32(<u8 x 4> in) { // Src->bitsSize == Dst->bitsSize
+    // static FORCEINLINE u32 llvm_BitCast_u8x4_u32(<u8 x 4> in) { // Src->bitsSize == Dst->bitsSize
     //   union {
     //     <u8 x 4> in;
     //     u32 out;
@@ -2488,7 +2117,7 @@ void CWriter::generateHeader(Module& M)
       DstSigned = true;
     }
 
-    Out << "static __forceinline ";
+    Out << "static FORCEINLINE ";
     printTypeName(Out, DstTy, DstSigned);
     Out << " llvm_" << Instruction::getOpcodeName(opcode) << "_";
     printTypeString(Out, SrcTy, false);
@@ -2568,7 +2197,7 @@ void CWriter::generateHeader(Module& M)
   for (std::set<std::pair<unsigned, Type*>>::iterator it = InlineOpDeclTypes.begin(), end = InlineOpDeclTypes.end();
        it != end; ++it)
   {
-    // static __forceinline <u32 x 4> llvm_BinOp_u32x4(<u32 x 4> a, <u32 x 4> b) {
+    // static FORCEINLINE <u32 x 4> llvm_BinOp_u32x4(<u32 x 4> a, <u32 x 4> b) {
     //   Rty r = {
     //      a[0] OP b[0],
     //      a[1] OP b[1],
@@ -2584,7 +2213,7 @@ void CWriter::generateHeader(Module& M)
     bool isSigned;
     opcodeNeedsCast(opcode, shouldCast, isSigned);
 
-    Out << "static __forceinline ";
+    Out << "static FORCEINLINE ";
     printTypeName(Out, OpTy);
     if (opcode == BinaryNeg)
     {
@@ -2940,13 +2569,13 @@ void CWriter::generateHeader(Module& M)
   // Loop over all inline constructors
   for (std::set<Type*>::iterator it = CtorDeclTypes.begin(), end = CtorDeclTypes.end(); it != end; ++it)
   {
-    // static __forceinline <u32 x 4> llvm_ctor_u32x4(u32 x1, u32 x2, u32 x3, u32 x4) {
+    // static FORCEINLINE <u32 x 4> llvm_ctor_u32x4(u32 x1, u32 x2, u32 x3, u32 x4) {
     //   Rty r = {
     //     x1, x2, x3, x4
     //   };
     //   return r;
     // }
-    Out << "static __forceinline ";
+    Out << "static FORCEINLINE ";
     printTypeName(Out, *it);
     Out << " llvm_ctor_";
     printTypeString(Out, *it, false);
@@ -3009,36 +2638,11 @@ void CWriter::declareOneGlobalVariable(GlobalVariable* I)
   if (getGlobalVariableClass(I))
     return;
 
-  if (I->hasDLLImportStorageClass())
-    Out << "__declspec(dllimport) ";
-  else if (I->hasDLLExportStorageClass())
-    Out << "__declspec(dllexport) ";
-
   if (I->hasLocalLinkage())
     Out << "static ";
 
-  // Thread Local Storage
-  if (I->isThreadLocal())
-    Out << "__thread ";
-
   Type* ElTy = I->getType()->getElementType();
-  unsigned Alignment = I->getAlignment();
-  bool IsOveraligned = Alignment && Alignment > TD->getABITypeAlignment(ElTy);
-  if (IsOveraligned)
-    Out << "__MSALIGN__(" << Alignment << ") ";
   printTypeName(Out, ElTy, false) << ' ' << GetValueName(I);
-  if (IsOveraligned)
-    Out << " __attribute__((aligned(" << Alignment << ")))";
-
-  if (I->hasLinkOnceLinkage())
-    Out << " __attribute__((common))";
-  else if (I->hasWeakLinkage())
-    Out << " __ATTRIBUTE_WEAK__";
-  else if (I->hasCommonLinkage())
-    Out << " __ATTRIBUTE_WEAK__";
-
-  if (I->hasHiddenVisibility())
-    Out << " __HIDDEN__";
 
   // If the initializer is not null, emit the initializer.  If it is null,
   // we try to avoid emitting large amounts of zeros.  The problem with
@@ -3125,23 +2729,6 @@ void CWriter::printFloatingPointConstants(const Constant* C)
     uint32_t i = (uint32_t)FPC->getValueAPF().bitcastToAPInt().getZExtValue();
     Out << "static const ConstantFloatTy FPConstant" << FPCounter++ << " = 0x" << utohexstr(i) << "U;    /* " << Val
         << " */\n";
-  }
-  else if (FPC->getType() == Type::getX86_FP80Ty(FPC->getContext()))
-  {
-    // api needed to prevent premature destruction
-    const APInt api = FPC->getValueAPF().bitcastToAPInt();
-    const uint64_t* p = api.getRawData();
-    Out << "static const ConstantFP80Ty FPConstant" << FPCounter++ << " = { 0x" << utohexstr(p[0]) << "ULL, 0x"
-        << utohexstr((uint16_t)p[1]) << ",{0,0,0}"
-        << "}; /* Long double constant */\n";
-  }
-  else if (FPC->getType() == Type::getPPC_FP128Ty(FPC->getContext()) ||
-           FPC->getType() == Type::getFP128Ty(FPC->getContext()))
-  {
-    const APInt api = FPC->getValueAPF().bitcastToAPInt();
-    const uint64_t* p = api.getRawData();
-    Out << "static const ConstantFP128Ty FPConstant" << FPCounter++ << " = { 0x" << utohexstr(p[0]) << ", 0x"
-        << utohexstr(p[1]) << "}; /* Long double constant */\n";
   }
   else
   {
@@ -3284,11 +2871,6 @@ void CWriter::printContainedTypes(raw_ostream& Out, Type* Ty, std::set<Type*>& T
     // Print array type out.
     printArrayDeclaration(Out, AT);
   }
-  else if (VectorType* VT = dyn_cast<VectorType>(Ty))
-  {
-    // Print vector type out.
-    printVectorDeclaration(Out, VT);
-  }
 }
 
 static inline bool isFPIntBitCast(Instruction& I)
@@ -3306,10 +2888,6 @@ void CWriter::printFunction(Function& F)
   bool isStructReturn = F.hasStructRetAttr();
 
   assert(!F.isDeclaration());
-  if (F.hasDLLImportStorageClass())
-    Out << "__declspec(dllimport) ";
-  if (F.hasDLLExportStorageClass())
-    Out << "__declspec(dllexport) ";
   if (F.hasLocalLinkage())
     Out << "static ";
   printFunctionProto(Out, F.getFunctionType(), std::make_pair(F.getAttributes(), F.getCallingConv()), GetValueName(&F),
@@ -3336,15 +2914,9 @@ void CWriter::printFunction(Function& F)
   {
     if (AllocaInst* AI = isDirectAlloca(&*I))
     {
-      unsigned Alignment = AI->getAlignment();
-      bool IsOveraligned = Alignment && Alignment > TD->getABITypeAlignment(AI->getAllocatedType());
       Out << "  ";
-      if (IsOveraligned)
-        Out << "__MSALIGN__(" << Alignment << ") ";
       printTypeName(Out, AI->getAllocatedType(), false) << ' ';
       Out << GetValueName(AI);
-      if (IsOveraligned)
-        Out << " __attribute__((aligned(" << Alignment << ")))";
       Out << ";    /* Address-exposed local */\n";
       PrintedVar = true;
     }
@@ -3431,7 +3003,7 @@ void CWriter::printBasicBlock(BasicBlock* BB)
   {
     if (!isInlinableInst(*II) && !isDirectAlloca(&(*II)))
     {
-      if (!isEmptyType(II->getType()) && !isInlineAsm(*II))
+      if (!isEmptyType(II->getType()))
         outputLValue(&(*II));
       else
         Out << "  ";
@@ -4061,12 +3633,12 @@ void CWriter::printIntrinsicDefinition(FunctionType* funT, unsigned Opcode, std:
     printIntrinsicDefinition(devecFunT, Opcode, OpName + "_devec", Out);
   }
 
-  // static __forceinline Rty _llvm_op_ixx(unsigned ixx a, unsigned ixx b) {
+  // static FORCEINLINE Rty _llvm_op_ixx(unsigned ixx a, unsigned ixx b) {
   //   Rty r;
   //   <opcode here>
   //   return r;
   // }
-  Out << "static __forceinline ";
+  Out << "static FORCEINLINE ";
   printTypeName(Out, retT);
   Out << " ";
   Out << OpName;
@@ -4379,9 +3951,6 @@ void CWriter::lowerIntrinsics(Function& F)
 
 void CWriter::visitCallInst(CallInst& I)
 {
-  if (isa<InlineAsm>(I.getCalledValue()))
-    return visitInlineAsm(I);
-
   // Handle intrinsic function calls first...
   if (Function* F = I.getCalledFunction())
     if (Intrinsic::ID ID = (Intrinsic::ID)F->getIntrinsicID())
@@ -4547,120 +4116,19 @@ bool CWriter::visitBuiltinCall(CallInst& I, Intrinsic::ID ID)
     Out << ')';
     return true;
   case Intrinsic::returnaddress:
-    Out << "__builtin_return_address(";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ')';
-    return true;
   case Intrinsic::frameaddress:
-    Out << "__builtin_frame_address(";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ')';
-    return true;
   case Intrinsic::setjmp:
-    Out << "setjmp(*(jmp_buf*)";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ')';
-    return true;
   case Intrinsic::longjmp:
-    Out << "longjmp(*(jmp_buf*)";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ", ";
-    writeOperand(I.getArgOperand(1), ContextCasted);
-    Out << ')';
-    return true;
   case Intrinsic::sigsetjmp:
-    Out << "sigsetjmp(*(sigjmp_buf*)";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ',';
-    writeOperand(I.getArgOperand(1), ContextCasted);
-    Out << ')';
-    return true;
   case Intrinsic::siglongjmp:
-    Out << "siglongjmp(*(sigjmp_buf*)";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ", ";
-    writeOperand(I.getArgOperand(1), ContextCasted);
-    Out << ')';
-    return true;
   case Intrinsic::prefetch:
-    Out << "LLVM_PREFETCH((const void *)";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ", ";
-    writeOperand(I.getArgOperand(1), ContextCasted);
-    Out << ", ";
-    writeOperand(I.getArgOperand(2), ContextCasted);
-    Out << ")";
-    return true;
   case Intrinsic::stacksave:
-    // Emit this as: Val = 0; *((void**)&Val) = __builtin_stack_save()
-    // to work around GCC bugs (see PR1809).
-    Out << "0; *((void**)&" << GetValueName(&I) << ") = __builtin_stack_save()";
-    return true;
   case Intrinsic::x86_sse_cmp_ss:
   case Intrinsic::x86_sse_cmp_ps:
   case Intrinsic::x86_sse2_cmp_sd:
   case Intrinsic::x86_sse2_cmp_pd:
-    Out << '(';
-    printTypeName(Out, I.getType());
-    Out << ')';
-    // Multiple GCC builtins multiplex onto this intrinsic.
-    switch (cast<ConstantInt>(I.getArgOperand(2))->getZExtValue())
-    {
-    default:
-      llvm_unreachable("Invalid llvm.x86.sse.cmp!");
-    case 0:
-      Out << "__builtin_ia32_cmpeq";
-      break;
-    case 1:
-      Out << "__builtin_ia32_cmplt";
-      break;
-    case 2:
-      Out << "__builtin_ia32_cmple";
-      break;
-    case 3:
-      Out << "__builtin_ia32_cmpunord";
-      break;
-    case 4:
-      Out << "__builtin_ia32_cmpneq";
-      break;
-    case 5:
-      Out << "__builtin_ia32_cmpnlt";
-      break;
-    case 6:
-      Out << "__builtin_ia32_cmpnle";
-      break;
-    case 7:
-      Out << "__builtin_ia32_cmpord";
-      break;
-    }
-    if (ID == Intrinsic::x86_sse_cmp_ps || ID == Intrinsic::x86_sse2_cmp_pd)
-      Out << 'p';
-    else
-      Out << 's';
-    if (ID == Intrinsic::x86_sse_cmp_ss || ID == Intrinsic::x86_sse_cmp_ps)
-      Out << 's';
-    else
-      Out << 'd';
-
-    Out << "(";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ", ";
-    writeOperand(I.getArgOperand(1), ContextCasted);
-    Out << ")";
-    return true;
   case Intrinsic::ppc_altivec_lvsl:
-    Out << '(';
-    printTypeName(Out, I.getType());
-    Out << ')';
-    Out << "__builtin_altivec_lvsl(0, (void*)";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    Out << ")";
-    return true;
   case Intrinsic::stackprotector:
-    writeOperandDeref(I.getArgOperand(1));
-    Out << " = ";
-    writeOperand(I.getArgOperand(0), ContextCasted);
-    return true;
   case Intrinsic::uadd_with_overflow:
   case Intrinsic::sadd_with_overflow:
   case Intrinsic::usub_with_overflow:
@@ -4684,206 +4152,6 @@ bool CWriter::visitBuiltinCall(CallInst& I, Intrinsic::ID ID)
   case Intrinsic::trunc:
     return false; // these use the normal function call emission
   }
-}
-
-// This converts the llvm constraint string to something gcc is expecting.
-// TODO: work out platform independent constraints and factor those out
-//      of the per target tables
-//      handle multiple constraint codes
-std::string CWriter::InterpretASMConstraint(InlineAsm::ConstraintInfo& c)
-{
-  return TargetLowering::AsmOperandInfo(c).ConstraintCode;
-#if 0
-  assert(c.Codes.size() == 1 && "Too many asm constraint codes to handle");
-
-  // Grab the translation table from MCAsmInfo if it exists.
-  const MCRegisterInfo *MRI;
-  const MCAsmInfo *TargetAsm;
-  std::string Triple = TheModule->getTargetTriple();
-  if (Triple.empty())
-    Triple = llvm::sys::getDefaultTargetTriple();
-
-  std::string E;
-  if (const Target *Match = TargetRegistry::lookupTarget(Triple, E)) {
-    MRI = Match->createMCRegInfo(Triple);
-    TargetAsm = Match->createMCAsmInfo(*MRI, Triple);
-  } else {
-    return c.Codes[0];
-  }
-
-  const char *const *table = TargetAsm->getAsmCBE();
-
-  // Search the translation table if it exists.
-  for (int i = 0; table && table[i]; i += 2)
-    if (c.Codes[0] == table[i]) {
-      delete TargetAsm;
-      delete MRI;
-      return table[i+1];
-    }
-
-  // Default is identity.
-  delete TargetAsm;
-  delete MRI;
-  return c.Codes[0];
-#endif
-}
-
-// TODO: import logic from AsmPrinter.cpp
-static std::string gccifyAsm(std::string asmstr)
-{
-  for (std::string::size_type i = 0; i != asmstr.size(); ++i)
-    if (asmstr[i] == '\n')
-      asmstr.replace(i, 1, "\\n");
-    else if (asmstr[i] == '\t')
-      asmstr.replace(i, 1, "\\t");
-    else if (asmstr[i] == '$')
-    {
-      if (asmstr[i + 1] == '{')
-      {
-        std::string::size_type a = asmstr.find_first_of(':', i + 1);
-        std::string::size_type b = asmstr.find_first_of('}', i + 1);
-        std::string n = "%" + asmstr.substr(a + 1, b - a - 1) + asmstr.substr(i + 2, a - i - 2);
-        asmstr.replace(i, b - i + 1, n);
-        i += n.size() - 1;
-      }
-      else
-        asmstr.replace(i, 1, "%");
-    }
-    else if (asmstr[i] == '%') // grr
-    {
-      asmstr.replace(i, 1, "%%");
-      ++i;
-    }
-
-  return asmstr;
-}
-
-// TODO: assumptions about what consume arguments from the call are likely wrong
-//      handle communitivity
-void CWriter::visitInlineAsm(CallInst& CI)
-{
-  InlineAsm* as = cast<InlineAsm>(CI.getCalledValue());
-  InlineAsm::ConstraintInfoVector Constraints = as->ParseConstraints();
-
-  std::vector<std::pair<Value*, int>> ResultVals;
-  if (CI.getType() == Type::getVoidTy(CI.getContext()))
-    ;
-  else if (StructType* ST = dyn_cast<StructType>(CI.getType()))
-  {
-    for (unsigned i = 0, e = ST->getNumElements(); i != e; ++i)
-      ResultVals.push_back(std::make_pair(&CI, (int)i));
-  }
-  else
-  {
-    ResultVals.push_back(std::make_pair(&CI, -1));
-  }
-
-  // Fix up the asm string for gcc and emit it.
-  Out << "__asm__ volatile (\"" << gccifyAsm(as->getAsmString()) << "\"\n";
-  Out << "        :";
-
-  unsigned ValueCount = 0;
-  bool IsFirst = true;
-
-  // Convert over all the output constraints.
-  for (InlineAsm::ConstraintInfoVector::iterator I = Constraints.begin(), E = Constraints.end(); I != E; ++I)
-  {
-
-    if (I->Type != InlineAsm::isOutput)
-    {
-      ++ValueCount;
-      continue; // Ignore non-output constraints.
-    }
-
-    assert(I->Codes.size() == 1 && "Too many asm constraint codes to handle");
-    std::string C = InterpretASMConstraint(*I);
-    if (C.empty())
-      continue;
-
-    if (!IsFirst)
-    {
-      Out << ", ";
-      IsFirst = false;
-    }
-
-    // Unpack the dest.
-    Value* DestVal;
-    int DestValNo = -1;
-
-    if (ValueCount < ResultVals.size())
-    {
-      DestVal = ResultVals[ValueCount].first;
-      DestValNo = ResultVals[ValueCount].second;
-    }
-    else
-      DestVal = CI.getArgOperand(ValueCount - ResultVals.size());
-
-    if (I->isEarlyClobber)
-      C = "&" + C;
-
-    Out << "\"=" << C << "\"(" << GetValueName(DestVal);
-    if (DestValNo != -1)
-      Out << ".field" << DestValNo; // Multiple retvals.
-    Out << ")";
-    ++ValueCount;
-  }
-
-  // Convert over all the input constraints.
-  Out << "\n        :";
-  IsFirst = true;
-  ValueCount = 0;
-  for (InlineAsm::ConstraintInfoVector::iterator I = Constraints.begin(), E = Constraints.end(); I != E; ++I)
-  {
-    if (I->Type != InlineAsm::isInput)
-    {
-      ++ValueCount;
-      continue; // Ignore non-input constraints.
-    }
-
-    assert(I->Codes.size() == 1 && "Too many asm constraint codes to handle");
-    std::string C = InterpretASMConstraint(*I);
-    if (C.empty())
-      continue;
-
-    if (!IsFirst)
-    {
-      Out << ", ";
-      IsFirst = false;
-    }
-
-    assert(ValueCount >= ResultVals.size() && "Input can't refer to result");
-    Value* SrcVal = CI.getArgOperand(ValueCount - ResultVals.size());
-
-    Out << "\"" << C << "\"(";
-    if (!I->isIndirect)
-      writeOperand(SrcVal);
-    else
-      writeOperandDeref(SrcVal);
-    Out << ")";
-  }
-
-  // Convert over the clobber constraints.
-  IsFirst = true;
-  for (InlineAsm::ConstraintInfoVector::iterator I = Constraints.begin(), E = Constraints.end(); I != E; ++I)
-  {
-    if (I->Type != InlineAsm::isClobber)
-      continue; // Ignore non-input constraints.
-
-    assert(I->Codes.size() == 1 && "Too many asm constraint codes to handle");
-    std::string C = InterpretASMConstraint(*I);
-    if (C.empty())
-      continue;
-
-    if (!IsFirst)
-    {
-      Out << ", ";
-      IsFirst = false;
-    }
-
-    Out << '\"' << C << '"';
-  }
-
-  Out << ")";
 }
 
 void CWriter::visitAllocaInst(AllocaInst& I)
@@ -5009,7 +4277,7 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
   Out << ")";
 }
 
-void CWriter::writeMemoryAccess(Value* Operand, Type* OperandType, bool IsVolatile, unsigned Alignment /*bytes*/)
+void CWriter::writeMemoryAccess(Value* Operand, Type* OperandType, bool IsVolatile)
 {
   if (isAddressExposed(Operand))
   {
@@ -5017,44 +4285,25 @@ void CWriter::writeMemoryAccess(Value* Operand, Type* OperandType, bool IsVolati
     return;
   }
 
-  bool IsUnaligned = Alignment && Alignment < TD->getABITypeAlignment(OperandType);
-
-  if (!IsUnaligned)
+  Out << '*';
+  if (IsVolatile)
   {
-    Out << '*';
-    if (IsVolatile)
-    {
-      Out << "(volatile ";
-      printTypeName(Out, OperandType, false);
-      Out << "*)";
-    }
-  }
-  else if (IsUnaligned)
-  {
-    Out << "__UNALIGNED_LOAD__(";
-    if (IsVolatile)
-      Out << "volatile ";
-
-    printTypeNameUnaligned(Out, OperandType, false);
-    Out << ", " << Alignment << ", ";
+    Out << "(volatile ";
+    printTypeName(Out, OperandType, false);
+    Out << "*)";
   }
 
   writeOperand(Operand);
-
-  if (IsUnaligned)
-  {
-    Out << ")";
-  }
 }
 
 void CWriter::visitLoadInst(LoadInst& I)
 {
-  writeMemoryAccess(I.getOperand(0), I.getType(), I.isVolatile(), I.getAlignment());
+  writeMemoryAccess(I.getOperand(0), I.getType(), I.isVolatile());
 }
 
 void CWriter::visitStoreInst(StoreInst& I)
 {
-  writeMemoryAccess(I.getPointerOperand(), I.getOperand(0)->getType(), I.isVolatile(), I.getAlignment());
+  writeMemoryAccess(I.getPointerOperand(), I.getOperand(0)->getType(), I.isVolatile());
   Out << " = ";
   Value* Operand = I.getOperand(0);
   unsigned BitMask = 0;
@@ -5118,63 +4367,6 @@ void CWriter::visitExtractElementInst(ExtractElementInst& I)
     writeOperand(I.getOperand(1));
     Out << "]";
   }
-}
-
-// <result> = shufflevector <n x <ty>> <v1>, <n x <ty>> <v2>, <m x i32> <mask>
-// ; yields <m x <ty>>
-void CWriter::visitShuffleVectorInst(ShuffleVectorInst& SVI)
-{
-  VectorType* VT = SVI.getType();
-  Type* EltTy = VT->getElementType();
-  VectorType* InputVT = cast<VectorType>(SVI.getOperand(0)->getType());
-  assert(!isEmptyType(VT));
-  assert(InputVT->getElementType() == VT->getElementType());
-
-  CtorDeclTypes.insert(VT);
-  Out << "llvm_ctor_";
-  printTypeString(Out, VT, false);
-  Out << "(";
-
-  Constant* Zero = Constant::getNullValue(EltTy);
-  unsigned NumElts = VT->getNumElements();
-  unsigned NumInputElts = InputVT->getNumElements(); // n
-  for (unsigned i = 0; i != NumElts; ++i)
-  {
-    if (i)
-      Out << ", ";
-    int SrcVal = SVI.getMaskValue(i);
-    if ((unsigned)SrcVal >= NumInputElts * 2)
-    {
-      Out << "/*undef*/";
-      printConstant(Zero, ContextCasted);
-    }
-    else
-    {
-      // If SrcVal belongs [0, n - 1], it extracts value from <v1>
-      // If SrcVal belongs [n, 2 * n - 1], it extracts value from <v2>
-      // In C++, the value false is converted to zero and the value true is
-      // converted to one
-      Value* Op = SVI.getOperand((unsigned)SrcVal >= NumInputElts);
-      if (isa<Instruction>(Op))
-      {
-        // Do an extractelement of this value from the appropriate input.
-        Out << "(";
-        writeOperand(Op);
-        Out << ").vector[";
-        Out << ((unsigned)SrcVal >= NumInputElts ? SrcVal - NumInputElts : SrcVal);
-        Out << "]";
-      }
-      else if (isa<ConstantAggregateZero>(Op) || isa<UndefValue>(Op))
-      {
-        printConstant(Zero, ContextCasted);
-      }
-      else
-      {
-        printConstant(cast<ConstantVector>(Op)->getOperand(SrcVal & (NumElts - 1)), ContextNormal);
-      }
-    }
-  }
-  Out << ")";
 }
 
 void CWriter::visitInsertValueInst(InsertValueInst& IVI)
