@@ -3622,8 +3622,9 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
     {
       Out << ".field" << cast<ConstantInt>(I.getOperand())->getZExtValue();
     }
-    else if (I.getIndexedType()->isArrayTy())
+    else if (I.isSequential())
     {
+      // since we don't support vector types, it must be an array
       Out << ".array[";
       writeOperandWithCast(I.getOperand(), Instruction::GetElementPtr);
       Out << ']';
