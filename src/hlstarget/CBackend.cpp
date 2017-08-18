@@ -1735,11 +1735,11 @@ void CWriter::generateHeader(Module& M)
 
   // get declaration for alloca
   Out << "/* Provide Declarations */\n";
-  Out << "#include <stdarg.h>\n";  // Varargs support
-  Out << "#include <limits.h>\n";  // With overflow intrinsics support.
-  Out << "#include <stdint.h>\n";  // Sized integer support
-  Out << "#include <math.h>\n";    // definitions for some math functions and numeric constants
-  //Out << "#include <APInt-C.h>\n"; // Implementations of many llvm intrinsics
+  Out << "#include <stdarg.h>\n"; // Varargs support
+  Out << "#include <limits.h>\n"; // With overflow intrinsics support.
+  Out << "#include <stdint.h>\n"; // Sized integer support
+  Out << "#include <math.h>\n";   // definitions for some math functions and numeric constants
+  // Out << "#include <APInt-C.h>\n"; // Implementations of many llvm intrinsics
   // Provide a definition for `bool' if not compiling with a C++ compiler.
   Out << "#ifndef __cplusplus\ntypedef unsigned char bool;\n#endif\n";
   Out << "\n";
@@ -1888,44 +1888,44 @@ void CWriter::generateHeader(Module& M)
 #if 0
   // Currently not used due to no floating-point support
   // Emit some helper functions for dealing with FCMP instruction's predicates
-  Out << "static FORCEINLINE int llvm_fcmp_ord(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ord(double X, double Y) { ";
   Out << "return X == X && Y == Y; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_uno(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_uno(double X, double Y) { ";
   Out << "return X != X || Y != Y; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_ueq(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ueq(double X, double Y) { ";
   Out << "return X == Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_une(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_une(double X, double Y) { ";
   Out << "return X != Y; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_ult(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ult(double X, double Y) { ";
   Out << "return X <  Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_ugt(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ugt(double X, double Y) { ";
   Out << "return X >  Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_ule(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ule(double X, double Y) { ";
   Out << "return X <= Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_uge(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_uge(double X, double Y) { ";
   Out << "return X >= Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_oeq(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_oeq(double X, double Y) { ";
   Out << "return X == Y ; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_one(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_one(double X, double Y) { ";
   Out << "return X != Y && llvm_fcmp_ord(X, Y); }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_olt(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_olt(double X, double Y) { ";
   Out << "return X <  Y ; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_ogt(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ogt(double X, double Y) { ";
   Out << "return X >  Y ; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_ole(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ole(double X, double Y) { ";
   Out << "return X <= Y ; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_oge(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_oge(double X, double Y) { ";
   Out << "return X >= Y ; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_0(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_0(double X, double Y) { ";
   Out << "return 0; }\n";
-  Out << "static FORCEINLINE int llvm_fcmp_1(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_1(double X, double Y) { ";
   Out << "return 1; }\n";
 #endif
 
   // Loop over all select operations
   for (std::set<Type*>::iterator it = SelectDeclTypes.begin(), end = SelectDeclTypes.end(); it != end; ++it)
   {
-    Out << "static FORCEINLINE ";
+    Out << "FORCEINLINE ";
     printTypeNameUnaligned(Out, *it, false);
     Out << " llvm_select_";
     printTypeString(Out, *it, false);
@@ -1933,8 +1933,8 @@ void CWriter::generateHeader(Module& M)
     printTypeNameUnaligned(Out, *it, false);
     Out << " iftrue, ";
     printTypeNameUnaligned(Out, *it, false);
-    Out << " ifnot) {\n";
-    Out << "  return condition ? iftrue : ifnot;\n}\n";
+    Out << " ifnot) { ";
+    Out << "return condition ? iftrue : ifnot; }\n";
   }
 
   // Loop over all simple operations
@@ -1955,7 +1955,7 @@ void CWriter::generateHeader(Module& M)
       printTypeString(Out, OpTy, false);
       Out << "(";
       printTypeNameUnaligned(Out, OpTy, isSigned);
-      Out << " a) {\n";
+      Out << " a) { ";
     }
     else if (opcode == BinaryNot)
     {
@@ -1963,7 +1963,7 @@ void CWriter::generateHeader(Module& M)
       printTypeString(Out, OpTy, false);
       Out << "(";
       printTypeNameUnaligned(Out, OpTy, isSigned);
-      Out << " a) {\n";
+      Out << " a) { ";
     }
     else
     {
@@ -1973,7 +1973,7 @@ void CWriter::generateHeader(Module& M)
       printTypeNameUnaligned(Out, OpTy, isSigned);
       Out << " a, ";
       printTypeNameUnaligned(Out, OpTy, isSigned);
-      Out << " b) {\n";
+      Out << " b) { ";
     }
 
     // C can't handle non-power-of-two integer types
@@ -1984,8 +1984,8 @@ void CWriter::generateHeader(Module& M)
       if (!ITy->isPowerOf2ByteWidth())
         mask = ITy->getBitMask();
     }
- 
-    Out << "  return ";
+
+    Out << "return ";
     if (mask)
       Out << "(";
     if (opcode == BinaryNeg)
@@ -2059,19 +2059,13 @@ void CWriter::generateHeader(Module& M)
       if (mask)
         Out << ") & " << mask;
     }
-    Out << ";\n}\n";
+    Out << "; }\n";
   }
 
   // Loop over all inline constructors
   for (std::set<Type*>::iterator it = CtorDeclTypes.begin(), end = CtorDeclTypes.end(); it != end; ++it)
   {
-    // static FORCEINLINE <u32 x 4> llvm_ctor_u32x4(u32 x1, u32 x2, u32 x3, u32 x4) {
-    //   Rty r = {
-    //     x1, x2, x3, x4
-    //   };
-    //   return r;
-    // }
-    Out << "static FORCEINLINE ";
+    Out << "FORCEINLINE ";
     printTypeName(Out, *it);
     Out << " llvm_ctor_";
     printTypeString(Out, *it, false);
@@ -3059,12 +3053,12 @@ void CWriter::printIntrinsicDefinition(FunctionType* funT, unsigned Opcode, std:
   }
   assert(numParams > 0 && numParams < 26);
 
-  // static FORCEINLINE Rty _llvm_op_ixx(unsigned ixx a, unsigned ixx b) {
+  // FORCEINLINE Rty _llvm_op_ixx(unsigned ixx a, unsigned ixx b) {
   //   Rty r;
   //   <opcode here>
   //   return r;
   // }
-  Out << "static FORCEINLINE ";
+  Out << "FORCEINLINE ";
   printTypeName(Out, retT);
   Out << " ";
   Out << OpName;
@@ -3159,33 +3153,21 @@ void CWriter::printIntrinsicDefinition(FunctionType* funT, unsigned Opcode, std:
     case Intrinsic::ctpop:
       assert(retT == elemT);
       Out << "  r = ";
-      if (retT->getPrimitiveSizeInBits() > 64)
-        Out << "llvm_ctor_u128(0, ";
       Out << "LLVMCountPopulation(8 * sizeof(a), &a)";
-      if (retT->getPrimitiveSizeInBits() > 64)
-        Out << ")";
       Out << ";\n";
       break;
 
     case Intrinsic::ctlz:
       assert(retT == elemT);
       Out << "  (void)b;\n  r = ";
-      if (retT->getPrimitiveSizeInBits() > 64)
-        Out << "llvm_ctor_u128(0, ";
       Out << "LLVMCountLeadingZeros(8 * sizeof(a), &a)";
-      if (retT->getPrimitiveSizeInBits() > 64)
-        Out << ")";
       Out << ";\n";
       break;
 
     case Intrinsic::cttz:
       assert(retT == elemT);
       Out << "  (void)b;\n  r = ";
-      if (retT->getPrimitiveSizeInBits() > 64)
-        Out << "llvm_ctor_u128(0, ";
       Out << "LLVMCountTrailingZeros(8 * sizeof(a), &a)";
-      if (retT->getPrimitiveSizeInBits() > 64)
-        Out << ")";
       Out << ";\n";
       break;
     }
