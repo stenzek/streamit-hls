@@ -5,12 +5,10 @@
 #include <memory>
 #include "common/log.h"
 #include "core/wrapped_llvm_context.h"
-#include "hlstarget/program_builder.h"
+#include "hlstarget/project_generator.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
-#include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Signals.h"
-#include "llvm/Support/raw_ostream.h"
 #include "parser/ast.h"
 #include "parser/ast_printer.h"
 #include "parser/parser_state.h"
@@ -25,17 +23,18 @@ static void DumpAST(ParserState* parser);
 static std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(WrappedLLVMContext* ctx, ParserState* parser);
 static void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph);
 
-static std::unique_ptr<llvm::Module> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
-                                                  StreamGraph::StreamGraph* streamgraph);
+static std::unique_ptr<HLSTarget::ProjectGenerator> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
+                                                                 StreamGraph::StreamGraph* streamgraph,
+                                                                 const std::string& dirname);
 static void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod);
-static void WriteCFile(WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename);
+static bool GenerateProject(WrappedLLVMContext* ctx, HLSTarget::ProjectGenerator* generator);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 static void usage(const char* progname)
 {
-  fprintf(stderr, "usage: %s [-w outfile] [-a] [-d] [-a] [-s] [-i] [-o] [-e] [-h]\n", progname);
-  fprintf(stderr, "  -w: Write output C file.\n");
+  fprintf(stderr, "usage: %s [-w projectdir] [-a] [-d] [-a] [-s] [-i] [-o] [-e] [-h]\n", progname);
+  fprintf(stderr, "  -w: Write output project.\n");
   fprintf(stderr, "  -d: Debug parser.\n");
   fprintf(stderr, "  -a: Dump abstract syntax tree.\n");
   fprintf(stderr, "  -s: Dump stream graph.\n");
@@ -57,7 +56,7 @@ int main(int argc, char* argv[])
   bool dump_stream_graph = false;
   bool dump_llvm_ir = false;
   bool optimize_llvm_ir = false;
-  bool write_c_file = false;
+  bool write_project = false;
 
   int c;
 
@@ -67,7 +66,7 @@ int main(int argc, char* argv[])
     {
     case 'w':
       output_filename = optarg;
-      write_c_file = true;
+      write_project = true;
       break;
 
     case 'd':
@@ -129,15 +128,19 @@ int main(int argc, char* argv[])
   if (dump_stream_graph)
     DumpStreamGraph(streamgraph.get());
 
-  std::unique_ptr<llvm::Module> module = GenerateCode(llvm_context.get(), parser.get(), streamgraph.get());
-  if (!module)
+  std::unique_ptr<HLSTarget::ProjectGenerator> generator =
+    GenerateCode(llvm_context.get(), parser.get(), streamgraph.get(), output_filename);
+  if (!generator)
     return EXIT_FAILURE;
 
   if (dump_llvm_ir)
-    DumpModule(llvm_context.get(), module.get());
+    DumpModule(llvm_context.get(), generator->GetModule());
 
-  if (write_c_file)
-    WriteCFile(llvm_context.get(), module.get(), output_filename.c_str());
+  if (write_project)
+  {
+    if (!GenerateProject(llvm_context.get(), generator.get()))
+      return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }
@@ -188,26 +191,27 @@ void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<llvm::Module> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
-                                           StreamGraph::StreamGraph* streamgraph)
+std::unique_ptr<HLSTarget::ProjectGenerator> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
+                                                          StreamGraph::StreamGraph* streamgraph,
+                                                          const std::string& dirname)
 {
   Log::Info("HLSCompiler", "Generating code...");
 
-  HLSTarget::ProgramBuilder builder(ctx, parser->GetEntryPointName());
-  if (!builder.GenerateCode(streamgraph))
+  auto builder = std::make_unique<HLSTarget::ProjectGenerator>(ctx, streamgraph, parser->GetEntryPointName(), dirname);
+  if (!builder->GenerateCode())
   {
     Log::Error("HLSCompiler", "Code generation failed.");
     return nullptr;
   }
 
   // Verify the LLVM bitcode. Can skip this.
-  if (!ctx->VerifyModule(builder.GetModule()))
+  if (!ctx->VerifyModule(builder->GetModule()))
   {
     Log::Warning("HLSCompiler", "LLVM IR failed validation.");
     return nullptr;
   }
 
-  return builder.DetachModule();
+  return std::move(builder);
 }
 
 void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod)
@@ -216,18 +220,22 @@ void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod)
   ctx->DumpModule(mod);
 }
 
-extern void addCBackendPasses(llvm::legacy::PassManagerBase& PM, llvm::raw_pwrite_stream& Out);
-
-void WriteCFile(WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename)
+bool GenerateProject(WrappedLLVMContext* ctx, HLSTarget::ProjectGenerator* generator)
 {
-  Log::Info("HLSCompiler", "Writing C code to %s...", filename);
+  Log::Info("HLSCompiler", "Writing project to %s...", generator->GetOutputDirectoryName().c_str());
+  if (generator->GetOutputDirectoryName().length() <= 1)
+  {
+    Log::Error("HLSCompiler", "Not writing project with a short output directory.");
+    return false;
+  }
 
-  std::error_code ec;
-  llvm::raw_fd_ostream os(filename, ec, llvm::sys::fs::F_None);
+  if (!generator->GenerateProject())
+  {
+    Log::Error("HLSCompiler", "Failed to generate project.");
+    return false;
+  }
 
-  llvm::legacy::PassManager pm;
-  addCBackendPasses(pm, os);
-  pm.run(*mod);
+  return true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

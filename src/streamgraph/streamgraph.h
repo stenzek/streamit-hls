@@ -34,6 +34,14 @@ public:
   Node* GetRootNode() const { return m_root_node; }
   std::string Dump();
 
+  // Get a list of all filter instances in the graph
+  using FilterInstanceList = std::vector<Filter*>;
+  FilterInstanceList GetFilterInstanceList() const;
+
+  // Get a list of all unique filter (parameter permutations) in the graph
+  using FilterPermutationList = std::vector<std::pair<AST::FilterDeclaration*, std::string>>;
+  FilterPermutationList GetFilterPermutationList() const;
+
 private:
   Node* m_root_node;
 };

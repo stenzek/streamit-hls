@@ -47,33 +47,31 @@ private:
   llvm::Value* m_out_ptr;
 };
 
-FilterBuilder::FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod) : m_context(context), m_module(mod)
+FilterBuilder::FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod, const AST::FilterDeclaration* filter_decl)
+  : m_context(context), m_module(mod), m_filter_decl(filter_decl)
 {
+  m_instance_name = m_filter_decl->GetName();
 }
 
 FilterBuilder::~FilterBuilder()
 {
 }
 
-bool FilterBuilder::GenerateCode(const StreamGraph::Filter* filter)
+bool FilterBuilder::GenerateCode()
 {
-  m_filter_decl = filter->GetFilterDeclaration();
-  m_instance_name = filter->GetName();
-  m_output_channel_name = filter->GetOutputChannelName();
-
   if (!GenerateGlobals())
     return false;
 
   if (m_filter_decl->HasWorkBlock())
   {
-    std::string name = StringFromFormat("%s_work", m_instance_name.c_str());
-    m_work_function = GenerateFunction(m_filter_decl->GetWorkBlock(), name);
-    if (!m_work_function)
+    std::string name = StringFromFormat("filter_%s", m_instance_name.c_str());
+    m_function = GenerateFunction(m_filter_decl->GetWorkBlock(), name);
+    if (!m_function)
       return false;
   }
   else
   {
-    m_work_function = nullptr;
+    m_function = nullptr;
   }
 
   return true;

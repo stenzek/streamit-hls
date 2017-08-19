@@ -1,4 +1,5 @@
 #include "streamgraph/streamgraph.h"
+#include <algorithm>
 #include <cassert>
 #include "common/string_helpers.h"
 #include "parser/ast.h"
@@ -19,6 +20,71 @@ StreamGraph::StreamGraph(Node* root) : m_root_node(root)
 StreamGraph::~StreamGraph()
 {
   delete m_root_node;
+}
+
+StreamGraph::FilterInstanceList StreamGraph::GetFilterInstanceList() const
+{
+  // TODO
+  assert(0 && "TODO");
+  return {};
+}
+
+class FilterPermutationListVisitor final : public Visitor
+{
+public:
+  StreamGraph::FilterPermutationList&& GetList() { return std::move(m_list); }
+
+  bool Visit(Filter* node) override final
+  {
+    if (std::any_of(m_list.begin(), m_list.end(),
+                    [&](const auto& it) { return it.first == node->GetFilterDeclaration(); }))
+      return true;
+
+    m_list.emplace_back(node->GetFilterDeclaration(), node->GetFilterDeclaration()->GetName());
+    return true;
+  }
+
+  bool Visit(Pipeline* node) override final
+  {
+    for (Node* child : node->GetChildren())
+    {
+      if (!child->Accept(this))
+        return false;
+    }
+
+    return true;
+  }
+
+  bool Visit(SplitJoin* node) override final
+  {
+    if (!node->GetSplitNode()->Accept(this))
+      return false;
+
+    for (Node* child : node->GetChildren())
+    {
+      if (!child->Accept(this))
+        return false;
+    }
+
+    if (!node->GetJoinNode()->Accept(this))
+      return false;
+
+    return true;
+  }
+
+  bool Visit(Split* node) override final { return true; }
+
+  bool Visit(Join* node) override final { return true; }
+
+private:
+  StreamGraph::FilterPermutationList m_list;
+};
+
+StreamGraph::FilterPermutationList StreamGraph::GetFilterPermutationList() const
+{
+  FilterPermutationListVisitor visitor;
+  m_root_node->Accept(&visitor);
+  return visitor.GetList();
 }
 
 Node::Node(const std::string& name, const Type* input_type, const Type* output_type)
