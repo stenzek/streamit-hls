@@ -77,9 +77,9 @@ bool ProjectGenerator::GenerateProject()
     return false;
   }
 
-  if (!WriteHLSProject())
+  if (!WriteHLSScript())
   {
-    Log::Error("ProjectGenerator", "Failed to write HLS project.");
+    Log::Error("ProjectGenerator", "Failed to write HLS script.");
     return false;
   }
 
@@ -183,9 +183,34 @@ bool ProjectGenerator::WriteCCode()
   return true;
 }
 
-bool ProjectGenerator::WriteHLSProject()
+bool ProjectGenerator::WriteHLSScript()
 {
-  return true;
+  std::string script_filename = StringFromFormat("%s/hls/script.tcl", m_output_dir.c_str());
+  Log::Info("ProjectGenerator", "Writing HLS TCL script to %s...", script_filename.c_str());
+
+  std::error_code ec;
+  llvm::raw_fd_ostream os(script_filename, ec, llvm::sys::fs::F_None);
+  if (ec || os.has_error())
+    return false;
+
+  os << "open_project -reset " << m_module_name << "\n";
+  os << "add_files filters.c\n";
+  os << "\n";
+
+  for (const auto& it : m_filter_function_map)
+  {
+    const std::string& filter_name = it.first;
+    os << "open_solution -reset \"filter_" << filter_name << "\"\n";
+    os << "set_top filter_" << filter_name << "\n";
+    os << "set_part {xa7a50tcsg325-2i} -tool vivado\n";
+    os << "create_clock -period 10 -name default\n";
+    os << "csynth_design\n";
+    os << "\n";
+  }
+
+  os << "exit\n";
+  os.flush();
+  return !os.has_error();
 }
 
 } // namespace HLSTarget

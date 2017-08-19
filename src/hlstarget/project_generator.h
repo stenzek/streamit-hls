@@ -46,7 +46,7 @@ private:
 
   bool CleanOutputDirectory();
   bool WriteCCode();
-  bool WriteHLSProject();
+  bool WriteHLSScript();
 
   WrappedLLVMContext* m_context;
   StreamGraph::StreamGraph* m_streamgraph;
