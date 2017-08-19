@@ -21,35 +21,6 @@ Log_SetChannel(HLSTarget::FilterBuilder);
 
 namespace HLSTarget
 {
-// Dummy interface for push/pop/peek
-struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
-{
-  FragmentBuilder(llvm::Value* in_ptr, llvm::Value* out_ptr) : m_in_ptr(in_ptr), m_out_ptr(out_ptr) {}
-
-  llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final
-  {
-    assert(m_in_ptr != nullptr);
-    return builder.CreateLoad(m_in_ptr, true, "pop");
-  }
-
-  llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) override final
-  {
-    assert(0 && "should not be called");
-    return nullptr;
-  }
-
-  bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
-  {
-    assert(m_out_ptr != nullptr);
-    builder.CreateStore(value, m_out_ptr, true);
-    return true;
-  }
-
-private:
-  llvm::Value* m_in_ptr;
-  llvm::Value* m_out_ptr;
-};
-
 // Buffered fragment - used for peek().
 // The first time the work function runs, we pop N elements where N is peek_rate.
 // This array is then indexed for peek(). When we see a pop() statement, we return the 0th element
@@ -59,9 +30,9 @@ private:
 // An optimization here is when the pop rate equals the peek rate. In this case, we skip the move
 // step, and simply return the 0th, then 1st, and so on for each pop() call, and offset any subsequent peeks.
 //
-struct BufferedFragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
+struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
-  BufferedFragmentBuilder(llvm::Value* in_ptr, llvm::Value* out_ptr) : m_in_ptr(in_ptr), m_out_ptr(out_ptr) {}
+  FragmentBuilder(llvm::Value* in_ptr, llvm::Value* out_ptr) : m_in_ptr(in_ptr), m_out_ptr(out_ptr) {}
 
   void BuildBuffer(Frontend::FunctionBuilder* func_builder, const AST::FilterDeclaration* filter_decl, u32 peek_rate,
                    u32 pop_rate)
@@ -129,8 +100,18 @@ struct BufferedFragmentBuilder : public Frontend::FunctionBuilder::TargetFragmen
     }
   }
 
+  bool IsBufferingEnabled() const { return (m_buffer_var != nullptr); }
+
   llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final
   {
+    assert(m_in_ptr != nullptr);
+
+    if (!IsBufferingEnabled())
+    {
+      // Direct without buffering.
+      return builder.CreateLoad(m_in_ptr, true, "pop");
+    }
+
     // pop_val <- peek_buffer[buffer_index]
     llvm::Value* pop_val = builder.CreateLoad(
       builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(m_buffer_index)}, "pop_ptr"),
@@ -161,6 +142,9 @@ struct BufferedFragmentBuilder : public Frontend::FunctionBuilder::TargetFragmen
 
   llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) override final
   {
+    if (!IsBufferingEnabled())
+      return nullptr;
+
     // peek_val <- peek_buffer[idx_value]
     llvm::Value* peek_ptr = builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), idx_value}, "peek_ptr");
     return builder.CreateLoad(peek_ptr, "peek_val");
@@ -255,31 +239,21 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   }
 
   // Start at the entry basic block for the work function.
-  std::unique_ptr<Frontend::FunctionBuilder::TargetFragmentBuilder> fragment_builder;
-  std::unique_ptr<Frontend::FunctionBuilder> function_builder;
+  FragmentBuilder fragment_builder(in_ptr, out_ptr);
+  Frontend::FunctionBuilder function_builder(m_context, m_module, &fragment_builder, func);
   if (!m_filter_decl->GetInputType()->IsVoid() && block->GetPeekRate() > 0)
-  {
-    fragment_builder = std::make_unique<BufferedFragmentBuilder>(in_ptr, out_ptr);
-    function_builder = std::make_unique<Frontend::FunctionBuilder>(m_context, m_module, fragment_builder.get(), func);
-    static_cast<BufferedFragmentBuilder*>(fragment_builder.get())
-      ->BuildBuffer(function_builder.get(), m_filter_decl, block->GetPeekRate(), block->GetPopRate());
-  }
-  else
-  {
-    fragment_builder = std::make_unique<FragmentBuilder>(in_ptr, out_ptr);
-    function_builder = std::make_unique<Frontend::FunctionBuilder>(m_context, m_module, fragment_builder.get(), func);
-  }
+    fragment_builder.BuildBuffer(&function_builder, m_filter_decl, block->GetPeekRate(), block->GetPopRate());
 
   // Add global variable references
   for (const auto& it : m_global_variable_map)
-    function_builder->AddGlobalVariable(it.first, it.second);
+    function_builder.AddGlobalVariable(it.first, it.second);
 
   // Emit code based on the work block.
-  if (!block->Accept(function_builder.get()))
+  if (!block->Accept(&function_builder))
     return nullptr;
 
   // Final return instruction.
-  function_builder->GetCurrentIRBuilder().CreateRetVoid();
+  function_builder.GetCurrentIRBuilder().CreateRetVoid();
   return func;
 }
 
