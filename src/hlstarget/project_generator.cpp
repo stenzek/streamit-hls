@@ -7,6 +7,7 @@
 #include "core/type.h"
 #include "core/wrapped_llvm_context.h"
 #include "hlstarget/filter_builder.h"
+#include "hlstarget/test_bench_generator.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -38,7 +39,7 @@ ProjectGenerator::~ProjectGenerator()
   delete m_module;
 }
 
-static bool debug_opt = true;
+static bool debug_opt = false;
 
 bool ProjectGenerator::GenerateCode()
 {
@@ -75,6 +76,12 @@ bool ProjectGenerator::GenerateProject()
   if (!WriteCCode())
   {
     Log_ErrorPrintf("Failed to write C code.");
+    return false;
+  }
+
+  if (!GenerateTestBenches())
+  {
+    Log_ErrorPrintf("Failed to generate test benches.");
     return false;
   }
 
@@ -181,6 +188,15 @@ bool ProjectGenerator::WriteCCode()
   addCBackendPasses(pm, os);
   pm.run(*m_module);
   return true;
+}
+
+bool ProjectGenerator::GenerateTestBenches()
+{
+  Log_InfoPrintf("Generating test benches...");
+
+  std::string testbench_module_name = StringFromFormat("%s_test_benches", m_module_name.c_str());
+  TestBenchGenerator generator(m_context, m_streamgraph, testbench_module_name, m_output_dir);
+  return generator.GenerateTestBenches();
 }
 
 bool ProjectGenerator::WriteHLSScript()

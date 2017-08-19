@@ -46,6 +46,7 @@ private:
 
   bool CleanOutputDirectory();
   bool WriteCCode();
+  bool GenerateTestBenches();
   bool WriteHLSScript();
 
   WrappedLLVMContext* m_context;

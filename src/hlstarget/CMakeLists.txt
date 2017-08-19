@@ -2,6 +2,7 @@ set(SRCS
     CBackend.cpp
     filter_builder.cpp
     project_generator.cpp
+    test_bench_generator.cpp
 )
 
 add_library(hlstarget
