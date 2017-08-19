@@ -23,6 +23,7 @@ public:
   llvm::Type* GetLLVMType(const Type* type);
 
   llvm::Type* GetVoidType();
+  llvm::Type* GetBooleanType();
   llvm::Type* GetIntType();
   llvm::Type* GetIntPtrType();
   llvm::Type* GetStringType();

@@ -31,6 +31,7 @@ public:
 
   WrappedLLVMContext* GetContext() const { return m_context; }
   llvm::Module* GetModule() const { return m_module; }
+  llvm::Function* GetFunction() const { return m_func; }
   TargetFragmentBuilder* GetTargetFragmentBuilder() const { return m_target_builder; }
   llvm::BasicBlock* GetEntryBasicBlock() const { return m_entry_basic_block; }
   llvm::BasicBlock* GetCurrentBasicBlock() const { return m_current_basic_block; }

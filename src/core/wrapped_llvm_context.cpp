@@ -40,6 +40,11 @@ llvm::Type* WrappedLLVMContext::GetVoidType()
   return llvm::Type::getVoidTy(*m_llvm_context);
 }
 
+llvm::Type* WrappedLLVMContext::GetBooleanType()
+{
+  return llvm::Type::getInt1Ty(*m_llvm_context);
+}
+
 llvm::Type* WrappedLLVMContext::GetIntType()
 {
   return llvm::Type::getInt32Ty(*m_llvm_context);
