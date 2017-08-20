@@ -338,7 +338,9 @@ std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, Parse
   if (!builder.GenerateGraph() || !builder.GetStartNode())
     return nullptr;
 
-  return std::make_unique<StreamGraph>(builder.GetStartNode());
+  Node* start = builder.GetStartNode();
+  start->SteadySchedule();
+  return std::make_unique<StreamGraph>(start);
 }
 
 } // namespace Frontend
