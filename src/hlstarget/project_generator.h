@@ -13,6 +13,11 @@ class Function;
 class Module;
 }
 
+namespace AST
+{
+class FilterDeclaration;
+}
+
 namespace StreamGraph
 {
 class StreamGraph;
@@ -55,7 +60,7 @@ private:
   std::string m_output_dir;
   llvm::Module* m_module = nullptr;
 
-  using FilterFunctionMap = std::map<std::string, llvm::Function*>;
+  using FilterFunctionMap = std::map<const AST::FilterDeclaration*, llvm::Function*>;
   FilterFunctionMap m_filter_function_map;
 };
 

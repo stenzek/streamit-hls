@@ -1,4 +1,5 @@
 #include "hlstarget/project_generator.h"
+#include <algorithm>
 #include <cassert>
 #include <map>
 #include <vector>
@@ -114,7 +115,7 @@ bool ProjectGenerator::GenerateFilterFunctions()
     if (!fb.GenerateCode())
       return false;
 
-    auto res = m_filter_function_map.emplace(it.second, fb.GetFunction());
+    auto res = m_filter_function_map.emplace(filter_decl, fb.GetFunction());
     assert(res.second);
   }
 
@@ -215,11 +216,36 @@ bool ProjectGenerator::WriteHLSScript()
 
   for (const auto& it : m_filter_function_map)
   {
-    const std::string& filter_name = it.first;
-    os << "open_solution -reset \"filter_" << filter_name << "\"\n";
-    os << "set_top filter_" << filter_name << "\n";
-    os << "set_part {xa7a50tcsg325-2i} -tool vivado\n";
-    os << "create_clock -period 10 -name default\n";
+    const AST::FilterDeclaration* filter_decl = it.first;
+    const std::string& filter_name = filter_decl->GetName();
+    const std::string function_name = StringFromFormat("filter_%s", filter_name.c_str());
+    os << "# filter " << filter_name << "\n"
+       << "open_solution -reset \"" << function_name << "\"\n"
+       << "set_top " << function_name << "\n"
+       << "set_part {xa7a50tcsg325-2i} -tool vivado\n"
+       << "create_clock -period 10 -name default\n"
+       << "\n";
+
+    os << "# directives\n";
+
+    // Make input pointer a fifo
+    if (!filter_decl->GetInputType()->IsVoid())
+    {
+      u32 depth = std::max(filter_decl->GetWorkBlock()->GetPeekRate(), filter_decl->GetWorkBlock()->GetPopRate());
+      os << "set_directive_interface -mode ap_fifo -depth " << depth << " \"" << function_name
+         << "\" llvm_cbe_in_ptr\n";
+    }
+
+    // Make output pointer a fifo
+    if (!filter_decl->GetOutputType()->IsVoid())
+    {
+      os << "set_directive_interface -mode ap_fifo -depth " << filter_decl->GetWorkBlock()->GetPushRate() << " \""
+         << function_name << "\" llvm_cbe_out_ptr\n";
+    }
+
+    os << "\n";
+
+    os << "# commands\n";
     os << "csynth_design\n";
     os << "\n";
   }
