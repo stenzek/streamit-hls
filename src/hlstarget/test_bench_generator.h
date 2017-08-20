@@ -2,6 +2,7 @@
 #include <cstddef>
 #include <map>
 #include <memory>
+#include <vector>
 
 class WrappedLLVMContext;
 
@@ -9,6 +10,7 @@ namespace llvm
 {
 class BasicBlock;
 class Constant;
+class ExecutionEngine;
 class Function;
 class GlobalVariable;
 class Module;
@@ -31,6 +33,7 @@ class TestBenchGenerator
 {
 public:
   using FilterFunctionMap = std::map<const AST::FilterDeclaration*, llvm::Function*>;
+  using FilterDataMap = std::map<const AST::FilterDeclaration*, std::vector<unsigned char>>;
 
   TestBenchGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph, const std::string& module_name,
                      const std::string& out_dir);
@@ -46,6 +49,8 @@ private:
   void CreateModule();
   bool GenerateFilterFunctions();
   llvm::Function* GenerateFilterFunction(const AST::FilterDeclaration* filter_decl);
+  bool CreateExecutionEngine();
+  void ExecuteFilters();
 
   WrappedLLVMContext* m_context;
   StreamGraph::StreamGraph* m_stream_graph;
@@ -56,8 +61,11 @@ private:
   llvm::GlobalVariable* m_input_buffer_pos_global = nullptr;
   llvm::GlobalVariable* m_output_buffer_global = nullptr;
   llvm::GlobalVariable* m_output_buffer_pos_global = nullptr;
+  llvm::ExecutionEngine* m_execution_engine = nullptr;
 
   FilterFunctionMap m_filter_functions;
+  FilterDataMap m_filter_input_data;
+  FilterDataMap m_filter_output_data;
 };
 
 } // namespace CPUTarget

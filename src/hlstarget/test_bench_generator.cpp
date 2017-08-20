@@ -8,6 +8,9 @@
 #include "core/wrapped_llvm_context.h"
 #include "frontend/function_builder.h"
 #include "frontend/state_variables_builder.h"
+#include "llvm/ExecutionEngine/ExecutionEngine.h"
+#include "llvm/ExecutionEngine/GenericValue.h"
+#include "llvm/ExecutionEngine/MCJIT.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -15,6 +18,7 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Support/TargetSelect.h"
 #include "parser/ast.h"
 #include "streamgraph/streamgraph.h"
 Log_SetChannel(HLSTarget::TestBenchGenerator);
@@ -27,10 +31,10 @@ Log_SetChannel(HLSTarget::TestBenchGenerator);
 #endif
 
 constexpr size_t DATA_BUFFER_SIZE = 1024 * 1024;
-extern "C" EXPORT byte test_bench_gen_input_buffer[DATA_BUFFER_SIZE];
-extern "C" EXPORT u32 test_bench_gen_input_buffer_pos;
-extern "C" EXPORT byte test_bench_gen_output_buffer[DATA_BUFFER_SIZE];
-extern "C" EXPORT u32 test_bench_gen_output_buffer_pos;
+EXPORT byte test_bench_gen_input_buffer[DATA_BUFFER_SIZE];
+EXPORT u32 test_bench_gen_input_buffer_pos;
+EXPORT byte test_bench_gen_output_buffer[DATA_BUFFER_SIZE];
+EXPORT u32 test_bench_gen_output_buffer_pos;
 
 namespace HLSTarget
 {
@@ -51,6 +55,11 @@ bool TestBenchGenerator::GenerateTestBenches()
 
   if (!GenerateFilterFunctions())
     return false;
+
+  if (!CreateExecutionEngine())
+    return false;
+
+  ExecuteFilters();
 
   return true;
 }
@@ -103,7 +112,7 @@ bool TestBenchGenerator::GenerateFilterFunctions()
 
   Log_InfoPrintf("Generated %u filter functions", unsigned(m_filter_functions.size()));
 
-  m_context->DumpModule(m_module);
+  // m_context->DumpModule(m_module);
   return true;
 }
 
@@ -161,10 +170,10 @@ public:
   {
     llvm::Type* byte_ptr_type = llvm::PointerType::getUnqual(m_context->GetByteType());
     // input_buffer_pos <- GLOBAL_input_buffer_pos
-    llvm::Value* input_buffer_pos = builder.CreateLoad(m_input_buffer_pos_var, "input_buffer_pos");
+    llvm::Value* input_buffer_pos = builder.CreateLoad(m_output_buffer_pos_var, "input_buffer_pos");
     // input_buffer_ptr <- &GLOBAL_input_buffer[input_buffer_pos]
     llvm::Value* input_buffer_ptr =
-      builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), input_buffer_pos}, "input_buffer_ptr");
+      builder.CreateInBoundsGEP(m_output_buffer_var, {builder.getInt32(0), input_buffer_pos}, "input_buffer_ptr");
     // bitcast_temp <- value
     builder.CreateStore(value, m_temp);
     // bitcast_temp_ptr <- (i8*)&value
@@ -172,10 +181,10 @@ public:
     // memcpy(bitcast_temp_ptr, input_buffer_ptr, sizeof(elem))
     builder.CreateMemCpy(input_buffer_ptr, raw_ptr, GetSizeOfElement(), GetSizeOfElement());
     // new_pos <- input_buffer_pos + sizeof(elem)
-    llvm::Value* new_pos = builder.CreateAdd(builder.CreateLoad(m_input_buffer_pos_var, "input_buffer_pos"),
+    llvm::Value* new_pos = builder.CreateAdd(builder.CreateLoad(m_output_buffer_pos_var, "input_buffer_pos"),
                                              builder.getInt32(GetSizeOfElement()));
     // input_buffer_pos <- new_pos
-    builder.CreateStore(new_pos, m_input_buffer_pos_var);
+    builder.CreateStore(new_pos, m_output_buffer_pos_var);
     return true;
   }
 
@@ -224,7 +233,29 @@ llvm::Function* TestBenchGenerator::GenerateFilterFunction(const AST::FilterDecl
   if (!filter_decl->GetWorkBlock()->Accept(&function_builder))
     return nullptr;
 
+  // TODO: Need to insert the return. This should be fixed.
+  function_builder.GetCurrentIRBuilder().CreateRetVoid();
   return func;
+}
+
+bool TestBenchGenerator::CreateExecutionEngine()
+{
+  llvm::InitializeNativeTarget();
+  llvm::InitializeNativeTargetAsmPrinter();
+  llvm::InitializeNativeTargetAsmParser();
+
+  std::string error_msg;
+  m_execution_engine = llvm::EngineBuilder(std::unique_ptr<llvm::Module>(m_module)).setErrorStr(&error_msg).create();
+
+  if (!m_execution_engine)
+  {
+    Log_ErrorPrintf("Failed to create LLVM execution engine: %s", error_msg.c_str());
+    return false;
+  }
+
+  m_module = nullptr;
+  m_execution_engine->finalizeObject();
+  return true;
 }
 
 namespace
@@ -233,8 +264,11 @@ namespace
 class FilterExecutorVisitor : public StreamGraph::Visitor
 {
 public:
-  FilterExecutorVisitor(WrappedLLVMContext* context, const TestBenchGenerator::FilterFunctionMap& filter_functions)
-    : m_context(context), m_filter_functions(filter_functions)
+  FilterExecutorVisitor(WrappedLLVMContext* context, llvm::ExecutionEngine* execution_engine,
+                        const TestBenchGenerator::FilterDataMap& filter_input_data,
+                        const TestBenchGenerator::FilterDataMap& filter_output_data)
+    : m_context(context), m_execution_engine(execution_engine), m_filter_input_data(filter_input_data),
+      m_filter_output_data(filter_output_data)
   {
   }
 
@@ -246,12 +280,54 @@ public:
 
 private:
   WrappedLLVMContext* m_context;
-  const TestBenchGenerator::FilterFunctionMap& m_filter_functions;
+  llvm::ExecutionEngine* m_execution_engine;
+  const TestBenchGenerator::FilterDataMap& m_filter_input_data;
+  const TestBenchGenerator::FilterDataMap& m_filter_output_data;
 };
 
 bool FilterExecutorVisitor::Visit(StreamGraph::Filter* node)
 {
-  Log_ErrorPrintf("TODO: Execute %s", node->GetName().c_str());
+  const AST::FilterDeclaration* filter_decl = node->GetFilterDeclaration();
+
+  // Copy the last filter execution's output to this execution's input.
+  test_bench_gen_input_buffer_pos = 0;
+  if (!filter_decl->GetInputType()->IsVoid())
+  {
+    u32 input_data_size = test_bench_gen_output_buffer_pos;
+    if (input_data_size > 0)
+    {
+      std::copy(test_bench_gen_output_buffer, test_bench_gen_output_buffer + input_data_size,
+                test_bench_gen_input_buffer);
+      std::fill_n(test_bench_gen_input_buffer + input_data_size, sizeof(test_bench_gen_input_buffer) - input_data_size,
+                  0);
+      Log_DevPrintf("Using %u bytes from previous filter", test_bench_gen_output_buffer_pos);
+    }
+    else
+    {
+      Log_ErrorPrintf("TODO: Add dummy input data.");
+    }
+  }
+
+  // Ensure remaining data is zeroed out.
+  std::fill_n(test_bench_gen_output_buffer, sizeof(test_bench_gen_output_buffer), 0);
+  test_bench_gen_output_buffer_pos = 0;
+
+  // Execute filter
+  std::string function_name = StringFromFormat("%s_work", filter_decl->GetName().c_str());
+  llvm::Function* filter_func = m_execution_engine->FindFunctionNamed(function_name);
+  assert(filter_func && "filter function exists in execution engine");
+  Log_DevPrintf("Executing filter '%s' %u times", function_name.c_str(), node->GetMultiplicity());
+  for (u32 i = 0; i < node->GetMultiplicity(); i++)
+    m_execution_engine->runFunction(filter_func, {});
+  Log_DevPrintf("Exec result %u %u", test_bench_gen_input_buffer_pos, test_bench_gen_output_buffer_pos);
+
+  // Do we have output data?
+  if (!filter_decl->GetOutputType()->IsVoid())
+  {
+    std::string hexdump = HexDumpString(test_bench_gen_output_buffer, test_bench_gen_output_buffer_pos);
+    Log_DevPrintf("Output data\n%s", hexdump.c_str());
+  }
+
   return true;
 }
 
@@ -285,5 +361,17 @@ bool FilterExecutorVisitor::Visit(StreamGraph::Join* node)
 }
 
 } // namespace
+
+void TestBenchGenerator::ExecuteFilters()
+{
+  // Zero out buffers so we don't get any previous/undefined data.
+  std::fill_n(test_bench_gen_input_buffer, sizeof(test_bench_gen_input_buffer), 0);
+  std::fill_n(test_bench_gen_output_buffer, sizeof(test_bench_gen_output_buffer), 0);
+  test_bench_gen_input_buffer_pos = 0;
+  test_bench_gen_output_buffer_pos = 0;
+
+  FilterExecutorVisitor visitor(m_context, m_execution_engine, m_filter_input_data, m_filter_output_data);
+  m_stream_graph->GetRootNode()->Accept(&visitor);
+}
 
 } // namespace CPUTarget
