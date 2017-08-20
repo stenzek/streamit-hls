@@ -212,6 +212,7 @@ bool ProjectGenerator::WriteHLSScript()
 
   os << "open_project -reset " << m_module_name << "\n";
   os << "add_files filters.c\n";
+  os << "add_files -tb filters_tb.c\n";
   os << "\n";
 
   for (const auto& it : m_filter_function_map)
@@ -247,6 +248,7 @@ bool ProjectGenerator::WriteHLSScript()
 
     os << "# commands\n";
     os << "csynth_design\n";
+    os << "csim_design -argv \"" << function_name << "\"\n";
     os << "\n";
   }
 

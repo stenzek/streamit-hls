@@ -33,7 +33,8 @@ class TestBenchGenerator
 {
 public:
   using FilterFunctionMap = std::map<const AST::FilterDeclaration*, llvm::Function*>;
-  using FilterDataMap = std::map<const AST::FilterDeclaration*, std::vector<unsigned char>>;
+  using FilterDataVector = std::vector<unsigned char>;
+  using FilterDataMap = std::map<const AST::FilterDeclaration*, FilterDataVector>;
 
   TestBenchGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph, const std::string& module_name,
                      const std::string& out_dir);
@@ -51,6 +52,7 @@ private:
   llvm::Function* GenerateFilterFunction(const AST::FilterDeclaration* filter_decl);
   bool CreateExecutionEngine();
   void ExecuteFilters();
+  bool GenerateTestBenchCCode();
 
   WrappedLLVMContext* m_context;
   StreamGraph::StreamGraph* m_stream_graph;
