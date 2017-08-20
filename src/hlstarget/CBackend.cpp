@@ -3565,12 +3565,12 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
   // If the first index is 0 (very typical) we can do a number of
   // simplifications to clean up the code.
   Value* FirstOp = I.getOperand();
-  if (!isa<Constant>(FirstOp) || !cast<Constant>(FirstOp)->isNullValue())
+  if (!isa<Constant>(FirstOp))
   {
     // First index isn't simple, print it the hard way.
     writeOperand(Ptr);
   }
-  else
+  else if (cast<Constant>(FirstOp)->isNullValue())
   {
     ++I; // Skip the zero index.
 
@@ -3595,6 +3595,22 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
       writeOperand(Ptr);
       Out << ")";
     }
+  }
+  else
+  {
+    // First index is not zero/constant.
+    // This is needed for pointer offset instructions, i.e. &ptr[1]
+    Out << "(";
+    if (isAddressExposed(Ptr))
+      writeOperandInternal(Ptr);
+    else
+      writeOperand(Ptr);
+    Out << ")[";
+    writeOperandWithCast(I.getOperand(), Instruction::GetElementPtr);
+    Out << "]";
+
+    // We've already written the first argument.
+    ++I;
   }
 
   for (; I != E; ++I)
