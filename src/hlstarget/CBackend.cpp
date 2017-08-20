@@ -3565,12 +3565,7 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
   // If the first index is 0 (very typical) we can do a number of
   // simplifications to clean up the code.
   Value* FirstOp = I.getOperand();
-  if (!isa<Constant>(FirstOp))
-  {
-    // First index isn't simple, print it the hard way.
-    writeOperand(Ptr);
-  }
-  else if (cast<Constant>(FirstOp)->isNullValue())
+  if (isa<Constant>(FirstOp) && cast<Constant>(FirstOp)->isNullValue())
   {
     ++I; // Skip the zero index.
 
@@ -3585,7 +3580,7 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
       // If we didn't already emit the first operand, see if we can print it as
       // P->f instead of "P[0].f"
       writeOperand(Ptr);
-      Out << "->field" << cast<ConstantInt>(I.getOperand())->getZExtValue();
+      Out << "->field" << cast<ConstantInt>(FirstOp)->getZExtValue();
       ++I; // eat the struct index as well.
     }
     else
@@ -3606,7 +3601,7 @@ void CWriter::printGEPExpression(Value* Ptr, gep_type_iterator I, gep_type_itera
     else
       writeOperand(Ptr);
     Out << ")[";
-    writeOperandWithCast(I.getOperand(), Instruction::GetElementPtr);
+    writeOperandWithCast(FirstOp, Instruction::GetElementPtr);
     Out << "]";
 
     // We've already written the first argument.

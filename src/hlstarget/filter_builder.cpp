@@ -34,6 +34,25 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
   FragmentBuilder(llvm::Value* in_ptr, llvm::Value* out_ptr) : m_in_ptr(in_ptr), m_out_ptr(out_ptr) {}
 
+  void CreateDeclarations(Frontend::FunctionBuilder* func_builder)
+  {
+    WrappedLLVMContext* context = func_builder->GetContext();
+    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+    // llvm::BasicBlock* new_entry = llvm::BasicBlock::Create(context->GetLLVMContext(), "new_entry",
+    // func_builder->GetFunction());
+    // llvm::BasicBlock* entry_block = func_builder->GetCurrentBasicBlock();
+    if (m_in_ptr)
+      m_in_index = builder.CreateAlloca(context->GetIntType(), nullptr, "in_index");
+    if (m_out_ptr)
+      m_out_index = builder.CreateAlloca(context->GetIntType(), nullptr, "out_index");
+    if (m_in_ptr)
+      builder.CreateStore(builder.getInt32(0), m_in_index);
+    if (m_out_ptr)
+      builder.CreateStore(builder.getInt32(0), m_out_index);
+    // builder.CreateBr(new_entry);
+    // func_builder->SwitchBasicBlock(new_entry);
+  }
+
   void BuildBuffer(Frontend::FunctionBuilder* func_builder, const AST::FilterDeclaration* filter_decl, u32 peek_rate,
                    u32 pop_rate)
   {
@@ -70,7 +89,10 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       for (u32 i = 0; i < m_buffer_size; i++)
       {
         // fill_value <- pop()
-        llvm::Value* fill_value = builder.CreateLoad(m_in_ptr, true, "fill_value");
+        llvm::Value* fill_src_index = builder.CreateLoad(m_in_index, "fill_src_index");
+        builder.CreateStore(builder.CreateAdd(fill_src_index, builder.getInt32(1)), m_in_index);
+        llvm::Value* fill_value =
+          builder.CreateLoad(builder.CreateGEP(m_in_ptr, {fill_src_index}, "fill_ptr"), true, "fill_value");
         // peek_buffer[i] <- fill_value
         builder.CreateStore(fill_value,
                             builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
@@ -92,7 +114,10 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       for (u32 i = 0; i < m_buffer_size; i++)
       {
         // fill_value <- pop()
-        llvm::Value* fill_value = builder.CreateLoad(m_in_ptr, true, "fill_value");
+        llvm::Value* fill_src_index = builder.CreateLoad(m_in_index, "fill_src_index");
+        builder.CreateStore(builder.CreateAdd(fill_src_index, builder.getInt32(1)), m_in_index);
+        llvm::Value* fill_value =
+          builder.CreateLoad(builder.CreateGEP(m_in_ptr, {fill_src_index}, "fill_ptr"), true, "fill_value");
         // peek_buffer[i] <- fill_value
         builder.CreateStore(fill_value,
                             builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
@@ -109,12 +134,14 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
     if (!IsBufferingEnabled())
     {
       // Direct without buffering.
-      return builder.CreateLoad(m_in_ptr, true, "pop");
+      llvm::Value* pop_src_index = builder.CreateLoad(m_in_index, "in_src_index");
+      builder.CreateStore(builder.CreateAdd(pop_src_index, builder.getInt32(1)), m_in_index);
+      return builder.CreateLoad(builder.CreateGEP(m_in_ptr, {pop_src_index}, "in_ptr"), true, "pop");
     }
 
     // pop_val <- peek_buffer[buffer_index]
     llvm::Value* pop_val = builder.CreateLoad(
-      builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(m_buffer_index)}, "pop_ptr"),
+      builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(m_buffer_index)}, "in_ptr"),
       "pop_val");
 
     // When using peek optimizations, increment buffer index, instead of wasting time shuffling elements around.
@@ -133,8 +160,10 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
     }
 
     // peek_buffer[n-1] = pop()
+    llvm::Value* pop_src_index = builder.CreateLoad(m_in_index, "in_src_index");
+    builder.CreateStore(builder.CreateAdd(pop_src_index, builder.getInt32(1)), m_in_index);
     builder.CreateStore(
-      builder.CreateLoad(m_in_ptr, true, "pop"),
+      builder.CreateLoad(builder.CreateGEP(m_in_ptr, {pop_src_index}, "pop_ptr"), true, "pop"),
       builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(m_buffer_size - 1)}));
 
     return pop_val;
@@ -153,13 +182,17 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
   bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
   {
     assert(m_out_ptr != nullptr);
-    builder.CreateStore(value, m_out_ptr, true);
+    llvm::Value* push_dst_index = builder.CreateLoad(m_out_index, "push_dst_index");
+    builder.CreateStore(builder.CreateAdd(push_dst_index, builder.getInt32(1)), m_out_index);
+    builder.CreateStore(value, builder.CreateGEP(m_out_ptr, {push_dst_index}, "push_ptr"), true);
     return true;
   }
 
 private:
   llvm::Value* m_in_ptr;
   llvm::Value* m_out_ptr;
+  llvm::AllocaInst* m_in_index = nullptr;
+  llvm::AllocaInst* m_out_index = nullptr;
   llvm::Value* m_buffer_var = nullptr;
   u32 m_buffer_size = 0;
   u32 m_buffer_index = 0;
@@ -241,6 +274,7 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   // Start at the entry basic block for the work function.
   FragmentBuilder fragment_builder(in_ptr, out_ptr);
   Frontend::FunctionBuilder function_builder(m_context, m_module, &fragment_builder, func);
+  fragment_builder.CreateDeclarations(&function_builder);
   if (!m_filter_decl->GetInputType()->IsVoid() && block->GetPeekRate() > 0)
     fragment_builder.BuildBuffer(&function_builder, m_filter_decl, block->GetPeekRate(), block->GetPopRate());
 
