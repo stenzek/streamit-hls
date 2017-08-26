@@ -170,14 +170,21 @@ void StructSpecifier::AddField(const char* name, TypeName* specifier)
   m_fields.emplace_back(name, specifier);
 }
 
+ParameterDeclaration::ParameterDeclaration(const SourceLocation& sloc, TypeName* type_specifier,
+                                           const std::string& name)
+  : Declaration(sloc), m_type_specifier(type_specifier), m_name(name)
+{
+}
+
 StreamDeclaration::StreamDeclaration(const SourceLocation& sloc, const char* name) : Declaration(sloc), m_name(name)
 {
 }
 
 PipelineDeclaration::PipelineDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
-                                         TypeName* output_type_specifier, const char* name, NodeList* statements)
+                                         TypeName* output_type_specifier, const char* name,
+                                         ParameterDeclarationList* params, NodeList* statements)
   : StreamDeclaration(sloc, name), m_input_type_specifier(input_type_specifier),
-    m_output_type_specifier(output_type_specifier), m_statements(statements)
+    m_output_type_specifier(output_type_specifier), m_parameters(params), m_statements(statements)
 {
 }
 
@@ -186,9 +193,10 @@ PipelineDeclaration::~PipelineDeclaration()
 }
 
 SplitJoinDeclaration::SplitJoinDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
-                                           TypeName* output_type_specifier, const char* name, NodeList* statements)
+                                           TypeName* output_type_specifier, const char* name,
+                                           ParameterDeclarationList* params, NodeList* statements)
   : StreamDeclaration(sloc, name), m_input_type_specifier(input_type_specifier),
-    m_output_type_specifier(output_type_specifier), m_statements(statements)
+    m_output_type_specifier(output_type_specifier), m_parameters(params), m_statements(statements)
 {
 }
 
@@ -464,10 +472,12 @@ Node* VariableDeclaration::CreateDeclarations(TypeName* type_specifier, const In
 }
 
 FilterDeclaration::FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
-                                     TypeName* output_type_specifier, const char* name, NodeList* vars,
-                                     FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work)
+                                     TypeName* output_type_specifier, const char* name,
+                                     ParameterDeclarationList* params, NodeList* vars, FilterWorkBlock* init,
+                                     FilterWorkBlock* prework, FilterWorkBlock* work)
   : StreamDeclaration(sloc, name), m_input_type_specifier(input_type_specifier),
-    m_output_type_specifier(output_type_specifier), m_vars(vars), m_init(init), m_prework(prework), m_work(work)
+    m_output_type_specifier(output_type_specifier), m_parameters(params), m_vars(vars), m_init(init),
+    m_prework(prework), m_work(work)
 {
 }
 

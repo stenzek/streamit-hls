@@ -11,6 +11,7 @@ class Expression;
 class TypeReference;
 class TypeName;
 class StructSpecifier;
+class ParameterDeclaration;
 class StreamDeclaration;
 class PipelineDeclaration;
 class SplitJoinDeclaration;
@@ -53,6 +54,7 @@ public:
   virtual bool Visit(TypeReference* node);
   virtual bool Visit(TypeName* node);
   virtual bool Visit(StructSpecifier* node);
+  virtual bool Visit(ParameterDeclaration* node);
   virtual bool Visit(StreamDeclaration* node);
   virtual bool Visit(PipelineDeclaration* node);
   virtual bool Visit(SplitJoinDeclaration* node);

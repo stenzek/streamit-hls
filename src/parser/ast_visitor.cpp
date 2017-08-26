@@ -144,6 +144,11 @@ bool Visitor::Visit(JoinStatement* node)
   return Visit(static_cast<Statement*>(node));
 }
 
+bool Visitor::Visit(ParameterDeclaration* node)
+{
+  return Visit(static_cast<ParameterDeclaration*>(node));
+}
+
 bool Visitor::Visit(StreamDeclaration* node)
 {
   return Visit(static_cast<Declaration*>(node));
@@ -363,6 +368,11 @@ bool JoinStatement::Accept(Visitor* visitor)
 }
 
 bool SplitStatement::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool ParameterDeclaration::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

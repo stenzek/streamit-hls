@@ -218,6 +218,26 @@ private:
   const Type* m_final_type = nullptr;
 };
 
+class ParameterDeclaration : public Declaration
+{
+public:
+  ParameterDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const std::string& name);
+  ~ParameterDeclaration() = default;
+
+  const Type* GetType() const { return m_type; }
+  const std::string& GetName() const { return m_name; }
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+private:
+  TypeName* m_type_specifier;
+  const Type* m_type = nullptr;
+  std::string m_name;
+};
+using ParameterDeclarationList = std::vector<ParameterDeclaration*>;
+
 class StreamDeclaration : public Declaration
 {
 public:
@@ -234,7 +254,7 @@ class PipelineDeclaration : public StreamDeclaration
 {
 public:
   PipelineDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
-                      const char* name, NodeList* statements);
+                      const char* name, ParameterDeclarationList* params, NodeList* statements);
   ~PipelineDeclaration() override;
 
   void Dump(ASTPrinter* printer) const override;
@@ -242,6 +262,7 @@ public:
   bool Accept(Visitor* visitor) override;
 
   NodeList* GetStatements() const { return m_statements; }
+  ParameterDeclarationList* GetParameters() const { return m_parameters; }
 
 private:
   TypeName* m_input_type_specifier;
@@ -249,13 +270,14 @@ private:
   const Type* m_input_type = nullptr;
   const Type* m_output_type = nullptr;
   NodeList* m_statements;
+  ParameterDeclarationList* m_parameters;
 };
 
 class SplitJoinDeclaration : public StreamDeclaration
 {
 public:
   SplitJoinDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
-                       const char* name, NodeList* statements);
+                       const char* name, ParameterDeclarationList* params, NodeList* statements);
   ~SplitJoinDeclaration() override;
 
   void Dump(ASTPrinter* printer) const override;
@@ -263,6 +285,7 @@ public:
   bool Accept(Visitor* visitor) override;
 
   NodeList* GetStatements() const { return m_statements; }
+  ParameterDeclarationList* GetParameters() const { return m_parameters; }
 
 private:
   TypeName* m_input_type_specifier;
@@ -270,14 +293,15 @@ private:
   const Type* m_input_type = nullptr;
   const Type* m_output_type = nullptr;
   NodeList* m_statements;
+  ParameterDeclarationList* m_parameters;
 };
 
 class FilterDeclaration : public StreamDeclaration
 {
 public:
   FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
-                    const char* name, NodeList* vars, FilterWorkBlock* init, FilterWorkBlock* prework,
-                    FilterWorkBlock* work);
+                    const char* name, ParameterDeclarationList* params, NodeList* vars, FilterWorkBlock* init,
+                    FilterWorkBlock* prework, FilterWorkBlock* work);
   ~FilterDeclaration() = default;
 
   const Type* GetInputType() const { return m_input_type; }
@@ -287,6 +311,7 @@ public:
   FilterWorkBlock* GetInitBlock() const { return m_init; }
   FilterWorkBlock* GetPreworkBlock() const { return m_prework; }
   FilterWorkBlock* GetWorkBlock() const { return m_work; }
+  ParameterDeclarationList* GetParameters() const { return m_parameters; }
   NodeList* GetStateVariables() const { return m_vars; }
 
   bool HasInitBlock() const { return (m_init != nullptr); }
@@ -306,6 +331,7 @@ private:
   TypeName* m_output_type_specifier;
   const Type* m_input_type = nullptr;
   const Type* m_output_type = nullptr;
+  ParameterDeclarationList* m_parameters;
   NodeList* m_vars;
   FilterWorkBlock* m_init;
   FilterWorkBlock* m_prework;

@@ -62,6 +62,8 @@ using namespace AST;
   AST::InitDeclarator init_declarator;
   AST::InitDeclaratorList* init_declarator_list;
   AST::InitializerListExpression* initializer_list_expr;
+  AST::ParameterDeclaration* parameter_declaration;
+  AST::ParameterDeclarationList* parameter_declaration_list;
 
   const char* identifier;
 
@@ -88,6 +90,8 @@ using namespace AST;
 %type <type_name> DeclarationSpecifiers
 %type <init_declarator> InitDeclarator
 %type <init_declarator_list> InitDeclaratorList
+%type <parameter_declaration> ParameterDeclaration
+%type <parameter_declaration_list> ParameterDeclarationList
 %type <identifier> Declarator
 %type <expr> Initializer
 %type <initializer_list_expr> InitializerList
@@ -169,18 +173,20 @@ StreamDeclaration
   ;
 
 PipelineDeclaration
-  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' StreamStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7); }
+  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' StreamStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, nullptr, $7); }
+  | TypeName TK_ARROW TypeName TK_PIPELINE Identifier '(' ParameterDeclarationList ')' '{' StreamStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7, $10); }
   ;
 
 SplitJoinDeclaration
-  : TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '{' StreamStatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, $7); }
+  : TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '{' StreamStatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, nullptr, $7); }
+  | TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '(' ParameterDeclarationList ')' '{' StreamStatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, $7, $10); }
   ;
 
 AnonymousFilterDeclaration
   : '{' FilterDefinition '}'
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_filter");
-    FilterDeclaration* decl = new FilterDeclaration(@1, nullptr, nullptr, name.c_str(), $2->vars, $2->init, $2->prework, $2->work);
+    FilterDeclaration* decl = new FilterDeclaration(@1, nullptr, nullptr, name.c_str(), nullptr, $2->vars, $2->init, $2->prework, $2->work);
     state->AddFilter(decl);
     $$ = decl;
   }
@@ -190,7 +196,7 @@ AnonymousStreamDeclaration
   : TK_SPLITJOIN '{' StreamStatementList '}'
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_splitjoin");
-    SplitJoinDeclaration* decl = new SplitJoinDeclaration(@1, nullptr, nullptr, name.c_str(), $3);
+    SplitJoinDeclaration* decl = new SplitJoinDeclaration(@1, nullptr, nullptr, name.c_str(), nullptr, $3);
     state->AddStream(decl);
     $$ = decl;
   }
@@ -202,8 +208,10 @@ StreamStatementList
   ;
 
 FilterDeclaration
-  : TypeName TK_ARROW TypeName TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, $6->vars, $6->init, $6->prework, $6->work); }
-  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, $7->vars, $7->init, $7->prework, $7->work); }
+  : TypeName TK_ARROW TypeName TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, nullptr, $6->vars, $6->init, $6->prework, $6->work); }
+  | TypeName TK_ARROW TypeName TK_FILTER Identifier '(' ParameterDeclarationList ')' FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, $7, $9->vars, $9->init, $9->prework, $9->work); }
+  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, nullptr, $7->vars, $7->init, $7->prework, $7->work); }
+  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier '(' ParameterDeclarationList ')' FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, $8, $10->vars, $10->init, $10->prework, $10->work); }
   ;
 
 FilterDefinition
@@ -283,6 +291,15 @@ InitializerList
   | InitializerList ',' Initializer { $1->AddExpression($3); }
   ;
 
+ParameterDeclarationList
+  : ParameterDeclaration { $$ = new ParameterDeclarationList(); $$->push_back($1); }
+  | ParameterDeclarationList ParameterDeclaration { $1->push_back($2); $$ = $1; }
+  ;
+
+ParameterDeclaration
+  : DeclarationSpecifiers Declarator { $$ = new ParameterDeclaration(@1, $1, $2); }
+  ;
+
 StatementListItem
   : Declaration { $$ = $1; }
   | CompoundStatement { $$ = $1; }
@@ -335,6 +352,7 @@ StreamStatement
 AddStatement
   : TK_ADD Identifier ';' { $$ = new AddStatement(@1, $2, nullptr); }
   | TK_ADD Identifier '(' ')' ';' { $$ = new AddStatement(@1, $2, nullptr); }
+  | TK_ADD Identifier '(' ArgumentExpressionList ')' ';' { $$ = new AddStatement(@1, $2, $4); }
   | TK_ADD AnonymousFilterDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList()); }
   | TK_ADD AnonymousStreamDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList()); }
   ;

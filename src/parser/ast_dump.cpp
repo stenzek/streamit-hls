@@ -42,10 +42,24 @@ void StructSpecifier::Dump(ASTPrinter* printer) const
   }
 }
 
+void ParameterDeclaration::Dump(ASTPrinter* printer) const
+{
+  printer->WriteLine("ParameterDeclaration[type=%s,name=%s]", m_type->GetName().c_str(), m_name.c_str());
+}
+
 void PipelineDeclaration::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("PipelineDeclaration[name=%s, input=%s, output=%s]", m_name.c_str(),
                       m_input_type->GetName().c_str(), m_output_type->GetName().c_str());
+  if (m_parameters)
+  {
+    unsigned int counter = 0;
+    for (const auto* param : *m_parameters)
+    {
+      printer->Write("Parameter[%u]: ", counter++);
+      param->Dump(printer);
+    }
+  }
   if (m_statements)
   {
     unsigned int counter = 0;
@@ -62,6 +76,15 @@ void SplitJoinDeclaration::Dump(ASTPrinter* printer) const
 {
   printer->BeginBlock("SplitJoinDeclaration[name=%s, input=%s, output=%s]", m_name.c_str(),
                       m_input_type->GetName().c_str(), m_output_type->GetName().c_str());
+  if (m_parameters)
+  {
+    unsigned int counter = 0;
+    for (const auto* param : *m_parameters)
+    {
+      printer->Write("Parameter[%u]: ", counter++);
+      param->Dump(printer);
+    }
+  }
   if (m_statements)
   {
     unsigned int counter = 0;
@@ -272,6 +295,15 @@ void FilterDeclaration::Dump(ASTPrinter* printer) const
   printer->BeginBlock("Filter[name=%s, input=%s, output=%s]", m_name.c_str(), m_input_type->GetName().c_str(),
                       m_output_type->GetName().c_str());
   {
+    if (m_parameters)
+    {
+      unsigned int counter = 0;
+      for (const auto* param : *m_parameters)
+      {
+        printer->Write("Parameter[%u]: ", counter++);
+        param->Dump(printer);
+      }
+    }
     if (m_vars)
     {
       printer->BeginBlock("vars: ");

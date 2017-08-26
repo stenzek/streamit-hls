@@ -80,6 +80,20 @@ bool StructSpecifier::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
   return symbol_table->AddName(m_name, new TypeReference(m_name, m_final_type));
 }
 
+bool ParameterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  bool result = m_type_specifier->SemanticAnalysis(state, symbol_table);
+  m_type = m_type_specifier->GetFinalType();
+
+  if (!symbol_table->AddName(m_name, this))
+  {
+    state->LogError(m_sloc, "Variable '%s' already defined", m_name.c_str());
+    result = false;
+  }
+
+  return result;
+}
+
 bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
@@ -95,6 +109,12 @@ bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
     // TODO: Anonymous stream
     m_input_type = state->GetErrorType();
     m_output_type = state->GetErrorType();
+  }
+
+  if (m_parameters)
+  {
+    for (ParameterDeclaration* param : *m_parameters)
+      result &= param->SemanticAnalysis(state, symbol_table);
   }
 
   if (m_statements)
@@ -118,6 +138,12 @@ bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sy
     // TODO: Anonymous stream
     m_input_type = state->GetErrorType();
     m_output_type = state->GetErrorType();
+  }
+
+  if (m_parameters)
+  {
+    for (ParameterDeclaration* param : *m_parameters)
+      result &= param->SemanticAnalysis(state, symbol_table);
   }
 
   if (m_statements)
@@ -169,6 +195,12 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   m_input_type = m_input_type_specifier->GetFinalType();
   result &= m_output_type_specifier->SemanticAnalysis(state, symbol_table);
   m_output_type = m_output_type_specifier->GetFinalType();
+
+  if (m_parameters)
+  {
+    for (ParameterDeclaration* param : *m_parameters)
+      result &= param->SemanticAnalysis(state, symbol_table);
+  }
 
   // For LLVM codegen at least, it's easier to have all the initialization happen in init.
   if (result)
