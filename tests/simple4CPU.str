@@ -1,8 +1,8 @@
 int->int pipeline simple4 {
     add counter();
     //add stuff();
-    //add adder();
-    //add printer();
+    add adder();
+    add printer();
 }
 
 void->int filter counter {
