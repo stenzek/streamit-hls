@@ -225,13 +225,13 @@ FilterWorkParts
 
 /* TODO: Raise error on negative peek/push/pop */
 FilterWorkBlock
-  : TK_PEEK IntegerLiteral { $$ = new FilterWorkBlock(); $$->SetPeekRate($2); }
-  | TK_POP IntegerLiteral { $$ = new FilterWorkBlock(); $$->SetPopRate($2); }
-  | TK_PUSH IntegerLiteral { $$ = new FilterWorkBlock(); $$->SetPushRate($2); }
-  | '{' StatementList '}' { $$ = new FilterWorkBlock(); $$->SetStatements($2); }
-  | FilterWorkBlock TK_PEEK IntegerLiteral { $$->SetPeekRate($3); }
-  | FilterWorkBlock TK_POP IntegerLiteral { $$->SetPopRate($3); }
-  | FilterWorkBlock TK_PUSH IntegerLiteral { $$->SetPushRate($3); }
+  : TK_PEEK Expression { $$ = new FilterWorkBlock(@1); $$->SetPeekRateExpression($2); }
+  | TK_POP Expression { $$ = new FilterWorkBlock(@1); $$->SetPopRateExpression($2); }
+  | TK_PUSH Expression { $$ = new FilterWorkBlock(@1); $$->SetPushRateExpression($2); }
+  | '{' StatementList '}' { $$ = new FilterWorkBlock(@1); $$->SetStatements($2); }
+  | FilterWorkBlock TK_PEEK Expression { $$->SetPeekRateExpression($3); }
+  | FilterWorkBlock TK_POP Expression { $$->SetPopRateExpression($3); }
+  | FilterWorkBlock TK_PUSH Expression { $$->SetPushRateExpression($3); }
   | FilterWorkBlock '{' StatementList '}' { $$->SetStatements($3); }
   ;
 

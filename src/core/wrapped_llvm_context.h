@@ -30,6 +30,8 @@ public:
   llvm::Type* GetStringType();
   llvm::Type* GetPointerType();
 
+  llvm::Value* CreateHostPointerValue(const void* ptr);
+
   llvm::Module* CreateModule(const char* name);
   void DestroyModule(llvm::Module* mod);
   void DumpModule(llvm::Module* mod);

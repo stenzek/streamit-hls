@@ -21,6 +21,7 @@ class FilterDeclaration;
 namespace StreamGraph
 {
 class StreamGraph;
+class FilterPermutation;
 }
 
 namespace HLSTarget
@@ -60,7 +61,7 @@ private:
   std::string m_output_dir;
   llvm::Module* m_module = nullptr;
 
-  using FilterFunctionMap = std::map<const AST::FilterDeclaration*, llvm::Function*>;
+  using FilterFunctionMap = std::map<const StreamGraph::FilterPermutation*, llvm::Function*>;
   FilterFunctionMap m_filter_function_map;
 };
 

@@ -21,6 +21,7 @@ class VariableDeclaration;
 
 namespace StreamGraph
 {
+class FilterPermutation;
 class Filter;
 }
 
@@ -51,6 +52,7 @@ private:
 
   WrappedLLVMContext* m_context;
   llvm::Module* m_module;
+  const StreamGraph::FilterPermutation* m_filter_permutation = nullptr;
   const AST::FilterDeclaration* m_filter_decl = nullptr;
   std::string m_instance_name;
   std::string m_output_channel_name;

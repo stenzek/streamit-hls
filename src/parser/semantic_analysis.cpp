@@ -226,7 +226,7 @@ void FilterDeclaration::MoveStateAssignmentsToInit()
 
   if (!m_init)
   {
-    m_init = new FilterWorkBlock();
+    m_init = new FilterWorkBlock({});
     m_init->SetStatements(assign_exprs.release());
   }
   else
@@ -238,13 +238,28 @@ void FilterDeclaration::MoveStateAssignmentsToInit()
 bool FilterWorkBlock::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // TODO: Check rates and stuff (e.g. push type matches output type)..
-  if (m_peek_rate < 0)
-    m_peek_rate = 0;
-  if (m_pop_rate < 0)
-    m_pop_rate = 0;
-  if (m_push_rate < 0)
-    m_push_rate = 0;
-  return m_stmts->SemanticAnalysis(state, symbol_table);
+  bool result = true;
+  if (m_peek_rate_expr && (result &= m_peek_rate_expr->SemanticAnalysis(state, symbol_table)) &&
+      !m_peek_rate_expr->GetType()->IsInt())
+  {
+    state->LogError(m_sloc, "Peek rate is not an integer");
+    result = false;
+  }
+  if (m_pop_rate_expr && (result &= m_pop_rate_expr->SemanticAnalysis(state, symbol_table)) &&
+      !m_pop_rate_expr->GetType()->IsInt())
+  {
+    state->LogError(m_sloc, "Pop rate is not an integer");
+    result = false;
+  }
+  if (m_push_rate_expr && (result &= m_push_rate_expr->SemanticAnalysis(state, symbol_table)) &&
+      !m_push_rate_expr->GetType()->IsInt())
+  {
+    state->LogError(m_sloc, "Push rate is not an integer");
+    result = false;
+  }
+
+  result &= m_stmts->SemanticAnalysis(state, symbol_table);
+  return result;
 }
 
 bool IdentifierExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)

@@ -29,7 +29,7 @@ ChannelBuilder::~ChannelBuilder()
 bool ChannelBuilder::GenerateCode(StreamGraph::Filter* filter)
 {
   m_instance_name = filter->GetName();
-  if (filter->GetFilterDeclaration()->GetInputType()->IsVoid())
+  if (filter->GetInputType()->IsVoid())
     return true;
 
   return (GenerateFilterGlobals(filter) && GenerateFilterPeekFunction(filter) && GenerateFilterPopFunction(filter) &&
@@ -50,7 +50,7 @@ bool ChannelBuilder::GenerateCode(StreamGraph::Join* join)
 
 bool ChannelBuilder::GenerateFilterGlobals(StreamGraph::Filter* filter)
 {
-  llvm::Type* data_ty = m_context->GetLLVMType(filter->GetFilterDeclaration()->GetInputType());
+  llvm::Type* data_ty = m_context->GetLLVMType(filter->GetInputType());
 
   // Create struct type
   //
@@ -77,7 +77,7 @@ bool ChannelBuilder::GenerateFilterGlobals(StreamGraph::Filter* filter)
 
 bool ChannelBuilder::GenerateFilterPeekFunction(StreamGraph::Filter* filter)
 {
-  llvm::Type* ret_ty = m_context->GetLLVMType(filter->GetFilterDeclaration()->GetInputType());
+  llvm::Type* ret_ty = m_context->GetLLVMType(filter->GetInputType());
   llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {m_context->GetIntType()}, false);
   llvm::Constant* func_cons =
     m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_instance_name.c_str()), llvm_peek_fn);
@@ -119,7 +119,7 @@ bool ChannelBuilder::GenerateFilterPeekFunction(StreamGraph::Filter* filter)
 
 bool ChannelBuilder::GenerateFilterPopFunction(StreamGraph::Filter* filter)
 {
-  llvm::Type* ret_ty = m_context->GetLLVMType(filter->GetFilterDeclaration()->GetInputType());
+  llvm::Type* ret_ty = m_context->GetLLVMType(filter->GetInputType());
   llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
   llvm::Constant* func_cons =
     m_module->getOrInsertFunction(StringFromFormat("%s_pop", m_instance_name.c_str()), llvm_pop_fn);
@@ -170,7 +170,7 @@ bool ChannelBuilder::GenerateFilterPopFunction(StreamGraph::Filter* filter)
 
 bool ChannelBuilder::GenerateFilterPushFunction(StreamGraph::Filter* filter)
 {
-  llvm::Type* param_ty = m_context->GetLLVMType(filter->GetFilterDeclaration()->GetInputType());
+  llvm::Type* param_ty = m_context->GetLLVMType(filter->GetInputType());
   llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(m_context->GetVoidType(), {param_ty}, false);
   llvm::Constant* func_cons =
     m_module->getOrInsertFunction(StringFromFormat("%s_push", m_instance_name.c_str()), llvm_push_fn);

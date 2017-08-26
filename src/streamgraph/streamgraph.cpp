@@ -13,7 +13,8 @@ static bool IsStream(Node* node)
           dynamic_cast<SplitJoin*>(node) != nullptr);
 }
 
-StreamGraph::StreamGraph(Node* root) : m_root_node(root)
+StreamGraph::StreamGraph(Node* root, const FilterPermutationList& filter_permutation_list)
+  : m_root_node(root), m_filter_permutations(filter_permutation_list)
 {
 }
 
@@ -29,62 +30,11 @@ StreamGraph::FilterInstanceList StreamGraph::GetFilterInstanceList() const
   return {};
 }
 
-class FilterPermutationListVisitor final : public Visitor
+FilterPermutation::FilterPermutation(const AST::FilterDeclaration* filter_decl, int peek_rate, int pop_rate,
+                                     int push_rate)
+  : m_name(filter_decl->GetName()), m_filter_decl(filter_decl), m_input_type(filter_decl->GetInputType()),
+    m_output_type(filter_decl->GetOutputType()), m_peek_rate(peek_rate), m_pop_rate(pop_rate), m_push_rate(push_rate)
 {
-public:
-  StreamGraph::FilterPermutationList&& GetList() { return std::move(m_list); }
-
-  bool Visit(Filter* node) override final
-  {
-    if (std::any_of(m_list.begin(), m_list.end(),
-                    [&](const auto& it) { return it.first == node->GetFilterDeclaration(); }))
-      return true;
-
-    m_list.emplace_back(node->GetFilterDeclaration(), node->GetFilterDeclaration()->GetName());
-    return true;
-  }
-
-  bool Visit(Pipeline* node) override final
-  {
-    for (Node* child : node->GetChildren())
-    {
-      if (!child->Accept(this))
-        return false;
-    }
-
-    return true;
-  }
-
-  bool Visit(SplitJoin* node) override final
-  {
-    if (!node->GetSplitNode()->Accept(this))
-      return false;
-
-    for (Node* child : node->GetChildren())
-    {
-      if (!child->Accept(this))
-        return false;
-    }
-
-    if (!node->GetJoinNode()->Accept(this))
-      return false;
-
-    return true;
-  }
-
-  bool Visit(Split* node) override final { return true; }
-
-  bool Visit(Join* node) override final { return true; }
-
-private:
-  StreamGraph::FilterPermutationList m_list;
-};
-
-StreamGraph::FilterPermutationList StreamGraph::GetFilterPermutationList() const
-{
-  FilterPermutationListVisitor visitor;
-  m_root_node->Accept(&visitor);
-  return visitor.GetList();
 }
 
 Node::Node(const std::string& name, const Type* input_type, const Type* output_type)
@@ -92,14 +42,12 @@ Node::Node(const std::string& name, const Type* input_type, const Type* output_t
 {
 }
 
-Filter::Filter(AST::FilterDeclaration* decl, const std::string& name)
-  : Node(name, decl->GetInputType(), decl->GetOutputType()), m_filter_decl(decl)
+Filter::Filter(const std::string& instance_name, const FilterPermutation* filter)
+  : Node(instance_name, filter->GetInputType(), filter->GetOutputType()), m_filter_permutation(filter)
 {
-  // Filter has to have a work block (this should already be validated at AST time)
-  assert(m_filter_decl->HasWorkBlock());
-  m_peek_rate = m_filter_decl->GetWorkBlock()->GetPeekRate();
-  m_pop_rate = m_filter_decl->GetWorkBlock()->GetPopRate();
-  m_push_rate = m_filter_decl->GetWorkBlock()->GetPushRate();
+  m_peek_rate = static_cast<u32>(m_filter_permutation->GetPeekRate());
+  m_pop_rate = static_cast<u32>(m_filter_permutation->GetPopRate());
+  m_push_rate = static_cast<u32>(m_filter_permutation->GetPushRate());
 }
 
 bool Filter::Accept(Visitor* visitor)

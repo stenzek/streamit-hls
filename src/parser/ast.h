@@ -323,28 +323,29 @@ struct FilterWorkParts
 class FilterWorkBlock final
 {
 public:
-  FilterWorkBlock() = default;
+  FilterWorkBlock(const SourceLocation& sloc) : m_sloc(sloc) {}
   ~FilterWorkBlock() = default;
 
   void Dump(ASTPrinter* printer) const;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
   bool Accept(Visitor* visitor);
 
-  int GetPeekRate() const { return m_peek_rate; }
-  int GetPopRate() const { return m_pop_rate; }
-  int GetPushRate() const { return m_push_rate; }
+  Expression* GetPeekRateExpression() const { return m_peek_rate_expr; }
+  Expression* GetPopRateExpression() const { return m_pop_rate_expr; }
+  Expression* GetPushRateExpression() const { return m_push_rate_expr; }
   const NodeList* GetStatements() const { return m_stmts; }
   NodeList* GetStatements() { return m_stmts; }
 
-  void SetPeekRate(int rate) { m_peek_rate = rate; }
-  void SetPopRate(int rate) { m_pop_rate = rate; }
-  void SetPushRate(int rate) { m_push_rate = rate; }
+  void SetPeekRateExpression(Expression* expr) { m_peek_rate_expr = expr; }
+  void SetPopRateExpression(Expression* expr) { m_pop_rate_expr = expr; }
+  void SetPushRateExpression(Expression* expr) { m_push_rate_expr = expr; }
   void SetStatements(NodeList* stmts) { m_stmts = stmts; }
 
 private:
-  int m_peek_rate = -1;
-  int m_pop_rate = -1;
-  int m_push_rate = -1;
+  SourceLocation m_sloc;
+  Expression* m_peek_rate_expr = nullptr;
+  Expression* m_pop_rate_expr = nullptr;
+  Expression* m_push_rate_expr = nullptr;
   NodeList* m_stmts = nullptr;
 };
 

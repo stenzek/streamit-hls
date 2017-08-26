@@ -305,7 +305,22 @@ void FilterDeclaration::Dump(ASTPrinter* printer) const
 
 void FilterWorkBlock::Dump(ASTPrinter* printer) const
 {
-  printer->BeginBlock("WorkBlock[peek=%d,pop=%d,push=%d]", m_peek_rate, m_pop_rate, m_push_rate);
+  printer->BeginBlock("WorkBlock");
+  if (m_peek_rate_expr)
+  {
+    printer->Write("peek: ");
+    m_peek_rate_expr->Dump(printer);
+  }
+  if (m_pop_rate_expr)
+  {
+    printer->Write("pop: ");
+    m_pop_rate_expr->Dump(printer);
+  }
+  if (m_push_rate_expr)
+  {
+    printer->Write("push: ");
+    m_push_rate_expr->Dump(printer);
+  }
 
   unsigned int counter = 0;
   for (const auto* stmt : *m_stmts)

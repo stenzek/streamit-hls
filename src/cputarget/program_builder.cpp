@@ -83,7 +83,7 @@ private:
 bool CodeGeneratorVisitor::Visit(StreamGraph::Filter* node)
 {
   Log::Info("ProgramBuilder", "Generating filter function set %s for %s", node->GetName().c_str(),
-            node->GetFilterDeclaration()->GetName().c_str());
+            node->GetFilterPermutation()->GetFilterDeclaration()->GetName().c_str());
 
   // Generate fifo queue for the input side of this filter
   ChannelBuilder cb(m_context, m_module);

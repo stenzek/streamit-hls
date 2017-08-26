@@ -71,6 +71,15 @@ llvm::Type* WrappedLLVMContext::GetPointerType()
   return llvm::Type::getInt8PtrTy(*m_llvm_context);
 }
 
+llvm::Value* WrappedLLVMContext::CreateHostPointerValue(const void* ptr)
+{
+  llvm::Constant* cons = llvm::ConstantInt::get(llvm::Type::getInt64Ty(*m_llvm_context),
+                                                static_cast<uint64_t>(reinterpret_cast<intptr_t>(ptr)));
+  llvm::Value* addr =
+    llvm::ConstantExpr::getIntToPtr(cons, llvm::PointerType::getUnqual(llvm::Type::getInt8Ty(*m_llvm_context)));
+  return addr;
+}
+
 llvm::Module* WrappedLLVMContext::CreateModule(const char* name)
 {
   return new llvm::Module(name, *m_llvm_context);

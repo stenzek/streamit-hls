@@ -97,18 +97,22 @@ bool Builder::GenerateGlobals()
 
 bool Builder::GenerateStreamGraphFunctions()
 {
-  m_module->getOrInsertFunction("StreamGraphBuilder_BeginPipeline", m_context->GetVoidType(),
-                                m_context->GetStringType(), nullptr);
-  m_module->getOrInsertFunction("StreamGraphBuilder_EndPipeline", m_context->GetVoidType(), m_context->GetStringType(),
-                                nullptr);
-  m_module->getOrInsertFunction("StreamGraphBuilder_BeginSplitJoin", m_context->GetVoidType(),
-                                m_context->GetStringType(), nullptr);
-  m_module->getOrInsertFunction("StreamGraphBuilder_EndSplitJoin", m_context->GetVoidType(), m_context->GetStringType(),
-                                nullptr);
-  m_module->getOrInsertFunction("StreamGraphBuilder_Split", m_context->GetVoidType(), m_context->GetIntType(), nullptr);
-  m_module->getOrInsertFunction("StreamGraphBuilder_Join", m_context->GetVoidType(), nullptr);
-  m_module->getOrInsertFunction("StreamGraphBuilder_AddFilter", m_context->GetVoidType(), m_context->GetStringType(),
-                                nullptr);
+  m_module->getOrInsertFunction("StreamGraphBuilder_BeginPipeline",
+                                llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetPointerType()}, true));
+  m_module->getOrInsertFunction("StreamGraphBuilder_EndPipeline",
+                                llvm::FunctionType::get(m_context->GetVoidType(), false));
+  m_module->getOrInsertFunction("StreamGraphBuilder_BeginSplitJoin",
+                                llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetPointerType()}, true));
+  m_module->getOrInsertFunction("StreamGraphBuilder_EndSplitJoin",
+                                llvm::FunctionType::get(m_context->GetVoidType(), false));
+  m_module->getOrInsertFunction("StreamGraphBuilder_Split",
+                                llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetIntType()}, false));
+  m_module->getOrInsertFunction("StreamGraphBuilder_Join", llvm::FunctionType::get(m_context->GetVoidType(), false));
+  m_module->getOrInsertFunction("StreamGraphBuilder_AddFilter",
+                                llvm::FunctionType::get(m_context->GetVoidType(),
+                                                        {m_context->GetPointerType(), m_context->GetIntType(),
+                                                         m_context->GetIntType(), m_context->GetIntType()},
+                                                        true));
   return true;
 }
 
@@ -196,6 +200,7 @@ void Builder::ExecuteMain()
 
   // Clear static state.
   m_start_node = s_builder_state->GetStartNode();
+  m_filter_permutations = s_builder_state->GetFilterPermutations();
   s_builder_state.reset();
 }
 
@@ -203,38 +208,51 @@ BuilderState::BuilderState(ParserState* state) : m_parser_state(state)
 {
 }
 
-void BuilderState::AddFilter(const char* name)
+void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, int pop_rate, int push_rate)
 {
-  const auto& filter_list = m_parser_state->GetFilterList();
-  auto iter = std::find_if(filter_list.begin(), filter_list.end(),
-                           [name](const AST::FilterDeclaration* decl) { return (decl->GetName() == name); });
-  if (iter == filter_list.end())
-  {
-    Error("Attempting to add an unknown filter: %s", name);
-    return;
-  }
-
   if (!HasTopNode())
   {
-    Error("Attempting to add filter %s to top-level node", name);
+    Error("Attempting to add filter %s to top-level node", decl->GetName().c_str());
     return;
   }
 
-  AST::FilterDeclaration* decl = *iter;
-  std::string instance_name = GenerateName(name);
-  Filter* flt = new Filter(decl, instance_name);
+  // Find a matching permutation
+  // This is where we would compare parameter values
+  FilterPermutation* filter_perm;
+  auto iter = std::find_if(m_filter_permutations.begin(), m_filter_permutations.end(),
+                           [&](const auto& it) { return (it->GetFilterDeclaration() == decl); });
+  if (iter != m_filter_permutations.end())
+  {
+    // These should match
+    filter_perm = *iter;
+    if (filter_perm->GetPeekRate() != peek_rate || filter_perm->GetPopRate() != pop_rate ||
+        filter_perm->GetPushRate() != push_rate)
+    {
+      Error("Internal error, mismatched peek/push/pop rates for filter '%s'", decl->GetName().c_str());
+      return;
+    }
+  }
+  else
+  {
+    // Create new permutation
+    filter_perm = new FilterPermutation(decl, peek_rate, pop_rate, push_rate);
+    m_filter_permutations.push_back(filter_perm);
+  }
+
+  std::string instance_name = GenerateName(decl->GetName());
+  Filter* flt = new Filter(instance_name, filter_perm);
   if (!GetTopNode()->AddChild(this, flt))
     delete flt;
 }
 
-void BuilderState::BeginPipeline(const char* name)
+void BuilderState::BeginPipeline(const AST::PipelineDeclaration* decl)
 {
-  std::string instance_name = GenerateName(name);
+  std::string instance_name = GenerateName(decl->GetName());
   Pipeline* p = new Pipeline(instance_name);
   m_node_stack.push(p);
 }
 
-void BuilderState::EndPipeline(const char* name)
+void BuilderState::EndPipeline()
 {
   Pipeline* p = dynamic_cast<Pipeline*>(GetTopNode());
   assert(p && "top node is a pipeline");
@@ -257,14 +275,14 @@ void BuilderState::EndPipeline(const char* name)
   }
 }
 
-void BuilderState::BeginSplitJoin(const char* name)
+void BuilderState::BeginSplitJoin(const AST::SplitJoinDeclaration* decl)
 {
-  std::string instance_name = GenerateName(name);
+  std::string instance_name = GenerateName(decl->GetName());
   SplitJoin* p = new SplitJoin(instance_name);
   m_node_stack.push(p);
 }
 
-void BuilderState::EndSplitJoin(const char* name)
+void BuilderState::EndSplitJoin()
 {
   SplitJoin* p = dynamic_cast<SplitJoin*>(GetTopNode());
   assert(p && "top node is a stream");
@@ -308,9 +326,9 @@ void BuilderState::SplitJoinJoin()
     delete join;
 }
 
-std::string BuilderState::GenerateName(const char* prefix)
+std::string BuilderState::GenerateName(const std::string& prefix)
 {
-  return StringFromFormat("%s_%u", prefix ? prefix : "", m_name_id++);
+  return StringFromFormat("%s_%u", prefix.c_str(), m_name_id++);
 }
 
 bool BuilderState::HasTopNode() const
@@ -340,7 +358,7 @@ std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, Parse
 
   Node* start = builder.GetStartNode();
   start->SteadySchedule();
-  return std::make_unique<StreamGraph>(start);
+  return std::make_unique<StreamGraph>(start, builder.GetFilterPermutations());
 }
 
 } // namespace Frontend
@@ -356,27 +374,27 @@ std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, Parse
 // Functions visible to generated code
 //////////////////////////////////////////////////////////////////////////
 extern "C" {
-EXPORT void StreamGraphBuilder_BeginPipeline(const char* name)
+EXPORT void StreamGraphBuilder_BeginPipeline(const AST::PipelineDeclaration* pipeline, ...)
 {
   // Begin new pipeline
-  Log::Debug("StreamGraphBuilder", "StreamGraph BeginPipeline %s", name);
-  s_builder_state->BeginPipeline(name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph BeginPipeline %s", pipeline->GetName().c_str());
+  s_builder_state->BeginPipeline(pipeline);
 }
-EXPORT void StreamGraphBuilder_EndPipeline(const char* name)
+EXPORT void StreamGraphBuilder_EndPipeline(const intptr_t pipeline_ptr)
 {
   // End pipeline and add to parent
-  Log::Debug("StreamGraphBuilder", "StreamGraph EndPipeline %s", name);
-  s_builder_state->EndPipeline(name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph EndPipeline");
+  s_builder_state->EndPipeline();
 }
-EXPORT void StreamGraphBuilder_BeginSplitJoin(const char* name)
+EXPORT void StreamGraphBuilder_BeginSplitJoin(const AST::SplitJoinDeclaration* splitjoin, ...)
 {
-  Log::Debug("StreamGraphBuilder", "StreamGraph BeginSplitJoin %s", name);
-  s_builder_state->BeginSplitJoin(name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph BeginSplitJoin %s", splitjoin->GetName().c_str());
+  s_builder_state->BeginSplitJoin(splitjoin);
 }
-EXPORT void StreamGraphBuilder_EndSplitJoin(const char* name)
+EXPORT void StreamGraphBuilder_EndSplitJoin(const intptr_t splitjoin_ptr)
 {
-  Log::Debug("StreamGraphBuilder", "StreamGraph EndSplitJoin %s", name);
-  s_builder_state->EndSplitJoin(name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph EndSplitJoin");
+  s_builder_state->EndSplitJoin();
 }
 EXPORT void StreamGraphBuilder_Split(int mode)
 {
@@ -389,10 +407,12 @@ EXPORT void StreamGraphBuilder_Join()
   Log::Debug("StreamGraphBuilder", "StreamGraph Join");
   s_builder_state->SplitJoinJoin();
 }
-EXPORT void StreamGraphBuilder_AddFilter(const char* name)
+EXPORT void StreamGraphBuilder_AddFilter(const AST::FilterDeclaration* filter, int peek_rate, int pop_rate,
+                                         int push_rate, ...)
 {
   // Direct add to current
-  Log::Debug("StreamGraphBuilder", "StreamGraph AddFilter %s", name);
-  s_builder_state->AddFilter(name);
+  Log::Debug("StreamGraphBuilder", "StreamGraph AddFilter %s peek=%d pop=%d push=%d", filter->GetName().c_str(),
+             peek_rate, pop_rate, push_rate);
+  s_builder_state->AddFilter(filter, peek_rate, pop_rate, push_rate);
 }
 }

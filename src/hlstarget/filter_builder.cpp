@@ -53,8 +53,8 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
     // func_builder->SwitchBasicBlock(new_entry);
   }
 
-  void BuildBuffer(Frontend::FunctionBuilder* func_builder, const AST::FilterDeclaration* filter_decl, u32 peek_rate,
-                   u32 pop_rate)
+  void BuildBuffer(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm,
+                   u32 peek_rate, u32 pop_rate)
   {
     WrappedLLVMContext* context = func_builder->GetContext();
     llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
@@ -62,7 +62,7 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
     m_buffer_size = peek_rate;
     m_peek_optimization = (peek_rate == pop_rate);
 
-    llvm::Type* buffer_element_type = context->GetLLVMType(filter_decl->GetInputType());
+    llvm::Type* buffer_element_type = context->GetLLVMType(filter_perm->GetInputType());
     llvm::Type* buffer_array_type = llvm::ArrayType::get(buffer_element_type, m_buffer_size);
 
     // Enable peek optimization for non-readahead peeks.
@@ -71,7 +71,7 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       m_buffer_var =
         new llvm::GlobalVariable(*func_builder->GetModule(), buffer_array_type, false,
                                  llvm::GlobalValue::PrivateLinkage, llvm::ConstantAggregateZero::get(buffer_array_type),
-                                 StringFromFormat("%s_peek_buffer", filter_decl->GetName().c_str()));
+                                 StringFromFormat("%s_peek_buffer", filter_perm->GetName().c_str()));
 
       llvm::BasicBlock* bb_fill = llvm::BasicBlock::Create(context->GetLLVMContext(), "peek_buffer_fill", func);
       llvm::BasicBlock* no_bb_fill = llvm::BasicBlock::Create(context->GetLLVMContext(), "no_peek_buffer_fill", func);
@@ -80,7 +80,7 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       llvm::GlobalVariable* buffer_filled =
         new llvm::GlobalVariable(*func_builder->GetModule(), func_builder->GetContext()->GetBooleanType(), false,
                                  llvm::GlobalValue::PrivateLinkage, builder.getInt1(false),
-                                 StringFromFormat("%s_peek_buffer_filled", filter_decl->GetName().c_str()));
+                                 StringFromFormat("%s_peek_buffer_filled", filter_perm->GetName().c_str()));
       llvm::Value* comp_res = builder.CreateICmpEQ(builder.CreateLoad(buffer_filled), builder.getInt1(false));
       builder.CreateCondBr(comp_res, bb_fill, no_bb_fill);
 
@@ -199,10 +199,11 @@ private:
   bool m_peek_optimization = false;
 };
 
-FilterBuilder::FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod, const AST::FilterDeclaration* filter_decl)
-  : m_context(context), m_module(mod), m_filter_decl(filter_decl)
+FilterBuilder::FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod,
+                             const StreamGraph::FilterPermutation* filter_perm)
+  : m_context(context), m_module(mod), m_filter_permutation(filter_perm),
+    m_filter_decl(filter_perm->GetFilterDeclaration())
 {
-  m_instance_name = m_filter_decl->GetName();
 }
 
 FilterBuilder::~FilterBuilder()
@@ -216,7 +217,7 @@ bool FilterBuilder::GenerateCode()
 
   if (m_filter_decl->HasWorkBlock())
   {
-    std::string name = StringFromFormat("filter_%s", m_instance_name.c_str());
+    std::string name = StringFromFormat("filter_%s", m_filter_permutation->GetName().c_str());
     m_function = GenerateFunction(m_filter_decl->GetWorkBlock(), name);
     if (!m_function)
       return false;
@@ -236,16 +237,16 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
   llvm::SmallVector<llvm::Type*, 2> params;
 
-  if (!m_filter_decl->GetInputType()->IsVoid())
+  if (!m_filter_permutation->GetInputType()->IsVoid())
   {
-    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_permutation->GetInputType());
     llvm::Type* pointer_ty = llvm::PointerType::get(llvm_ty, 0);
     assert(pointer_ty != nullptr);
     params.push_back(pointer_ty);
   }
-  if (!m_filter_decl->GetOutputType()->IsVoid())
+  if (!m_filter_permutation->GetOutputType()->IsVoid())
   {
-    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
+    llvm::Type* llvm_ty = m_context->GetLLVMType(m_filter_permutation->GetOutputType());
     llvm::Type* pointer_ty = llvm::PointerType::get(llvm_ty, 0);
     assert(pointer_ty != nullptr);
     params.push_back(pointer_ty);
@@ -260,12 +261,12 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   llvm::Value* in_ptr = nullptr;
   llvm::Value* out_ptr = nullptr;
   auto args_iter = func->arg_begin();
-  if (!m_filter_decl->GetInputType()->IsVoid())
+  if (!m_filter_permutation->GetInputType()->IsVoid())
   {
     in_ptr = &(*args_iter++);
     in_ptr->setName("in_ptr");
   }
-  if (!m_filter_decl->GetOutputType()->IsVoid())
+  if (!m_filter_permutation->GetOutputType()->IsVoid())
   {
     out_ptr = &(*args_iter++);
     out_ptr->setName("out_ptr");
@@ -275,8 +276,9 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   FragmentBuilder fragment_builder(in_ptr, out_ptr);
   Frontend::FunctionBuilder function_builder(m_context, m_module, &fragment_builder, func);
   fragment_builder.CreateDeclarations(&function_builder);
-  if (!m_filter_decl->GetInputType()->IsVoid() && block->GetPeekRate() > 0)
-    fragment_builder.BuildBuffer(&function_builder, m_filter_decl, block->GetPeekRate(), block->GetPopRate());
+  if (!m_filter_permutation->GetInputType()->IsVoid() && m_filter_permutation->GetPeekRate() > 0)
+    fragment_builder.BuildBuffer(&function_builder, m_filter_permutation, m_filter_permutation->GetPeekRate(),
+                                 m_filter_permutation->GetPopRate());
 
   // Add global variable references
   for (const auto& it : m_global_variable_map)
@@ -297,7 +299,7 @@ bool FilterBuilder::GenerateGlobals()
     return true;
 
   // Visit the state variable declarations, generating LLVM variables for them
-  Frontend::StateVariablesBuilder gvb(m_context, m_module, m_instance_name);
+  Frontend::StateVariablesBuilder gvb(m_context, m_module, m_filter_permutation->GetName());
   if (!m_filter_decl->GetStateVariables()->Accept(&gvb))
     return false;
 

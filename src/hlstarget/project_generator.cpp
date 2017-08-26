@@ -105,17 +105,15 @@ bool ProjectGenerator::GenerateFilterFunctions()
 {
   Log_InfoPrintf("Generating filter and channel functions...");
 
-  auto filter_list = m_streamgraph->GetFilterPermutationList();
-  for (const auto& it : filter_list)
+  for (const StreamGraph::FilterPermutation* filter_perm : m_streamgraph->GetFilterPermutationList())
   {
-    const AST::FilterDeclaration* filter_decl = it.first;
-    Log_InfoPrintf("Generating filter function for %s (%s)", filter_decl->GetName().c_str(), it.second.c_str());
+    Log_InfoPrintf("Generating filter function for %s", filter_perm->GetName().c_str());
 
-    FilterBuilder fb(m_context, m_module, filter_decl);
+    FilterBuilder fb(m_context, m_module, filter_perm);
     if (!fb.GenerateCode())
       return false;
 
-    auto res = m_filter_function_map.emplace(filter_decl, fb.GetFunction());
+    auto res = m_filter_function_map.emplace(filter_perm, fb.GetFunction());
     assert(res.second);
   }
 
@@ -217,8 +215,8 @@ bool ProjectGenerator::WriteHLSScript()
 
   for (const auto& it : m_filter_function_map)
   {
-    const AST::FilterDeclaration* filter_decl = it.first;
-    const std::string& filter_name = filter_decl->GetName();
+    const StreamGraph::FilterPermutation* filter_perm = it.first;
+    const std::string& filter_name = filter_perm->GetName();
     const std::string function_name = StringFromFormat("filter_%s", filter_name.c_str());
     os << "# filter " << filter_name << "\n"
        << "open_solution -reset \"" << function_name << "\"\n"
@@ -230,18 +228,18 @@ bool ProjectGenerator::WriteHLSScript()
     os << "# directives\n";
 
     // Make input pointer a fifo
-    if (!filter_decl->GetInputType()->IsVoid())
+    if (!filter_perm->GetInputType()->IsVoid())
     {
-      u32 depth = std::max(filter_decl->GetWorkBlock()->GetPeekRate(), filter_decl->GetWorkBlock()->GetPopRate());
+      u32 depth = std::max(filter_perm->GetPeekRate(), filter_perm->GetPopRate());
       os << "set_directive_interface -mode ap_fifo -depth " << depth << " \"" << function_name
          << "\" llvm_cbe_in_ptr\n";
     }
 
     // Make output pointer a fifo
-    if (!filter_decl->GetOutputType()->IsVoid())
+    if (!filter_perm->GetOutputType()->IsVoid())
     {
-      os << "set_directive_interface -mode ap_fifo -depth " << filter_decl->GetWorkBlock()->GetPushRate() << " \""
-         << function_name << "\" llvm_cbe_out_ptr\n";
+      os << "set_directive_interface -mode ap_fifo -depth " << filter_perm->GetPushRate() << " \"" << function_name
+         << "\" llvm_cbe_out_ptr\n";
     }
 
     os << "\n";

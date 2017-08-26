@@ -94,26 +94,13 @@ void TestBenchGenerator::CreateModule()
 
 bool TestBenchGenerator::GenerateFilterFunctions()
 {
-  auto filter_list = m_stream_graph->GetFilterPermutationList();
-  if (filter_list.empty())
+  for (const StreamGraph::FilterPermutation* filter_perm : m_stream_graph->GetFilterPermutationList())
   {
-    Log_ErrorPrint("No active filters in program");
-    return false;
-  }
-
-  for (const auto& it : filter_list)
-  {
-    const AST::FilterDeclaration* filter_decl = it.first;
-
-    // We only need a single filter function, since everything's going to be written to the global buffer.
-    if (m_filter_functions.find(filter_decl) != m_filter_functions.end())
-      continue;
-
-    llvm::Function* func = GenerateFilterFunction(filter_decl);
+    llvm::Function* func = GenerateFilterFunction(filter_perm);
     if (!func)
       return false;
 
-    m_filter_functions.emplace(filter_decl, func);
+    m_filter_functions.emplace(filter_perm, func);
   }
 
   Log_InfoPrintf("Generated %u filter functions", unsigned(m_filter_functions.size()));
@@ -204,10 +191,9 @@ private:
 };
 }
 
-llvm::Function* TestBenchGenerator::GenerateFilterFunction(const AST::FilterDeclaration* filter_decl)
+llvm::Function* TestBenchGenerator::GenerateFilterFunction(const StreamGraph::FilterPermutation* filter_perm)
 {
-  std::string instance_name = filter_decl->GetName();
-  std::string function_name = StringFromFormat("%s_work", instance_name.c_str());
+  std::string function_name = StringFromFormat("%s_work", filter_perm->GetName().c_str());
   llvm::FunctionType* func_type = llvm::FunctionType::get(m_context->GetVoidType(), {}, false);
   llvm::Constant* func_cons = m_module->getOrInsertFunction(function_name, func_type);
   llvm::Function* func = llvm::dyn_cast<llvm::Function>(func_cons);
@@ -223,10 +209,10 @@ llvm::Function* TestBenchGenerator::GenerateFilterFunction(const AST::FilterDecl
   fragment_builder.CreateTemporaries(function_builder.GetCurrentIRBuilder());
 
   // Visit the state variable declarations, generating LLVM variables for them
-  if (filter_decl->HasStateVariables())
+  if (filter_perm->GetFilterDeclaration()->HasStateVariables())
   {
-    Frontend::StateVariablesBuilder gvb(m_context, m_module, instance_name);
-    if (!filter_decl->GetStateVariables()->Accept(&gvb))
+    Frontend::StateVariablesBuilder gvb(m_context, m_module, filter_perm->GetName());
+    if (!filter_perm->GetFilterDeclaration()->GetStateVariables()->Accept(&gvb))
       return nullptr;
 
     for (const auto& it : gvb.GetVariableMap())
@@ -234,9 +220,9 @@ llvm::Function* TestBenchGenerator::GenerateFilterFunction(const AST::FilterDecl
   }
 
   // Generate the actual function.
-  Log_DevPrintf("Generating work function '%s' for filter '%s'", function_name.c_str(), filter_decl->GetName().c_str());
-  assert(filter_decl->HasWorkBlock());
-  if (!filter_decl->GetWorkBlock()->Accept(&function_builder))
+  Log_DevPrintf("Generating work function '%s' for filter '%s'", function_name.c_str(), filter_perm->GetName().c_str());
+  assert(filter_perm->GetFilterDeclaration()->HasWorkBlock());
+  if (!filter_perm->GetFilterDeclaration()->GetWorkBlock()->Accept(&function_builder))
     return nullptr;
 
   // TODO: Need to insert the return. This should be fixed.
@@ -293,11 +279,11 @@ private:
 
 bool FilterExecutorVisitor::Visit(StreamGraph::Filter* node)
 {
-  const AST::FilterDeclaration* filter_decl = node->GetFilterDeclaration();
+  const StreamGraph::FilterPermutation* filter_perm = node->GetFilterPermutation();
 
   // Copy the last filter execution's output to this execution's input.
   test_bench_gen_input_buffer_pos = 0;
-  if (!filter_decl->GetInputType()->IsVoid())
+  if (!filter_perm->GetInputType()->IsVoid())
   {
     u32 input_data_size = test_bench_gen_output_buffer_pos;
     if (input_data_size > 0)
@@ -313,7 +299,7 @@ bool FilterExecutorVisitor::Visit(StreamGraph::Filter* node)
       input_data_size = 1024;
     }
 
-    auto& data_vec = m_filter_input_data[filter_decl];
+    auto& data_vec = m_filter_input_data[filter_perm];
     data_vec.resize(input_data_size);
     std::copy_n(test_bench_gen_input_buffer, input_data_size, data_vec.begin());
   }
@@ -323,7 +309,7 @@ bool FilterExecutorVisitor::Visit(StreamGraph::Filter* node)
   test_bench_gen_output_buffer_pos = 0;
 
   // Execute filter
-  std::string function_name = StringFromFormat("%s_work", filter_decl->GetName().c_str());
+  std::string function_name = StringFromFormat("%s_work", filter_perm->GetName().c_str());
   llvm::Function* filter_func = m_execution_engine->FindFunctionNamed(function_name);
   assert(filter_func && "filter function exists in execution engine");
   Log_DevPrintf("Executing filter '%s' %u times", function_name.c_str(), node->GetMultiplicity());
@@ -332,12 +318,12 @@ bool FilterExecutorVisitor::Visit(StreamGraph::Filter* node)
   Log_DevPrintf("Exec result %u %u", test_bench_gen_input_buffer_pos, test_bench_gen_output_buffer_pos);
 
   // Do we have output data?
-  if (!filter_decl->GetOutputType()->IsVoid())
+  if (!filter_perm->GetOutputType()->IsVoid())
   {
     std::string hexdump = HexDumpString(test_bench_gen_output_buffer, test_bench_gen_output_buffer_pos);
     Log_DevPrintf("Output data\n%s", hexdump.c_str());
 
-    auto& data_vec = m_filter_output_data[filter_decl];
+    auto& data_vec = m_filter_output_data[filter_perm];
     data_vec.resize(test_bench_gen_output_buffer_pos);
     std::copy_n(test_bench_gen_output_buffer, test_bench_gen_output_buffer_pos, data_vec.begin());
   }
@@ -388,7 +374,7 @@ void TestBenchGenerator::ExecuteFilters()
   m_stream_graph->GetRootNode()->Accept(&visitor);
 }
 
-static void WriteTestBenchFor(const AST::FilterDeclaration* filter_decl,
+static void WriteTestBenchFor(const StreamGraph::FilterPermutation* filter_perm,
                               const TestBenchGenerator::FilterDataVector* input_data,
                               const TestBenchGenerator::FilterDataVector* output_data, llvm::raw_ostream& os)
 {
@@ -403,26 +389,26 @@ static void WriteTestBenchFor(const AST::FilterDeclaration* filter_decl,
   u32 outputs_per_iteration = 0;
 
   // Declaration of top function
-  os << "void filter_" << filter_decl->GetName() << "(";
+  os << "void filter_" << filter_perm->GetName() << "(";
   if (input_data)
   {
     os << in_type << "*";
-    inputs_per_iteration = filter_decl->GetWorkBlock()->GetPopRate();
+    inputs_per_iteration = filter_perm->GetPopRate();
     if (output_data)
     {
       os << ", " << out_type << "*";
-      outputs_per_iteration = filter_decl->GetWorkBlock()->GetPushRate();
+      outputs_per_iteration = filter_perm->GetPushRate();
     }
   }
   else if (output_data)
   {
     os << out_type << "*";
-    outputs_per_iteration = filter_decl->GetWorkBlock()->GetPushRate();
+    outputs_per_iteration = filter_perm->GetPushRate();
   }
   os << ");\n";
 
   // Definition of test function
-  os << "int test_filter_" << filter_decl->GetName() << "() {\n";
+  os << "int test_filter_" << filter_perm->GetName() << "() {\n";
 
   // Sometimes it doesn't compile in C99 mode...
   os << "  int i;\n";
@@ -457,7 +443,7 @@ static void WriteTestBenchFor(const AST::FilterDeclaration* filter_decl,
   u32 num_iterations = input_data ? input_iterations : output_iterations;
   if (input_data && output_data && input_iterations != output_iterations)
   {
-    Log_ErrorPrintf("Iteration mismatch for '%s' (%u vs %u)", filter_decl->GetName().c_str(), input_iterations,
+    Log_ErrorPrintf("Iteration mismatch for '%s' (%u vs %u)", filter_perm->GetName().c_str(), input_iterations,
                     output_iterations);
   }
 
@@ -475,7 +461,7 @@ static void WriteTestBenchFor(const AST::FilterDeclaration* filter_decl,
     os << "  " << out_type << "* current_out_ptr = OUTPUT_DATA;\n";
 
   os << "  for (i = 0; i < " << num_iterations << "; i++) {\n";
-  os << "    filter_" << filter_decl->GetName() << "(";
+  os << "    filter_" << filter_perm->GetName() << "(";
   if (input_data)
   {
     os << "current_in_ptr";
@@ -499,7 +485,7 @@ static void WriteTestBenchFor(const AST::FilterDeclaration* filter_decl,
   {
     os << "  for (i = 0; i < " << output_count << "; i++) {\n";
     os << "    if (OUTPUT_DATA[i] != REFERENCE_OUTPUT_DATA[i]) {\n";
-    os << "      printf(\"Output mismatch for filter " << filter_decl->GetName() << " at output %d: %d vs %d\\n\",\n";
+    os << "      printf(\"Output mismatch for filter " << filter_perm->GetName() << " at output %d: %d vs %d\\n\",\n";
     os << "             i, OUTPUT_DATA[i], REFERENCE_OUTPUT_DATA[i]); \n";
     os << "      num_errors++;\n";
     os << "    }\n";
@@ -527,33 +513,31 @@ bool TestBenchGenerator::GenerateTestBenchCCode()
   os << "\n";
 
   // Write test functions
-  auto filter_list = m_stream_graph->GetFilterPermutationList();
   std::vector<std::string> function_names;
-  for (const auto& it : filter_list)
+  for (const StreamGraph::FilterPermutation* filter_perm : m_stream_graph->GetFilterPermutationList())
   {
-    const AST::FilterDeclaration* filter_decl = it.first;
     const TestBenchGenerator::FilterDataVector* input_data = nullptr;
     const TestBenchGenerator::FilterDataVector* output_data = nullptr;
-    auto iter = m_filter_input_data.find(filter_decl);
+    auto iter = m_filter_input_data.find(filter_perm);
     if (iter != m_filter_input_data.end())
       input_data = &iter->second;
-    iter = m_filter_output_data.find(filter_decl);
+    iter = m_filter_output_data.find(filter_perm);
     if (iter != m_filter_output_data.end())
       output_data = &iter->second;
 
-    if (!filter_decl->GetInputType()->IsVoid() && !input_data)
+    if (!filter_perm->GetInputType()->IsVoid() && !input_data)
     {
-      Log_ErrorPrintf("Missing input data for '%s'", filter_decl->GetName().c_str());
+      Log_ErrorPrintf("Missing input data for '%s'", filter_perm->GetName().c_str());
       continue;
     }
-    if (!filter_decl->GetOutputType()->IsVoid() && !output_data)
+    if (!filter_perm->GetOutputType()->IsVoid() && !output_data)
     {
-      Log_ErrorPrintf("Missing output data for '%s'", filter_decl->GetName().c_str());
+      Log_ErrorPrintf("Missing output data for '%s'", filter_perm->GetName().c_str());
       continue;
     }
 
-    WriteTestBenchFor(filter_decl, input_data, output_data, os);
-    function_names.push_back(filter_decl->GetName());
+    WriteTestBenchFor(filter_perm, input_data, output_data, os);
+    function_names.push_back(filter_perm->GetName());
   }
 
   // Write main function

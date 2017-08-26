@@ -74,7 +74,8 @@ FilterBuilder::~FilterBuilder()
 
 bool FilterBuilder::GenerateCode(const StreamGraph::Filter* filter)
 {
-  m_filter_decl = filter->GetFilterDeclaration();
+  m_filter_permutation = filter->GetFilterPermutation();
+  m_filter_decl = m_filter_permutation->GetFilterDeclaration();
   m_instance_name = filter->GetName();
   m_output_channel_name = filter->GetOutputChannelName();
 
@@ -167,10 +168,10 @@ bool FilterBuilder::GenerateGlobals()
 bool FilterBuilder::GenerateChannelPrototypes()
 {
   // TODO: Don't generate these prototypes when the rate is zero?
-  if (!m_filter_decl->GetInputType()->IsVoid())
+  if (!m_filter_permutation->GetInputType()->IsVoid())
   {
     // Peek
-    llvm::Type* ret_ty = m_context->GetLLVMType(m_filter_decl->GetInputType());
+    llvm::Type* ret_ty = m_context->GetLLVMType(m_filter_permutation->GetInputType());
     llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {m_context->GetIntType()}, false);
     m_peek_function = m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_instance_name.c_str()), llvm_peek_fn);
     if (!m_peek_function)
@@ -183,10 +184,10 @@ bool FilterBuilder::GenerateChannelPrototypes()
       return false;
   }
 
-  if (!m_filter_decl->GetOutputType()->IsVoid())
+  if (!m_filter_permutation->GetOutputType()->IsVoid())
   {
     // Push - this needs the name of the output filter
-    llvm::Type* param_ty = m_context->GetLLVMType(m_filter_decl->GetOutputType());
+    llvm::Type* param_ty = m_context->GetLLVMType(m_filter_permutation->GetOutputType());
     llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(m_context->GetVoidType(), {param_ty}, false);
     m_push_function =
       m_module->getOrInsertFunction(StringFromFormat("%s_push", m_output_channel_name.c_str()), llvm_push_fn);

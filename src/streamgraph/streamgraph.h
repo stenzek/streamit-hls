@@ -16,6 +16,7 @@ class FilterDeclaration;
 namespace StreamGraph
 {
 class BuilderState;
+class FilterPermutation;
 class Node;
 class Filter;
 class Pipeline;
@@ -28,22 +29,24 @@ using StringList = std::vector<std::string>;
 class StreamGraph
 {
 public:
-  StreamGraph(Node* root);
+  using FilterInstanceList = std::vector<Filter*>;
+  using FilterPermutationList = std::vector<FilterPermutation*>;
+
+  StreamGraph(Node* root, const FilterPermutationList& filter_permutation_list);
   ~StreamGraph();
 
   Node* GetRootNode() const { return m_root_node; }
   std::string Dump();
 
   // Get a list of all filter instances in the graph
-  using FilterInstanceList = std::vector<Filter*>;
   FilterInstanceList GetFilterInstanceList() const;
 
   // Get a list of all unique filter (parameter permutations) in the graph
-  using FilterPermutationList = std::vector<std::pair<AST::FilterDeclaration*, std::string>>;
-  FilterPermutationList GetFilterPermutationList() const;
+  const FilterPermutationList& GetFilterPermutationList() const { return m_filter_permutations; }
 
 private:
   Node* m_root_node;
+  FilterPermutationList m_filter_permutations;
 };
 
 std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, ParserState* parser);
@@ -56,6 +59,31 @@ public:
   virtual bool Visit(SplitJoin* node) { return true; }
   virtual bool Visit(Split* node) { return true; }
   virtual bool Visit(Join* node) { return true; }
+};
+
+class FilterPermutation
+{
+public:
+  // TODO: Parameters
+  FilterPermutation(const AST::FilterDeclaration* filter_decl, int peek_rate, int pop_rate, int push_rate);
+  ~FilterPermutation() = default;
+
+  const std::string& GetName() const { return m_name; }
+  const AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
+  const Type* GetInputType() const { return m_input_type; }
+  const Type* GetOutputType() const { return m_output_type; }
+  int GetPeekRate() const { return m_peek_rate; }
+  int GetPopRate() const { return m_pop_rate; }
+  int GetPushRate() const { return m_push_rate; }
+
+private:
+  std::string m_name;
+  const AST::FilterDeclaration* m_filter_decl;
+  const Type* m_input_type;
+  const Type* m_output_type;
+  int m_peek_rate;
+  int m_pop_rate;
+  int m_push_rate;
 };
 
 class Node
@@ -103,10 +131,10 @@ protected:
 class Filter : public Node
 {
 public:
-  Filter(AST::FilterDeclaration* decl, const std::string& name);
+  Filter(const std::string& instance_name, const FilterPermutation* filter);
   ~Filter() = default;
 
-  AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
+  const FilterPermutation* GetFilterPermutation() const { return m_filter_permutation; }
   bool HasOutputConnection() const { return (m_output_connection != nullptr); }
   Node* GetOutputConnection() const { return m_output_connection; }
   const std::string& GetOutputChannelName() const { return m_output_channel_name; }
@@ -123,7 +151,7 @@ public:
   void AddMultiplicity(u32 count) override;
 
 protected:
-  AST::FilterDeclaration* m_filter_decl;
+  const FilterPermutation* m_filter_permutation;
   Node* m_output_connection = nullptr;
   std::string m_output_channel_name;
 };

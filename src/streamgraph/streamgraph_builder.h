@@ -2,6 +2,7 @@
 #include <memory>
 #include <stack>
 #include <unordered_map>
+#include <vector>
 
 class ParserState;
 class WrappedLLVMContext;
@@ -18,10 +19,14 @@ class Module;
 namespace AST
 {
 class StreamDeclaration;
+class FilterDeclaration;
+class PipelineDeclaration;
+class SplitJoinDeclaration;
 }
 
 namespace StreamGraph
 {
+class FilterPermutation;
 class Node;
 }
 
@@ -34,6 +39,7 @@ public:
   ~Builder();
 
   Node* GetStartNode() const { return m_start_node; }
+  const std::vector<FilterPermutation*>& GetFilterPermutations() { return m_filter_permutations; }
 
   bool GenerateGraph();
 
@@ -55,6 +61,7 @@ private:
 
   // Graph building.
   Node* m_start_node = nullptr;
+  std::vector<FilterPermutation*> m_filter_permutations;
 };
 
 // Methods called by generated code.
@@ -65,16 +72,17 @@ public:
   ~BuilderState() = default;
 
   Node* GetStartNode() const { return m_start_node; }
+  const std::vector<FilterPermutation*>& GetFilterPermutations() { return m_filter_permutations; }
 
-  void AddFilter(const char* name);
-  void BeginPipeline(const char* name);
-  void EndPipeline(const char* name);
-  void BeginSplitJoin(const char* name);
-  void EndSplitJoin(const char* name);
+  void AddFilter(const AST::FilterDeclaration* decl, int peek_rate, int pop_rate, int push_rate);
+  void BeginPipeline(const AST::PipelineDeclaration* decl);
+  void EndPipeline();
+  void BeginSplitJoin(const AST::SplitJoinDeclaration* decl);
+  void EndSplitJoin();
   void SplitJoinSplit(int mode);
   void SplitJoinJoin();
 
-  std::string GenerateName(const char* prefix);
+  std::string GenerateName(const std::string& prefix);
   void Error(const char* fmt, ...);
 
 private:
@@ -88,6 +96,9 @@ private:
   unsigned int m_name_id = 1;
   std::stack<Node*> m_node_stack;
   Node* m_start_node = nullptr;
+
+  // Filter permutations
+  std::vector<FilterPermutation*> m_filter_permutations;
 };
 
 } // namespace Frontend

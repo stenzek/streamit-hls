@@ -24,6 +24,7 @@ class FilterDeclaration;
 namespace StreamGraph
 {
 class StreamGraph;
+class FilterPermutation;
 }
 
 namespace HLSTarget
@@ -32,9 +33,9 @@ namespace HLSTarget
 class TestBenchGenerator
 {
 public:
-  using FilterFunctionMap = std::map<const AST::FilterDeclaration*, llvm::Function*>;
+  using FilterFunctionMap = std::map<const StreamGraph::FilterPermutation*, llvm::Function*>;
   using FilterDataVector = std::vector<unsigned char>;
-  using FilterDataMap = std::map<const AST::FilterDeclaration*, FilterDataVector>;
+  using FilterDataMap = std::map<const StreamGraph::FilterPermutation*, FilterDataVector>;
 
   TestBenchGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph, const std::string& module_name,
                      const std::string& out_dir);
@@ -49,7 +50,7 @@ public:
 private:
   void CreateModule();
   bool GenerateFilterFunctions();
-  llvm::Function* GenerateFilterFunction(const AST::FilterDeclaration* filter_decl);
+  llvm::Function* GenerateFilterFunction(const StreamGraph::FilterPermutation* filter_decl);
   bool CreateExecutionEngine();
   void ExecuteFilters();
   bool GenerateTestBenchCCode();
