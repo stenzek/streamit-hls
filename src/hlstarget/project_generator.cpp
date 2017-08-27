@@ -227,6 +227,9 @@ bool ProjectGenerator::WriteHLSScript()
 
     os << "# directives\n";
 
+    // Disable handshake signals on block, we don't need them, since use the fifo for control
+    os << "set_directive_interface -mode ap_ctrl_none \"" << function_name << "\"\n";
+
     // Make input pointer a fifo
     if (!filter_perm->GetInputType()->IsVoid())
     {
