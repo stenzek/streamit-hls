@@ -1,0 +1,39 @@
+void->void pipeline AutoCorInt {
+  //add FileReader<int>();
+  add input();
+  add Cor1(32, 8);
+  add FloatPrinter();
+  //add FileWriter<int>("output.stream");
+}
+
+void->int filter input {
+  work push 1 {
+    push(0x55);
+  }
+}
+
+/* Produce an autocorrelation series for some input.  The input
+ * is a series of vectors N long; the output is the autocorrelation
+ * series NLAGS long. */
+int->int splitjoin Cor1(int N, int NLAGS) {
+  split duplicate;
+  for (int lag = 0; lag < NLAGS; lag++) {
+    // Calculate a single autocorrelation for lag:
+    add int->int filter {
+      work peek N pop N push 1 {
+        int sum = 0;
+        for (int i = 0; i < N-lag; i++)
+          sum += peek(i) * peek(i+lag);
+        for (int i = 0; i < N; i++)
+          pop();
+        push(sum>>4); // / 16 for scaling
+      }
+    }
+  }
+  join roundrobin;
+}
+
+int->void filter FloatPrinter {
+  work pop 1 { println(pop()); }
+}
+

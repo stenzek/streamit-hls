@@ -28,7 +28,7 @@ static std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(WrappedLLVM
 static void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph);
 
 static std::unique_ptr<llvm::Module> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
-                                                  StreamGraph::StreamGraph* streamgraph);
+                                                  StreamGraph::StreamGraph* streamgraph, bool optimize);
 static void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod);
 static void WriteModule(WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename);
 static bool ExecuteModule(WrappedLLVMContext* ctx, std::unique_ptr<llvm::Module> mod);
@@ -138,7 +138,8 @@ int main(int argc, char* argv[])
   if (dump_stream_graph)
     DumpStreamGraph(streamgraph.get());
 
-  std::unique_ptr<llvm::Module> module = GenerateCode(llvm_context.get(), parser.get(), streamgraph.get());
+  std::unique_ptr<llvm::Module> module =
+    GenerateCode(llvm_context.get(), parser.get(), streamgraph.get(), optimize_llvm_ir);
   if (!module)
     return EXIT_FAILURE;
 
@@ -201,7 +202,7 @@ void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph)
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 std::unique_ptr<llvm::Module> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
-                                           StreamGraph::StreamGraph* streamgraph)
+                                           StreamGraph::StreamGraph* streamgraph, bool optimize)
 {
   Log::Info("CPUCompiler", "Generating code...");
 
@@ -218,6 +219,9 @@ std::unique_ptr<llvm::Module> GenerateCode(WrappedLLVMContext* ctx, ParserState*
     Log::Warning("CPUCompiler", "LLVM IR failed validation.");
     return nullptr;
   }
+
+  if (optimize)
+    builder.OptimizeModule();
 
   return builder.DetachModule();
 }

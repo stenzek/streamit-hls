@@ -13,9 +13,12 @@
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/Transforms/IPO/PassManagerBuilder.h"
 #include "parser/ast.h"
 #include "streamgraph/streamgraph.h"
+Log_SetChannel(CPUTarget::ProgramBuilder);
 
 namespace CPUTarget
 {
@@ -61,7 +64,29 @@ bool ProgramBuilder::GenerateCode(StreamGraph::StreamGraph* streamgraph)
 void ProgramBuilder::CreateModule()
 {
   m_module = m_context->CreateModule(m_module_name.c_str());
-  Log::Info("ProgramBuilder", "Module name is '%s'", m_module_name.c_str());
+  Log_InfoPrintf("Module name is '%s'", m_module_name.c_str());
+}
+
+void ProgramBuilder::OptimizeModule()
+{
+  Log_InfoPrintf("Optimizing LLVM IR...");
+
+  llvm::legacy::FunctionPassManager fpm(m_module);
+  llvm::legacy::PassManager mpm;
+
+  // Use standard -O2 optimizations.
+  llvm::PassManagerBuilder builder;
+  builder.OptLevel = 2;
+
+  builder.populateFunctionPassManager(fpm);
+  builder.populateModulePassManager(mpm);
+
+  fpm.doInitialization();
+  for (llvm::Function& F : *m_module)
+    fpm.run(F);
+  fpm.doFinalization();
+
+  mpm.run(*m_module);
 }
 
 class CodeGeneratorVisitor : public StreamGraph::Visitor
@@ -82,8 +107,8 @@ private:
 
 bool CodeGeneratorVisitor::Visit(StreamGraph::Filter* node)
 {
-  Log::Info("ProgramBuilder", "Generating filter function set %s for %s", node->GetName().c_str(),
-            node->GetFilterPermutation()->GetFilterDeclaration()->GetName().c_str());
+  Log_InfoPrintf("Generating filter function set %s for %s", node->GetName().c_str(),
+                 node->GetFilterPermutation()->GetFilterDeclaration()->GetName().c_str());
 
   // Generate fifo queue for the input side of this filter
   ChannelBuilder cb(m_context, m_module);
@@ -140,7 +165,7 @@ bool CodeGeneratorVisitor::Visit(StreamGraph::Join* node)
 
 bool ProgramBuilder::GenerateFilterAndChannelFunctions(StreamGraph::StreamGraph* streamgraph)
 {
-  Log::Info("ProgramBuilder", "Generating filter and channel functions...");
+  Log_InfoPrintf("Generating filter and channel functions...");
 
   CodeGeneratorVisitor codegen(m_context, m_module);
   return streamgraph->GetRootNode()->Accept(&codegen);
@@ -218,12 +243,11 @@ bool ProgramBuilder::GeneratePrimePumpFunction(StreamGraph::StreamGraph* streamg
   if (!streamgraph->GetRootNode()->Accept(&lv))
     return false;
 
-  Log::Info("ProgramBuilder", "Generating prime pump function for %u filter instances...",
-            unsigned(lv.GetFilterList().size()));
+  Log_InfoPrintf("Generating prime pump function for %u filter instances...", unsigned(lv.GetFilterList().size()));
   for (auto ip : lv.GetFilterList())
   {
-    Log::Info("ProgramBuilder", "Iteration %u: %s (%u multiplicity)", ip.first, ip.second->GetName().c_str(),
-              ip.second->GetMultiplicity());
+    Log_InfoPrintf("Iteration %u: %s (%u multiplicity)", ip.first, ip.second->GetName().c_str(),
+                   ip.second->GetMultiplicity());
   }
 
   llvm::Constant* func_cons = m_module->getOrInsertFunction(StringFromFormat("%s_prime_pump", m_module_name.c_str()),
@@ -313,8 +337,7 @@ bool ProgramBuilder::GenerateSteadyStateFunction(StreamGraph::StreamGraph* strea
   if (!streamgraph->GetRootNode()->Accept(&lv))
     return false;
 
-  Log::Info("ProgramBuilder", "Generating steady state function for %u filter instances...",
-            unsigned(lv.GetFilterList().size()));
+  Log_InfoPrintf("Generating steady state function for %u filter instances...", unsigned(lv.GetFilterList().size()));
 
   llvm::Constant* func_cons = m_module->getOrInsertFunction(StringFromFormat("%s_steady_state", m_module_name.c_str()),
                                                             m_context->GetVoidType(), nullptr);
@@ -350,7 +373,7 @@ bool ProgramBuilder::GenerateSteadyStateFunction(StreamGraph::StreamGraph* strea
 
 bool ProgramBuilder::GenerateMainFunction()
 {
-  Log::Info("ProgramBuilder", "Generating main function...");
+  Log_InfoPrintf("Generating main function...");
 
   llvm::Constant* prime_pump_func = m_module->getOrInsertFunction(
     StringFromFormat("%s_prime_pump", m_module_name.c_str()), m_context->GetVoidType(), nullptr);

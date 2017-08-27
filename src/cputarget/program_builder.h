@@ -36,6 +36,9 @@ public:
   // Generates the whole program, entry point is main().
   bool GenerateCode(StreamGraph::StreamGraph* streamgraph);
 
+  // Optimizes LLVM IR.
+  void OptimizeModule();
+
 private:
   void CreateModule();
   bool GenerateFilterAndChannelFunctions(StreamGraph::StreamGraph* streamgraph);

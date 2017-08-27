@@ -1,4 +1,4 @@
-int->int pipeline simple4 {
+int->int pipeline simple4CPU {
     add counter();
     //add stuff();
     add adder();
@@ -8,7 +8,6 @@ int->int pipeline simple4 {
 void->int filter counter {
     int last = 1;
     work push 1 {
-        push(last);
         push(last);
         last = last + 1;
     }

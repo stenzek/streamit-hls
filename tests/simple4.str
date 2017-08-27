@@ -1,14 +1,13 @@
 int->int pipeline simple4 {
     add counter();
     //add stuff();
-    //add adder();
+    add adder();
     //add printer();
 }
 
 void->int filter counter {
     int last = 1;
     work push 1 {
-        push(last);
         push(last);
         last = last + 1;
     }
