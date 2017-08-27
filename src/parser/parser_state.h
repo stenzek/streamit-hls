@@ -26,7 +26,7 @@ public:
   const FilterList& GetFilterList() const { return m_filters; }
   const StreamList& GetStreamList() const { return m_streams; }
 
-  bool ParseFile(const char* filename, std::FILE* fp);
+  bool ParseFile(const char* filename, std::FILE* fp, bool debug);
 
   void LogError(const char* fmt, ...);
   void LogWarning(const char* fmt, ...);

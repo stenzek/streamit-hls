@@ -121,7 +121,7 @@ bool Visitor::Visit(FilterWorkBlock* node)
 
 bool Visitor::Visit(FilterDeclaration* node)
 {
-  return Visit(static_cast<Declaration*>(node));
+  return Visit(static_cast<StreamDeclaration*>(node));
 }
 
 bool Visitor::Visit(FunctionDeclaration* node)
@@ -151,7 +151,7 @@ bool Visitor::Visit(ParameterDeclaration* node)
 
 bool Visitor::Visit(StreamDeclaration* node)
 {
-  return Visit(static_cast<Declaration*>(node));
+  return Visit(static_cast<Node*>(node));
 }
 
 bool Visitor::Visit(PipelineDeclaration* node)

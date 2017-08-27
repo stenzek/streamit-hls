@@ -17,7 +17,7 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<ParserState> ParseFile(WrappedLLVMContext* ctx, const char* filename, std::FILE* fp);
+static std::unique_ptr<ParserState> ParseFile(WrappedLLVMContext* ctx, const char* filename, std::FILE* fp, bool debug);
 static void DumpAST(ParserState* parser);
 
 static std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(WrappedLLVMContext* ctx, ParserState* parser);
@@ -113,7 +113,7 @@ int main(int argc, char* argv[])
   }
 
   std::unique_ptr<WrappedLLVMContext> llvm_context = WrappedLLVMContext::Create();
-  std::unique_ptr<ParserState> parser = ParseFile(llvm_context.get(), filename, fp);
+  std::unique_ptr<ParserState> parser = ParseFile(llvm_context.get(), filename, fp, debug_parser);
   std::fclose(fp);
   if (!parser)
     return EXIT_FAILURE;
@@ -147,12 +147,12 @@ int main(int argc, char* argv[])
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ParserState> ParseFile(WrappedLLVMContext* ctx, const char* filename, std::FILE* fp)
+std::unique_ptr<ParserState> ParseFile(WrappedLLVMContext* ctx, const char* filename, std::FILE* fp, bool debug)
 {
   Log::Info("HLSCompiler", "Parsing %s...", filename);
 
   auto parser = std::make_unique<ParserState>();
-  if (!parser->ParseFile(filename, fp))
+  if (!parser->ParseFile(filename, fp, debug))
   {
     Log::Error("HLSCompiler", "Parse failed.");
     return nullptr;

@@ -21,13 +21,13 @@ FunctionBuilder::~FunctionBuilder()
 {
 }
 
-void FunctionBuilder::AddGlobalVariable(const AST::VariableDeclaration* var, llvm::GlobalVariable* gvar)
+void FunctionBuilder::AddGlobalVariable(const AST::Declaration* var, llvm::GlobalVariable* gvar)
 {
   assert(m_vars.find(var) == m_vars.end());
   m_vars.emplace(var, gvar);
 }
 
-llvm::AllocaInst* FunctionBuilder::CreateVariable(const AST::VariableDeclaration* var)
+llvm::AllocaInst* FunctionBuilder::CreateVariable(const AST::Declaration* var)
 {
   llvm::Type* ty = GetContext()->GetLLVMType(var->GetType());
   if (!ty)
@@ -39,7 +39,7 @@ llvm::AllocaInst* FunctionBuilder::CreateVariable(const AST::VariableDeclaration
   return ai;
 }
 
-llvm::Value* FunctionBuilder::GetVariablePtr(const AST::VariableDeclaration* var)
+llvm::Value* FunctionBuilder::GetVariablePtr(const AST::Declaration* var)
 {
   auto it = m_vars.find(var);
   if (it == m_vars.end())
@@ -51,7 +51,7 @@ llvm::Value* FunctionBuilder::GetVariablePtr(const AST::VariableDeclaration* var
   return it->second;
 }
 
-llvm::Value* FunctionBuilder::LoadVariable(const AST::VariableDeclaration* var)
+llvm::Value* FunctionBuilder::LoadVariable(const AST::Declaration* var)
 {
   auto it = m_vars.find(var);
   if (it == m_vars.end())
@@ -63,7 +63,7 @@ llvm::Value* FunctionBuilder::LoadVariable(const AST::VariableDeclaration* var)
   return m_current_ir_builder.CreateLoad(it->second);
 }
 
-void FunctionBuilder::StoreVariable(const AST::VariableDeclaration* var, llvm::Value* val)
+void FunctionBuilder::StoreVariable(const AST::Declaration* var, llvm::Value* val)
 {
   auto it = m_vars.find(var);
   if (it == m_vars.end())

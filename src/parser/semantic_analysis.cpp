@@ -97,11 +97,12 @@ bool ParameterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sy
 bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
+  LexicalScope pipeline_scope(symbol_table);
   if (m_input_type_specifier && m_output_type_specifier)
   {
-    result &= m_input_type_specifier->SemanticAnalysis(state, symbol_table);
+    result &= m_input_type_specifier->SemanticAnalysis(state, &pipeline_scope);
     m_input_type = m_input_type_specifier->GetFinalType();
-    result &= m_output_type_specifier->SemanticAnalysis(state, symbol_table);
+    result &= m_output_type_specifier->SemanticAnalysis(state, &pipeline_scope);
     m_output_type = m_output_type_specifier->GetFinalType();
   }
   else
@@ -114,11 +115,11 @@ bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
   if (m_parameters)
   {
     for (ParameterDeclaration* param : *m_parameters)
-      result &= param->SemanticAnalysis(state, symbol_table);
+      result &= param->SemanticAnalysis(state, &pipeline_scope);
   }
 
   if (m_statements)
-    result &= m_statements->SemanticAnalysis(state, symbol_table);
+    result &= m_statements->SemanticAnalysis(state, &pipeline_scope);
 
   return result;
 }
@@ -126,11 +127,12 @@ bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
 bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
+  LexicalScope splitjoin_scope(symbol_table);
   if (m_input_type_specifier && m_output_type_specifier)
   {
-    result &= m_input_type_specifier->SemanticAnalysis(state, symbol_table);
+    result &= m_input_type_specifier->SemanticAnalysis(state, &splitjoin_scope);
     m_input_type = m_input_type_specifier->GetFinalType();
-    result &= m_output_type_specifier->SemanticAnalysis(state, symbol_table);
+    result &= m_output_type_specifier->SemanticAnalysis(state, &splitjoin_scope);
     m_output_type = m_output_type_specifier->GetFinalType();
   }
   else
@@ -143,11 +145,11 @@ bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sy
   if (m_parameters)
   {
     for (ParameterDeclaration* param : *m_parameters)
-      result &= param->SemanticAnalysis(state, symbol_table);
+      result &= param->SemanticAnalysis(state, &splitjoin_scope);
   }
 
   if (m_statements)
-    result &= m_statements->SemanticAnalysis(state, symbol_table);
+    result &= m_statements->SemanticAnalysis(state, &splitjoin_scope);
 
   return result;
 }
@@ -162,6 +164,13 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
   {
     state->LogError(m_sloc, "Referencing undefined filter/pipeline '%s'", m_stream_name.c_str());
     return false;
+  }
+
+  if (!state->HasActiveStream(m_stream_declaration))
+  {
+    state->AddActiveStream(m_stream_declaration);
+    if (!m_stream_declaration->SemanticAnalysis(state, symbol_table))
+      return false;
   }
 
   return true;
@@ -191,23 +200,24 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   assert(!state->current_filter);
   state->current_filter = this;
 
-  result &= m_input_type_specifier->SemanticAnalysis(state, symbol_table);
+  // Each filter has its own symbol table (stateful stuff), then each part has its own symbol table
+  LexicalScope filter_symbol_table(symbol_table);
+
+  result &= m_input_type_specifier->SemanticAnalysis(state, &filter_symbol_table);
   m_input_type = m_input_type_specifier->GetFinalType();
-  result &= m_output_type_specifier->SemanticAnalysis(state, symbol_table);
+  result &= m_output_type_specifier->SemanticAnalysis(state, &filter_symbol_table);
   m_output_type = m_output_type_specifier->GetFinalType();
 
   if (m_parameters)
   {
     for (ParameterDeclaration* param : *m_parameters)
-      result &= param->SemanticAnalysis(state, symbol_table);
+      result &= param->SemanticAnalysis(state, &filter_symbol_table);
   }
 
   // For LLVM codegen at least, it's easier to have all the initialization happen in init.
   if (result)
     MoveStateAssignmentsToInit();
 
-  // Each filter has its own symbol table (stateful stuff), then each part has its own symbol table
-  LexicalScope filter_symbol_table(symbol_table);
   if (m_vars)
     result &= m_vars->SemanticAnalysis(state, &filter_symbol_table);
 
@@ -249,7 +259,7 @@ void FilterDeclaration::MoveStateAssignmentsToInit()
                               new AssignmentExpression(var_decl->GetSourceLocation(),
                                                        new AST::IdentifierExpression(var_decl->GetSourceLocation(),
                                                                                      var_decl->GetName().c_str()),
-                                                       var_decl->GetInitializer())));
+                                                       AssignmentExpression::Assign, var_decl->GetInitializer())));
     var_decl->RemoveInitializer();
   }
 
@@ -297,14 +307,14 @@ bool FilterWorkBlock::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
 bool IdentifierExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // Resolve identifier
-  m_identifier_declaration = dynamic_cast<VariableDeclaration*>(symbol_table->GetName(m_identifier));
-  if (!m_identifier_declaration)
+  m_declaration = dynamic_cast<Declaration*>(symbol_table->GetName(m_identifier));
+  if (!m_declaration)
   {
     state->LogError(m_sloc, "Unknown identifier '%s'", m_identifier.c_str());
     return false;
   }
 
-  m_type = m_identifier_declaration->GetType();
+  m_type = m_declaration->GetType();
   return m_type->IsValid();
 }
 
@@ -317,6 +327,7 @@ bool IndexExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
   if (!m_array_expression->GetType()->IsArrayType())
   {
     state->LogError(m_sloc, "Array expression is not an array type");
+    m_type = state->GetErrorType();
     return false;
   }
 
@@ -336,6 +347,8 @@ bool UnaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
 
 bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
+  m_type = state->GetErrorType();
+
   // Resolve any identifiers
   if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
     return false;
@@ -354,6 +367,9 @@ bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol
 
 bool RelationalExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
+  m_type = state->GetErrorType();
+  m_intermediate_type = state->GetErrorType();
+
   // Resolve any identifiers
   if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
     return false;
@@ -381,6 +397,8 @@ bool RelationalExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
 
 bool LogicalExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
+  m_type = state->GetErrorType();
+
   // Resolve any identifiers
   if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
     return false;
@@ -441,13 +459,6 @@ bool PeekExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_t
 {
   bool result = m_expr->SemanticAnalysis(state, symbol_table);
   m_type = state->current_filter->GetInputType();
-
-  if (!m_expr->IsConstant())
-  {
-    state->LogError(m_sloc, "Peek offset is not constant.");
-    result = false;
-  }
-
   return result && m_type->IsValid();
 }
 
@@ -602,9 +613,10 @@ bool ExpressionStatement::SemanticAnalysis(ParserState* state, LexicalScope* sym
 bool IfStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
-  result &= m_expr->SemanticAnalysis(state, symbol_table);
-  result &= m_then->SemanticAnalysis(state, symbol_table);
-  result &= (!m_else || m_else->SemanticAnalysis(state, symbol_table));
+  LexicalScope if_scope(symbol_table);
+  result &= m_expr->SemanticAnalysis(state, &if_scope);
+  result &= m_then->SemanticAnalysis(state, &if_scope);
+  result &= (!m_else || m_else->SemanticAnalysis(state, &if_scope));
 
   if (!m_expr->GetType()->IsBoolean())
   {
@@ -618,10 +630,11 @@ bool IfStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tabl
 bool ForStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
-  result &= (!m_init || m_init->SemanticAnalysis(state, symbol_table));
-  result &= (!m_cond || m_cond->SemanticAnalysis(state, symbol_table));
-  result &= (!m_loop || m_loop->SemanticAnalysis(state, symbol_table));
-  result &= (!m_inner || m_inner->SemanticAnalysis(state, symbol_table));
+  LexicalScope loop_scope(symbol_table);
+  result &= (!m_init || m_init->SemanticAnalysis(state, &loop_scope));
+  result &= (!m_cond || m_cond->SemanticAnalysis(state, &loop_scope));
+  result &= (!m_loop || m_loop->SemanticAnalysis(state, &loop_scope));
+  result &= (!m_inner || m_inner->SemanticAnalysis(state, &loop_scope));
 
   // Condition should be non-existant, or a boolean
   if (m_cond && !m_cond->GetType()->IsBoolean())

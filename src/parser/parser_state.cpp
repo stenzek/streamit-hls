@@ -15,6 +15,7 @@
 // clang-format on
 
 extern FILE* yyin;
+extern int yydebug;
 int yyparse(ParserState* state);
 
 ParserState::ParserState()
@@ -28,10 +29,11 @@ ParserState::~ParserState()
 {
 }
 
-bool ParserState::ParseFile(const char* filename, std::FILE* fp)
+bool ParserState::ParseFile(const char* filename, std::FILE* fp, bool debug)
 {
   m_current_filename = filename;
   yyin = fp;
+  yydebug = debug ? 1 : 0;
 
   // Auto set entry point based on file name
   if (m_entry_point_name.empty())
@@ -248,14 +250,6 @@ bool ParserState::SemanticAnalysis()
   }
 
   // Now perform semantic analysis.
-  for (auto* filter : m_filters)
-  {
-    if (!HasActiveStream(filter))
-    {
-      AddActiveStream(filter);
-      result &= filter->SemanticAnalysis(this, m_global_lexical_scope.get());
-    }
-  }
   for (auto* stream : m_streams)
   {
     if (!HasActiveStream(stream))

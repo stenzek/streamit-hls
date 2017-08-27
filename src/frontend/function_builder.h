@@ -19,7 +19,7 @@ public:
     virtual bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) = 0;
   };
 
-  using VariableTable = std::unordered_map<const AST::VariableDeclaration*, llvm::Value*>;
+  using VariableTable = std::unordered_map<const AST::Declaration*, llvm::Value*>;
 
   FunctionBuilder(WrappedLLVMContext* ctx, llvm::Module* mod, TargetFragmentBuilder* target_builder,
                   llvm::Function* func);
@@ -37,11 +37,11 @@ public:
   llvm::BasicBlock* GetCurrentBasicBlock() const { return m_current_basic_block; }
   llvm::IRBuilder<>& GetCurrentIRBuilder() { return m_current_ir_builder; }
 
-  void AddGlobalVariable(const AST::VariableDeclaration* var, llvm::GlobalVariable* gvar);
-  llvm::AllocaInst* CreateVariable(const AST::VariableDeclaration* var);
-  llvm::Value* GetVariablePtr(const AST::VariableDeclaration* var);
-  llvm::Value* LoadVariable(const AST::VariableDeclaration* var);
-  void StoreVariable(const AST::VariableDeclaration* var, llvm::Value* val);
+  void AddGlobalVariable(const AST::Declaration* var, llvm::GlobalVariable* gvar);
+  llvm::AllocaInst* CreateVariable(const AST::Declaration* var);
+  llvm::Value* GetVariablePtr(const AST::Declaration* var);
+  llvm::Value* LoadVariable(const AST::Declaration* var);
+  void StoreVariable(const AST::Declaration* var, llvm::Value* val);
 
   // Returns the old basic block pointer
   llvm::BasicBlock* NewBasicBlock(const std::string& name = {});

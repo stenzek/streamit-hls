@@ -57,31 +57,16 @@ void NodeList::PrependNode(Node* node)
   m_nodes.insert(m_nodes.begin(), node);
 }
 
-Declaration::Declaration(const SourceLocation& sloc) : m_sloc(sloc)
+Declaration::Declaration(const SourceLocation& sloc, const std::string& name) : m_sloc(sloc), m_name(name)
 {
-}
-
-const SourceLocation& Declaration::GetSourceLocation() const
-{
-  return m_sloc;
 }
 
 Statement::Statement(const SourceLocation& sloc) : m_sloc(sloc)
 {
 }
 
-const SourceLocation& Statement::GetSourceLocation() const
-{
-  return m_sloc;
-}
-
 Expression::Expression(const SourceLocation& sloc) : m_sloc(sloc), m_type(nullptr)
 {
-}
-
-const SourceLocation& Expression::GetSourceLocation() const
-{
-  return m_sloc;
 }
 
 bool Expression::IsConstant() const
@@ -172,11 +157,11 @@ void StructSpecifier::AddField(const char* name, TypeName* specifier)
 
 ParameterDeclaration::ParameterDeclaration(const SourceLocation& sloc, TypeName* type_specifier,
                                            const std::string& name)
-  : Declaration(sloc), m_type_specifier(type_specifier), m_name(name)
+  : Declaration(sloc, name), m_type_specifier(type_specifier)
 {
 }
 
-StreamDeclaration::StreamDeclaration(const SourceLocation& sloc, const char* name) : Declaration(sloc), m_name(name)
+StreamDeclaration::StreamDeclaration(const SourceLocation& sloc, const char* name) : m_sloc(sloc), m_name(name)
 {
 }
 
@@ -206,7 +191,7 @@ SplitJoinDeclaration::~SplitJoinDeclaration()
 
 FunctionDeclaration::FunctionDeclaration(const SourceLocation& sloc, const char* name, TypeName* return_type,
                                          NodeList* params, NodeList* body)
-  : Declaration(sloc), m_name(name), m_return_type_specifier(return_type), m_params(params), m_body(body)
+  : Declaration(sloc, name), m_return_type_specifier(return_type), m_params(params), m_body(body)
 {
 }
 
@@ -345,8 +330,8 @@ Expression* CommaExpression::GetRHSExpression() const
   return m_rhs;
 }
 
-AssignmentExpression::AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Expression* rhs)
-  : Expression(sloc), m_lhs(lhs), m_rhs(rhs)
+AssignmentExpression::AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
+  : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
 }
 
@@ -450,7 +435,7 @@ size_t InitializerListExpression::GetListSize() const
 
 VariableDeclaration::VariableDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const char* name,
                                          Expression* initializer)
-  : Declaration(sloc), m_type_specifier(type_specifier), m_name(name), m_initializer(initializer)
+  : Declaration(sloc, name), m_type_specifier(type_specifier), m_initializer(initializer)
 {
   // TODO: Default initialize ints to 0?
   // if (!m_initializer)

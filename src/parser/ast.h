@@ -113,13 +113,17 @@ private:
 class Declaration : public Node
 {
 public:
-  Declaration(const SourceLocation& sloc);
+  Declaration(const SourceLocation& sloc, const std::string& name);
   virtual ~Declaration() = default;
 
-  const SourceLocation& GetSourceLocation() const;
+  const SourceLocation& GetSourceLocation() const { return m_sloc; }
+  const Type* GetType() const { return m_type; }
+  const std::string& GetName() const { return m_name; }
 
 protected:
   SourceLocation m_sloc;
+  const Type* m_type = nullptr;
+  std::string m_name;
 };
 
 class Statement : public Node
@@ -128,7 +132,7 @@ public:
   Statement(const SourceLocation& sloc);
   virtual ~Statement() = default;
 
-  const SourceLocation& GetSourceLocation() const;
+  const SourceLocation& GetSourceLocation() const { return m_sloc; }
 
 protected:
   SourceLocation m_sloc;
@@ -140,7 +144,7 @@ public:
   Expression(const SourceLocation& sloc);
   virtual ~Expression() = default;
 
-  const SourceLocation& GetSourceLocation() const;
+  const SourceLocation& GetSourceLocation() const { return m_sloc; }
 
   virtual bool IsConstant() const;
   const Type* GetType() const;
@@ -224,29 +228,26 @@ public:
   ParameterDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const std::string& name);
   ~ParameterDeclaration() = default;
 
-  const Type* GetType() const { return m_type; }
-  const std::string& GetName() const { return m_name; }
-
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
 private:
   TypeName* m_type_specifier;
-  const Type* m_type = nullptr;
-  std::string m_name;
 };
 using ParameterDeclarationList = std::vector<ParameterDeclaration*>;
 
-class StreamDeclaration : public Declaration
+class StreamDeclaration : public Node
 {
 public:
   StreamDeclaration(const SourceLocation& sloc, const char* name);
   ~StreamDeclaration() = default;
 
+  const SourceLocation& GetSourceLocation() const { return m_sloc; }
   const std::string& GetName() const { return m_name; }
 
 protected:
+  SourceLocation m_sloc;
   std::string m_name;
 };
 
@@ -413,14 +414,11 @@ public:
                       NodeList* body);
   ~FunctionDeclaration() = default;
 
-  const std::string& GetName() const { return m_name; }
-
   void Dump(ASTPrinter* printer) const;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
   bool Accept(Visitor* visitor);
 
 private:
-  std::string m_name;
   TypeName* m_return_type_specifier;
   const Type* m_final_return_type;
   NodeList* m_params;
@@ -467,8 +465,7 @@ public:
   IdentifierExpression(const SourceLocation& sloc, const char* identifier);
   ~IdentifierExpression() = default;
 
-  bool IsVariableReference() const { return (m_identifier_declaration != nullptr); }
-  VariableDeclaration* GetReferencedVariable() const { return m_identifier_declaration; }
+  Declaration* GetReferencedDeclaration() const { return m_declaration; }
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
@@ -476,7 +473,7 @@ public:
 
 private:
   std::string m_identifier;
-  VariableDeclaration* m_identifier_declaration = nullptr;
+  Declaration* m_declaration = nullptr;
 };
 
 class IndexExpression : public Expression
@@ -642,7 +639,22 @@ private:
 class AssignmentExpression : public Expression
 {
 public:
-  AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Expression* rhs);
+  enum Operator : unsigned int
+  {
+    Assign,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Modulo,
+    BitwiseAnd,
+    BitwiseOr,
+    BitwiseXor,
+    LeftShift,
+    RightShift
+  };
+
+  AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs);
   ~AssignmentExpression() = default;
 
   Expression* GetLValueExpression() const;
@@ -655,6 +667,7 @@ public:
 private:
   Expression* m_lhs;
   Expression* m_rhs;
+  Operator m_op;
 };
 
 class PeekExpression : public Expression
@@ -821,8 +834,6 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
-  const Type* GetType() const { return m_type; }
-  const std::string& GetName() const { return m_name; }
   bool HasInitializer() const { return (m_initializer != nullptr); }
   Expression* GetInitializer() const { return m_initializer; }
   void RemoveInitializer() { m_initializer = nullptr; }
@@ -831,8 +842,7 @@ public:
 
 private:
   TypeName* m_type_specifier;
-  const Type* m_type = nullptr;
-  std::string m_name;
+
   Expression* m_initializer;
 };
 

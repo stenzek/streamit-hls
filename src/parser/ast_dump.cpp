@@ -208,9 +208,13 @@ void CommaExpression::Dump(ASTPrinter* printer) const
 
 void AssignmentExpression::Dump(ASTPrinter* printer) const
 {
+  static const std::array<const char*, 11> op_names = {{"Assign", "Add", "Subtract", "Multiply", "Divide", "Modulo",
+                                                        "BitwiseAnd", "BitwiseOr", "BitwiseXor", "LeftShift",
+                                                        "RightShift"}};
   printer->BeginBlock("AssignmentExpression(%s -> %s)", m_rhs->GetType()->GetName().c_str(), m_type->GetName().c_str());
   printer->Write("lhs: ");
   m_lhs->Dump(printer);
+  printer->Write("op: %s", op_names[m_op]);
   printer->Write("rhs: ");
   m_rhs->Dump(printer);
   printer->EndBlock();

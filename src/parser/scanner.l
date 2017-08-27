@@ -67,6 +67,16 @@ roundrobin { return TK_ROUNDROBIN; }
 "->" { return TK_ARROW; }
 "<<" { return TK_LSHIFT; }
 ">>" { return TK_RSHIFT; }
+"+=" { return TK_ADD_ASSIGN; }
+"-=" { return TK_SUB_ASSIGN; }
+"*=" { return TK_MUL_ASSIGN; }
+"/=" { return TK_DIV_ASSIGN; }
+"%=" { return TK_MOD_ASSIGN; }
+"^=" { return TK_BITWISE_XOR_ASSIGN; }
+"|=" { return TK_BITWISE_OR_ASSIGN; }
+"&=" { return TK_BITWISE_AND_ASSIGN; }
+"<<=" { return TK_LSHIFT_ASSIGN; }
+">>=" { return TK_RSHIFT_ASSIGN; }
 
  /* Boolean literal */
 true { yylval.boolean_literal = true; return TK_BOOLEAN_LITERAL; }
@@ -84,6 +94,7 @@ false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
 "}" { return '}'; }
 "(" { return '('; }
 ")" { return ')'; }
+"," { return ','; }
 ";" { return ';'; }
 "<" { return '<'; }
 ">" { return '>'; }

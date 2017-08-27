@@ -37,6 +37,8 @@ using namespace AST;
 %token TK_EQUALS TK_NOT_EQUALS
 %token TK_INCREMENT TK_DECREMENT TK_LSHIFT TK_RSHIFT
 %token TK_LTE TK_GTE
+%token TK_ADD_ASSIGN TK_SUB_ASSIGN TK_MUL_ASSIGN TK_DIV_ASSIGN TK_MOD_ASSIGN
+%token TK_BITWISE_XOR_ASSIGN TK_BITWISE_OR_ASSIGN TK_BITWISE_AND_ASSIGN TK_LSHIFT_ASSIGN TK_RSHIFT_ASSIGN
 
 %token TK_IF TK_ELSE TK_FOR TK_DO TK_WHILE TK_CONTINUE TK_BREAK TK_RETURN
 
@@ -65,6 +67,8 @@ using namespace AST;
   AST::ParameterDeclaration* parameter_declaration;
   AST::ParameterDeclarationList* parameter_declaration_list;
 
+  AST::AssignmentExpression::Operator assignment_operator;
+
   const char* identifier;
 
   bool boolean_literal;
@@ -76,7 +80,6 @@ using namespace AST;
 %type <stream_decl> StreamDeclaration
 %type <stream_decl> PipelineDeclaration
 %type <stream_decl> SplitJoinDeclaration
-%type <node_list> StreamStatementList
 %type <stream_decl> AnonymousStreamDeclaration
 %type <filter_decl> AnonymousFilterDeclaration
 %type <filter_decl> FilterDeclaration
@@ -125,6 +128,7 @@ using namespace AST;
 %type <expr> LogicalOrExpression
 %type <expr> ConditionalExpression
 %type <expr> AssignmentExpression
+%type <assignment_operator> AssignmentOperator
 %type <identifier> Identifier TK_IDENTIFIER
 %type <integer_literal> IntegerLiteral TK_INTEGER_LITERAL
 %type <boolean_literal> BooleanLiteral TK_BOOLEAN_LITERAL
@@ -173,38 +177,33 @@ StreamDeclaration
   ;
 
 PipelineDeclaration
-  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' StreamStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, nullptr, $7); }
-  | TypeName TK_ARROW TypeName TK_PIPELINE Identifier '(' ParameterDeclarationList ')' '{' StreamStatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7, $10); }
+  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' StatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, nullptr, $7); }
+  | TypeName TK_ARROW TypeName TK_PIPELINE Identifier '(' ParameterDeclarationList ')' '{' StatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7, $10); }
   ;
 
 SplitJoinDeclaration
-  : TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '{' StreamStatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, nullptr, $7); }
-  | TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '(' ParameterDeclarationList ')' '{' StreamStatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, $7, $10); }
+  : TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '{' StatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, nullptr, $7); }
+  | TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '(' ParameterDeclarationList ')' '{' StatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, $7, $10); }
   ;
 
 AnonymousFilterDeclaration
-  : '{' FilterDefinition '}'
+  : TypeName TK_ARROW TypeName TK_FILTER FilterDefinition
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_filter");
-    FilterDeclaration* decl = new FilterDeclaration(@1, nullptr, nullptr, name.c_str(), nullptr, $2->vars, $2->init, $2->prework, $2->work);
+    FilterDeclaration* decl = new FilterDeclaration(@1, $1, $3, name.c_str(), nullptr, $5->vars, $5->init, $5->prework, $5->work);
     state->AddFilter(decl);
     $$ = decl;
   }
   ;
 
 AnonymousStreamDeclaration
-  : TK_SPLITJOIN '{' StreamStatementList '}'
+  : TK_SPLITJOIN '{' StatementList '}'
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_splitjoin");
     SplitJoinDeclaration* decl = new SplitJoinDeclaration(@1, nullptr, nullptr, name.c_str(), nullptr, $3);
     state->AddStream(decl);
     $$ = decl;
   }
-  ;
-
-StreamStatementList
-  : StreamStatement { $$ = new NodeList(); $$->AddNode($1); }
-  | StreamStatementList StreamStatement { $1->AddNode($2); }
   ;
 
 FilterDeclaration
@@ -293,7 +292,7 @@ InitializerList
 
 ParameterDeclarationList
   : ParameterDeclaration { $$ = new ParameterDeclarationList(); $$->push_back($1); }
-  | ParameterDeclarationList ParameterDeclaration { $1->push_back($2); $$ = $1; }
+  | ParameterDeclarationList ',' ParameterDeclaration { $1->push_back($3); $$ = $1; }
   ;
 
 ParameterDeclaration
@@ -319,6 +318,7 @@ Statement
   | IterationStatement { $$ = $1; }
   | JumpStatement { $$ = $1; }
   | PushStatement { $$ = $1; }
+  | StreamStatement { $$ = $1; }
   ;
 
 ExpressionStatement
@@ -346,7 +346,6 @@ StreamStatement
   : AddStatement { $$ = $1; }
   | SplitStatement { $$ = $1; }
   | JoinStatement { $$ = $1; }
-  | PushStatement { $$ = $1; }
   ;
 
 AddStatement
@@ -481,9 +480,23 @@ ConditionalExpression
   /*| LogicalOrExpression '?' Expression ':' ConditionalExpression { $$ = new ConditionalExpression(@1, $1, $3, $5); }*/
   ;
 
+AssignmentOperator
+  : '=' { $$ = AssignmentExpression::Assign; }
+  | TK_ADD_ASSIGN { $$ = AssignmentExpression::Add; }
+  | TK_SUB_ASSIGN { $$ = AssignmentExpression::Subtract; }
+  | TK_MUL_ASSIGN { $$ = AssignmentExpression::Multiply; }
+  | TK_DIV_ASSIGN { $$ = AssignmentExpression::Divide; }
+  | TK_MOD_ASSIGN { $$ = AssignmentExpression::Modulo; }
+  | TK_BITWISE_XOR_ASSIGN { $$ = AssignmentExpression::BitwiseXor; }
+  | TK_BITWISE_OR_ASSIGN { $$ = AssignmentExpression::BitwiseOr; }
+  | TK_BITWISE_AND_ASSIGN { $$ = AssignmentExpression::BitwiseAnd; }
+  | TK_LSHIFT_ASSIGN { $$ = AssignmentExpression::LeftShift; }
+  | TK_RSHIFT_ASSIGN { $$ = AssignmentExpression::RightShift; }
+  ;
+
 AssignmentExpression
   : ConditionalExpression
-  | UnaryExpression '=' AssignmentExpression { $$ = new AssignmentExpression(@1, $1, $3); }
+  | UnaryExpression AssignmentOperator AssignmentExpression { $$ = new AssignmentExpression(@1, $1, $2, $3); }
   ;
 
 %%
