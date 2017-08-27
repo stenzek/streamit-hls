@@ -14,9 +14,15 @@
 // Update the line number in the parser location for each token.
 #define YY_USER_ACTION do { yylloc.first_column = 0; yylloc.last_column = 0; yylloc.first_line = yylineno; yylloc.last_line = yylineno; } while (0);
 
+static void comment();
+
 %}
 
 %%
+
+ /* Comments */
+"/*" { comment(); }
+"//".* { }
 
  /* Word tokens */
 filter { return TK_FILTER; }
@@ -97,26 +103,38 @@ false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
 "[" { return '['; }
 "]" { return ']'; }
 
- /* Whitespace/comments */
-[ \r\n\t]       /* skip whitespace */
-
- /* Single-line comment */
-\/\/[^\n]+\n
-
- /* Multi-line comment */
-\/\*(.*)\*\/
+ /* Skip Whitespace */
+[ \t\v\n\f] { }
 
 <<EOF>>						{ BEGIN(0); return 0; }
 
  /* Throw error on unrecognized token */
 .                           {
-								ScannerHelpers::ReportScannerError(yylineno, "unrecognized token: %s", yytext);
-								return 0;
-							}
+                ScannerHelpers::ReportScannerError(yylineno, "unrecognized token: %s", yytext);
+                return 0;
+              }
 %%
 
 int yywrap()
 {
-	// We don't have any more inputs after end-of-file.
-	return 1;
+  // We don't have any more inputs after end-of-file.
+  return 1;
+}
+
+static void comment()
+{
+  int c;
+  while ((c = yyinput()) != 0)
+  {
+    if (c == '*')
+    {
+      while ((c = yyinput()) == '*')
+        ;
+      if (c == '/')
+        return;
+      if (c == 0)
+        break;
+    }
+  }
+  ScannerHelpers::ReportScannerError(yylineno, "unterminated comment");
 }
