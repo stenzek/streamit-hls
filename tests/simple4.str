@@ -2,6 +2,7 @@ int->int pipeline simple4 {
     add counter();
     //add stuff();
     add adder();
+    //add sink();
     //add printer();
 }
 
@@ -31,10 +32,17 @@ int->int splitjoin stuff {
     join roundrobin;
 }
 
-int->int filter printer {
+int->void filter printer {
     work pop 1 {
         int x = pop();
         println(x);
     }
 }
+
+int->void filter sink {
+    work pop 1 {
+        int x = pop();
+    }
+}
+
 

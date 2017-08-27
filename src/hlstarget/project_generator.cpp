@@ -7,6 +7,7 @@
 #include "common/string_helpers.h"
 #include "core/type.h"
 #include "core/wrapped_llvm_context.h"
+#include "hlstarget/component_generator.h"
 #include "hlstarget/filter_builder.h"
 #include "hlstarget/test_bench_generator.h"
 #include "llvm/IR/Argument.h"
@@ -92,6 +93,24 @@ bool ProjectGenerator::GenerateProject()
     return false;
   }
 
+  if (!WriteFIFOComponent())
+  {
+    Log_ErrorPrintf("Failed to write FIFO component.");
+    return false;
+  }
+
+  if (!GenerateComponent())
+  {
+    Log_ErrorPrintf("Failed to generate component.");
+    return false;
+  }
+
+  if (!WriteVivadoScript())
+  {
+    Log_ErrorPrintf("Failed to write Vivado script.");
+    return false;
+  }
+
   return true;
 }
 
@@ -164,7 +183,8 @@ bool ProjectGenerator::CleanOutputDirectory()
 
   std::error_code ec;
   if ((ec = llvm::sys::fs::create_directory(m_output_dir)) ||
-      (ec = llvm::sys::fs::create_directory(StringFromFormat("%s/hls", m_output_dir.c_str()))))
+      (ec = llvm::sys::fs::create_directory(StringFromFormat("%s/_autogen_hls", m_output_dir.c_str()))) ||
+      (ec = llvm::sys::fs::create_directory(StringFromFormat("%s/_autogen_vhdl", m_output_dir.c_str()))))
   {
     Log_ErrorPrintf("Failed to create output directory '%s'", m_output_dir.c_str());
     return false;
@@ -175,7 +195,7 @@ bool ProjectGenerator::CleanOutputDirectory()
 
 bool ProjectGenerator::WriteCCode()
 {
-  std::string c_code_filename = StringFromFormat("%s/hls/filters.c", m_output_dir.c_str());
+  std::string c_code_filename = StringFromFormat("%s/_autogen_hls/filters.c", m_output_dir.c_str());
   Log_InfoPrintf("Writing C code to %s...", c_code_filename.c_str());
 
   std::error_code ec;
@@ -198,9 +218,27 @@ bool ProjectGenerator::GenerateTestBenches()
   return generator.GenerateTestBenches();
 }
 
+bool ProjectGenerator::GenerateComponent()
+{
+  std::string filename = StringFromFormat("%s/_autogen_vhdl/%s.vhd", m_output_dir.c_str(), m_module_name.c_str());
+  Log_InfoPrintf("Writing wrapper component to %s...", filename.c_str());
+
+  std::error_code ec;
+  llvm::raw_fd_ostream os(filename, ec, llvm::sys::fs::F_None);
+  if (ec || os.has_error())
+    return false;
+
+  ComponentGenerator cg(m_context, m_streamgraph, m_module_name, os);
+  if (!cg.GenerateComponent())
+    return false;
+
+  os.flush();
+  return true;
+}
+
 bool ProjectGenerator::WriteHLSScript()
 {
-  std::string script_filename = StringFromFormat("%s/hls/script.tcl", m_output_dir.c_str());
+  std::string script_filename = StringFromFormat("%s/_autogen_hls/script.tcl", m_output_dir.c_str());
   Log_InfoPrintf("Writing HLS TCL script to %s...", script_filename.c_str());
 
   std::error_code ec;
@@ -231,7 +269,7 @@ bool ProjectGenerator::WriteHLSScript()
     // We don't use statics for any data storage, except for the FIFO peek buffer.
     // TODO: We can optimize this by setting them specifically instead of globally,
     // set_directive_reset "filter_counter" counter_last
-    os << "config_rtl -reset state\n";
+    os << "config_rtl -reset state -reset_level low\n";
 
     // Disable handshake signals on block, we don't need them, since use the fifo for control
     os << "set_directive_interface -mode ap_ctrl_none \"" << function_name << "\"\n";
@@ -262,6 +300,146 @@ bool ProjectGenerator::WriteHLSScript()
   os << "exit\n";
   os.flush();
   return !os.has_error();
+}
+
+bool ProjectGenerator::WriteVivadoScript()
+{
+  std::string script_filename = StringFromFormat("%s/create_project.tcl", m_output_dir.c_str());
+  Log_InfoPrintf("Writing Vivado TCL script to %s...", script_filename.c_str());
+
+  std::error_code ec;
+  llvm::raw_fd_ostream os(script_filename, ec, llvm::sys::fs::F_None);
+  if (ec || os.has_error())
+    return false;
+
+  os << "create_project " << m_module_name << " . -part xa7a50tcsg325 -force\n";
+  os << "set_property target_language VHDL [current_project]\n";
+  os << "\n";
+
+  // Add HLS output files.
+  // There can be more than one VHDL file per HLS solution.
+  os << "# Add HLS outputs\n";
+  for (const auto& it : m_filter_function_map)
+  {
+    const StreamGraph::FilterPermutation* filter_perm = it.first;
+    const std::string& filter_name = filter_perm->GetName();
+    const std::string function_name = StringFromFormat("filter_%s", filter_name.c_str());
+    os << "add_files -norecurse [glob ./_autogen_hls/" << m_module_name << "/" << function_name << "/syn/vhdl/*.vhd]\n";
+  }
+  os << "\n";
+
+  // Add wrapper component.
+  os << "add_files -norecurse \"./_autogen_vhdl/" << m_module_name << ".vhd"
+     << "\"\n";
+  os << "\n";
+
+  // Import into main project.
+  os << "import_files -force -norecurse\n";
+  os << "update_compile_order -fileset sources_1\n";
+  os << "\n";
+
+  os << "exit\n";
+  os.flush();
+  return !os.has_error();
+}
+
+bool ProjectGenerator::WriteFIFOComponent()
+{
+  static const char* fifo_vhdl = R"(
+library IEEE;
+use IEEE.STD_LOGIC_1164.ALL;
+use IEEE.NUMERIC_STD.ALL;
+
+entity fifo is
+  generic (
+    constant DATA_WIDTH : positive := 8;
+    constant SIZE : positive := 16
+  );
+  port (
+    clk : in std_logic;
+    rst_n : in std_logic;
+    write : in std_logic;
+    read : in std_logic;
+    empty_n : out std_logic;
+    full_n : out std_logic;
+    din : in std_logic_vector(DATA_WIDTH - 1 downto 0);
+    dout : out std_logic_vector(DATA_WIDTH - 1 downto 0)
+  );
+end fifo;
+
+architecture behav of fifo is
+begin
+
+main_proc : process(clk)
+  type Storage is array(0 to SIZE - 1) of std_logic_vector(DATA_WIDTH - 1 downto 0);
+  variable Memory : Storage;
+  
+  variable head_ptr : natural range 0 to SIZE - 1;
+  variable tail_ptr : natural range 0 to SIZE - 1;
+  variable looped : boolean;
+    
+begin
+  if (rising_edge(clk)) then
+    if (rst_n = '0') then
+      head_ptr := 0;
+      tail_ptr := 0;
+      looped := false;
+      full_n <= '1';
+      empty_n <= '0';
+    else
+      if (read = '1') then
+        if ((looped = true) or (head_ptr /= tail_ptr)) then
+          if (tail_ptr = SIZE - 1) then
+            tail_ptr := 0;
+            looped := false;
+          else
+            tail_ptr := tail_ptr + 1;
+          end if;
+        end if;
+      end if;
+      
+      if (write = '1') then
+        if ((looped = false) or (head_ptr /= tail_ptr)) then
+          Memory(head_ptr) := din;
+          if (head_ptr = SIZE - 1) then
+            head_ptr := 0;
+            looped := true;
+          else
+            head_ptr := head_ptr + 1;
+          end if;
+        end if;
+      end if;
+      
+      dout <= Memory(tail_ptr);
+      
+      if (head_ptr = tail_ptr) then
+        if (looped) then
+          full_n <= '0';
+        else
+          empty_n <= '0';
+        end if;
+      else
+        full_n <= '1';
+        empty_n <= '1';
+      end if;
+    end if;
+  end if;
+end process;
+   
+end behav;
+)";
+
+  std::string filename = StringFromFormat("%s/_autogen_vhdl/fifo.vhd", m_output_dir.c_str());
+  Log_InfoPrintf("Writing FIFO component to %s...", filename.c_str());
+
+  std::error_code ec;
+  llvm::raw_fd_ostream os(filename, ec, llvm::sys::fs::F_None);
+  if (ec || os.has_error())
+    return false;
+
+  os.write(fifo_vhdl, sizeof(fifo_vhdl));
+  os.flush();
+  return true;
 }
 
 } // namespace HLSTarget

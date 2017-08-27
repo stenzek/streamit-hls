@@ -498,7 +498,7 @@ static void WriteTestBenchFor(const StreamGraph::FilterPermutation* filter_perm,
 
 bool TestBenchGenerator::GenerateTestBenchCCode()
 {
-  std::string c_filename = StringFromFormat("%s/hls/filters_tb.c", m_output_directory.c_str());
+  std::string c_filename = StringFromFormat("%s/_autogen_hls/filters_tb.c", m_output_directory.c_str());
   Log_InfoPrintf("Writing test bench C code to %s...", c_filename.c_str());
 
   std::error_code ec;

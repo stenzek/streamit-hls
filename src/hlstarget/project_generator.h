@@ -53,7 +53,10 @@ private:
   bool CleanOutputDirectory();
   bool WriteCCode();
   bool GenerateTestBenches();
+  bool GenerateComponent();
+  bool WriteFIFOComponent();
   bool WriteHLSScript();
+  bool WriteVivadoScript();
 
   WrappedLLVMContext* m_context;
   StreamGraph::StreamGraph* m_streamgraph;

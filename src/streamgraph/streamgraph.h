@@ -50,6 +50,10 @@ public:
   // Get a list of all unique filter (parameter permutations) in the graph
   const FilterPermutationList& GetFilterPermutationList() const { return m_filter_permutations; }
 
+  // Input/output types of the whole program
+  const Type* GetProgramInputType() const;
+  const Type* GetProgramOutputType() const;
+
 private:
   Node* m_root_node;
   FilterPermutationList m_filter_permutations;

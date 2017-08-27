@@ -31,6 +31,16 @@ StreamGraph::FilterInstanceList StreamGraph::GetFilterInstanceList() const
   return {};
 }
 
+const Type* StreamGraph::GetProgramInputType() const
+{
+  return m_root_node->GetInputType();
+}
+
+const Type* StreamGraph::GetProgramOutputType() const
+{
+  return m_root_node->GetOutputType();
+}
+
 void FilterParameters::AddParameter(const AST::ParameterDeclaration* decl, const void* data, size_t data_len,
                                     llvm::Constant* value)
 {

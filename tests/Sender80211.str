@@ -7,6 +7,7 @@ void->void pipeline Sender80211
 	add chunk2symbol;
 	add fir_filter;
 	//add output;
+    add sink;
 	//add FileWriter<int>("output.stream");
 }
 
@@ -32,6 +33,14 @@ int -> void filter output
 		println(pop());
         //pop();
 	}
+}
+
+int -> void filter sink
+{
+    work pop 1
+    {
+        int unused = pop();
+    }
 }
 
 int -> int stateful filter scramble
