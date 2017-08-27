@@ -192,8 +192,17 @@ bool StatementBuilder::Visit(AST::AddStatement* node)
   llvm::Function* func = GetModule()->getFunction(func_name);
   assert(func && "referenced filter exists");
 
-  // TODO: Parameter handling.
-  GetIRBuilder().CreateCall(func);
+  std::vector<llvm::Value*> func_params;
+  for (AST::Node* param_node : *node->GetStreamParameters())
+  {
+    ExpressionBuilder param_eb(m_func_builder);
+    if (!param_node->Accept(&param_eb) || !param_eb.IsValid())
+      return false;
+
+    func_params.push_back(param_eb.GetResultValue());
+  }
+
+  GetIRBuilder().CreateCall(func, func_params);
   return true;
 }
 

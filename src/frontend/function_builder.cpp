@@ -21,7 +21,25 @@ FunctionBuilder::~FunctionBuilder()
 {
 }
 
-void FunctionBuilder::AddGlobalVariable(const AST::Declaration* var, llvm::GlobalVariable* gvar)
+void FunctionBuilder::CreateParameterVariables(const std::vector<AST::ParameterDeclaration*>* func_params)
+{
+  auto arg_cur = m_func->arg_begin();
+  auto arg_end = m_func->arg_end();
+
+  for (const AST::ParameterDeclaration* param_decl : *func_params)
+  {
+    assert(arg_cur != arg_end && "out of function arguments");
+    llvm::Type* decl_type = m_context->GetLLVMType(param_decl->GetType());
+    llvm::Value* arg_value = &(*arg_cur++);
+    assert(decl_type == arg_value->getType());
+
+    // TODO: We would need to alloca a local copy if we allow modifying parameters/captured variables.
+    arg_value->setName(param_decl->GetName());
+    m_vars.emplace(param_decl, arg_value);
+  }
+}
+
+void FunctionBuilder::AddVariable(const AST::Declaration* var, llvm::GlobalVariable* gvar)
 {
   assert(m_vars.find(var) == m_vars.end());
   m_vars.emplace(var, gvar);
@@ -39,7 +57,7 @@ llvm::AllocaInst* FunctionBuilder::CreateVariable(const AST::Declaration* var)
   return ai;
 }
 
-llvm::Value* FunctionBuilder::GetVariablePtr(const AST::Declaration* var)
+llvm::Value* FunctionBuilder::GetVariable(const AST::Declaration* var)
 {
   auto it = m_vars.find(var);
   if (it == m_vars.end())
@@ -49,30 +67,6 @@ llvm::Value* FunctionBuilder::GetVariablePtr(const AST::Declaration* var)
   }
 
   return it->second;
-}
-
-llvm::Value* FunctionBuilder::LoadVariable(const AST::Declaration* var)
-{
-  auto it = m_vars.find(var);
-  if (it == m_vars.end())
-  {
-    assert(0 && "unresolved variable");
-    return nullptr;
-  }
-
-  return m_current_ir_builder.CreateLoad(it->second);
-}
-
-void FunctionBuilder::StoreVariable(const AST::Declaration* var, llvm::Value* val)
-{
-  auto it = m_vars.find(var);
-  if (it == m_vars.end())
-  {
-    assert(0 && "unresolved variable");
-    return;
-  }
-
-  m_current_ir_builder.CreateStore(val, it->second);
 }
 
 llvm::BasicBlock* FunctionBuilder::NewBasicBlock(const std::string& name)
@@ -148,7 +142,7 @@ bool FunctionBuilder::Visit(AST::VariableDeclaration* node)
       return false;
     }
 
-    StoreVariable(node, eb.GetResultValue());
+    m_current_ir_builder.CreateStore(eb.GetResultValue(), GetVariable(node));
   }
 
   return true;
@@ -158,5 +152,16 @@ bool FunctionBuilder::Visit(AST::Statement* node)
 {
   StatementBuilder stmt_builder(this);
   return node->Accept(&stmt_builder);
+}
+
+llvm::FunctionType* FunctionBuilder::GetFunctionType(WrappedLLVMContext* context,
+                                                     const std::vector<AST::ParameterDeclaration*>* func_params)
+{
+  llvm::Type* ret_type = context->GetVoidType();
+  std::vector<llvm::Type*> param_types;
+  for (const AST::ParameterDeclaration* param_decl : *func_params)
+    param_types.push_back(context->GetLLVMType(param_decl->GetType()));
+
+  return llvm::FunctionType::get(ret_type, param_types, false);
 }
 }

@@ -139,7 +139,7 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
 
   // Add global variable references
   for (const auto& it : m_global_variable_map)
-    entry_bb_builder.AddGlobalVariable(it.first, it.second);
+    entry_bb_builder.AddVariable(it.first, it.second);
 
   // Emit code based on the work block.
   if (!block->Accept(&entry_bb_builder))

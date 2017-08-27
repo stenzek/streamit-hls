@@ -18,6 +18,8 @@ public:
   typename MapType::const_iterator begin() const { return m_map.begin(); }
   typename MapType::const_iterator end() const { return m_map.end(); }
 
+  SymbolTable* GetParentScope() const { return m_parent; }
+
   bool HasName(const NameType& name) const
   {
     if (m_parent && m_parent->HasName(name))

@@ -216,7 +216,7 @@ llvm::Function* TestBenchGenerator::GenerateFilterFunction(const StreamGraph::Fi
       return nullptr;
 
     for (const auto& it : gvb.GetVariableMap())
-      function_builder.AddGlobalVariable(it.first, it.second);
+      function_builder.AddVariable(it.first, it.second);
   }
 
   // Generate the actual function.

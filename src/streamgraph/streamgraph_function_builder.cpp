@@ -43,6 +43,13 @@ static llvm::Value* GetRateValue(Frontend::FunctionBuilder* fb, AST::Expression*
   return eb.GetResultValue();
 }
 
+static void AddStreamParameterValues(Frontend::FunctionBuilder* fb, AST::StreamDeclaration* stream_decl,
+                                     std::vector<llvm::Value*>& call_params)
+{
+  for (AST::ParameterDeclaration* param_decl : *stream_decl->GetParameters())
+    call_params.push_back(fb->GetVariable(param_decl));
+}
+
 bool StreamGraphFunctionBuilder::Visit(AST::FilterDeclaration* node)
 {
   llvm::Value* peek_rate_val = GetRateValue(this, node->GetWorkBlock()->GetPeekRateExpression());
@@ -52,10 +59,11 @@ bool StreamGraphFunctionBuilder::Visit(AST::FilterDeclaration* node)
     return false;
 
   // We're a filter, simply call AddFilter
-  // TODO: Handling of parameters - we would probably need to create a boxed type for each
   llvm::Function* call_func = GetModule()->getFunction("StreamGraphBuilder_AddFilter");
-  GetCurrentIRBuilder().CreateCall(
-    call_func, {m_context->CreateHostPointerValue(node), peek_rate_val, pop_rate_val, push_rate_val});
+  std::vector<llvm::Value*> call_params = {m_context->CreateHostPointerValue(node), peek_rate_val, pop_rate_val,
+                                           push_rate_val};
+  AddStreamParameterValues(this, node, call_params);
+  GetCurrentIRBuilder().CreateCall(call_func, call_params);
   GetCurrentIRBuilder().CreateRetVoid();
   return true;
 }
@@ -64,7 +72,9 @@ bool StreamGraphFunctionBuilder::Visit(AST::SplitJoinDeclaration* node)
 {
   // We're a splitjoin
   llvm::Function* call_func = GetModule()->getFunction("StreamGraphBuilder_BeginSplitJoin");
-  GetCurrentIRBuilder().CreateCall(call_func, {m_context->CreateHostPointerValue(node)});
+  std::vector<llvm::Value*> call_params = {m_context->CreateHostPointerValue(node)};
+  AddStreamParameterValues(this, node, call_params);
+  GetCurrentIRBuilder().CreateCall(call_func, call_params);
 
   // Generate statements
   bool result = node->GetStatements()->Accept(this);
@@ -80,7 +90,9 @@ bool StreamGraphFunctionBuilder::Visit(AST::PipelineDeclaration* node)
 {
   // We're a pipeline
   llvm::Function* call_func = GetModule()->getFunction("StreamGraphBuilder_BeginPipeline");
-  GetCurrentIRBuilder().CreateCall(call_func, {m_context->CreateHostPointerValue(node)});
+  std::vector<llvm::Value*> call_params = {m_context->CreateHostPointerValue(node)};
+  AddStreamParameterValues(this, node, call_params);
+  GetCurrentIRBuilder().CreateCall(call_func, call_params);
 
   // Generate statements
   bool result = node->GetStatements()->Accept(this);

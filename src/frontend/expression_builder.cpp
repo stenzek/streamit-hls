@@ -80,9 +80,12 @@ bool ExpressionBuilder::Visit(AST::BooleanLiteralExpression* node)
 
 bool ExpressionBuilder::Visit(AST::IdentifierExpression* node)
 {
-  // Delays loads due to arrays - we want to return the pointer, not load the array
-  // m_result_value = m_func_builder->LoadVariable(node->GetReferencedVariable());
-  m_result_ptr = m_func_builder->GetVariablePtr(node->GetReferencedDeclaration());
+  // TODO: This should check the type (pointer or value).
+  if (node->GetReferencedDeclaration()->IsConstant())
+    m_result_value = m_func_builder->GetVariable(node->GetReferencedDeclaration());
+  else
+    m_result_ptr = m_func_builder->GetVariable(node->GetReferencedDeclaration());
+
   return IsValid();
 }
 

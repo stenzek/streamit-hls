@@ -1,10 +1,15 @@
 #pragma once
 #include <stack>
 #include <unordered_map>
+#include <vector>
 #include "llvm/IR/BasicBlock.h"
 #include "llvm/IR/IRBuilder.h"
 #include "parser/ast_visitor.h"
 
+namespace llvm
+{
+class FunctionType;
+}
 class WrappedLLVMContext;
 
 namespace Frontend
@@ -37,11 +42,10 @@ public:
   llvm::BasicBlock* GetCurrentBasicBlock() const { return m_current_basic_block; }
   llvm::IRBuilder<>& GetCurrentIRBuilder() { return m_current_ir_builder; }
 
-  void AddGlobalVariable(const AST::Declaration* var, llvm::GlobalVariable* gvar);
+  void CreateParameterVariables(const std::vector<AST::ParameterDeclaration*>* func_params);
+  void AddVariable(const AST::Declaration* var, llvm::GlobalVariable* gvar);
   llvm::AllocaInst* CreateVariable(const AST::Declaration* var);
-  llvm::Value* GetVariablePtr(const AST::Declaration* var);
-  llvm::Value* LoadVariable(const AST::Declaration* var);
-  void StoreVariable(const AST::Declaration* var, llvm::Value* val);
+  llvm::Value* GetVariable(const AST::Declaration* var);
 
   // Returns the old basic block pointer
   llvm::BasicBlock* NewBasicBlock(const std::string& name = {});
@@ -56,6 +60,9 @@ public:
   llvm::BasicBlock* GetCurrentContinueBasicBlock() const;
   void PushContinueBasicBlock(llvm::BasicBlock* bb);
   void PopContinueBasicBlock();
+
+  static llvm::FunctionType* GetFunctionType(WrappedLLVMContext* context,
+                                             const std::vector<AST::ParameterDeclaration*>* func_params);
 
 protected:
   WrappedLLVMContext* m_context;

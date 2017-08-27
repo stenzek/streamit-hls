@@ -62,7 +62,8 @@ public:
   // Filters can't be nested? So this should be sufficient.
   // TODO: Kinda messy though. Maybe would be better placed in the symbol table.
   // TODO: I think they can...
-  AST::FilterDeclaration* current_filter = nullptr;
+  AST::StreamDeclaration* current_stream = nullptr;
+  AST::LexicalScope* current_stream_scope = nullptr;
 
   // AST dumping/printing
   void DumpAST();

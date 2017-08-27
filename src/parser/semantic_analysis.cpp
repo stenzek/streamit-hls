@@ -1,10 +1,12 @@
 #include <algorithm>
 #include <cassert>
 #include <sstream>
+#include "common/log.h"
 #include "core/type.h"
 #include "parser/ast.h"
 #include "parser/parser_state.h"
 #include "parser/symbol_table.h"
+Log_SetChannel(Parser);
 
 namespace AST
 {
@@ -97,7 +99,13 @@ bool ParameterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sy
 bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
+
   LexicalScope pipeline_scope(symbol_table);
+  StreamDeclaration* old_current_stream = state->current_stream;
+  LexicalScope* old_current_stream_scope = state->current_stream_scope;
+  state->current_stream = this;
+  state->current_stream_scope = &pipeline_scope;
+
   if (m_input_type_specifier && m_output_type_specifier)
   {
     result &= m_input_type_specifier->SemanticAnalysis(state, &pipeline_scope);
@@ -121,13 +129,23 @@ bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
   if (m_statements)
     result &= m_statements->SemanticAnalysis(state, &pipeline_scope);
 
+  assert(state->current_stream == this);
+  state->current_stream = old_current_stream;
+  state->current_stream_scope = old_current_stream_scope;
+
   return result;
 }
 
 bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
+
   LexicalScope splitjoin_scope(symbol_table);
+  StreamDeclaration* old_current_stream = state->current_stream;
+  LexicalScope* old_current_stream_scope = state->current_stream_scope;
+  state->current_stream = this;
+  state->current_stream_scope = &splitjoin_scope;
+
   if (m_input_type_specifier && m_output_type_specifier)
   {
     result &= m_input_type_specifier->SemanticAnalysis(state, &splitjoin_scope);
@@ -151,6 +169,10 @@ bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sy
   if (m_statements)
     result &= m_statements->SemanticAnalysis(state, &splitjoin_scope);
 
+  assert(state->current_stream == this);
+  state->current_stream = old_current_stream;
+  state->current_stream_scope = old_current_stream_scope;
+
   return result;
 }
 
@@ -168,10 +190,48 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
 
   if (!state->HasActiveStream(m_stream_declaration))
   {
+    if (!m_stream_parameters)
+    {
+      // This is an anonymous stream/filter.
+      // Copy everything in the symbol table as parameters to the anonymous stream/filter.
+      m_stream_parameters = new NodeList();
+
+      // Start at the current scope, and move up until we hit the current stream.
+      LexicalScope* current_scope = symbol_table;
+      while (current_scope != nullptr)
+      {
+        for (const auto& it : *current_scope)
+        {
+          Declaration* decl = dynamic_cast<Declaration*>(it.second);
+          if (!decl)
+            continue;
+
+          // TODO: Filter types to capture?
+          // Log_DevPrintf("Capture %s %s", decl->GetType()->GetName().c_str(), decl->GetName().c_str());
+
+          // Add parameter to stream.
+          ParameterDeclaration* param_decl =
+            new ParameterDeclaration(decl->GetSourceLocation(), new TypeName(decl->GetType()), decl->GetName());
+          m_stream_declaration->GetParameters()->push_back(param_decl);
+
+          // Add reference to add parameters.
+          m_stream_parameters->AddNode(new IdentifierExpression(m_sloc, it.first.c_str()));
+        }
+
+        if (current_scope == state->current_stream_scope)
+          break;
+
+        current_scope = current_scope->GetParentScope();
+      }
+    }
+
     state->AddActiveStream(m_stream_declaration);
     if (!m_stream_declaration->SemanticAnalysis(state, symbol_table))
       return false;
   }
+
+  if (!m_stream_parameters->SemanticAnalysis(state, symbol_table))
+    return false;
 
   return true;
 }
@@ -197,11 +257,13 @@ bool JoinStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_ta
 bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
-  assert(!state->current_filter);
-  state->current_filter = this;
 
   // Each filter has its own symbol table (stateful stuff), then each part has its own symbol table
   LexicalScope filter_symbol_table(symbol_table);
+  StreamDeclaration* old_stream = state->current_stream;
+  LexicalScope* old_stream_scope = state->current_stream_scope;
+  state->current_stream = this;
+  state->current_stream_scope = &filter_symbol_table;
 
   result &= m_input_type_specifier->SemanticAnalysis(state, &filter_symbol_table);
   m_input_type = m_input_type_specifier->GetFinalType();
@@ -237,8 +299,9 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
     result &= m_work->SemanticAnalysis(state, &work_symbol_table);
   }
 
-  assert(state->current_filter == this);
-  state->current_filter = nullptr;
+  assert(state->current_stream == this);
+  state->current_stream = old_stream;
+  state->current_stream_scope = old_stream_scope;
   return result;
 }
 
@@ -458,13 +521,13 @@ bool BooleanLiteralExpression::SemanticAnalysis(ParserState* state, LexicalScope
 bool PeekExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = m_expr->SemanticAnalysis(state, symbol_table);
-  m_type = state->current_filter->GetInputType();
+  m_type = state->current_stream->GetInputType();
   return result && m_type->IsValid();
 }
 
 bool PopExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
-  m_type = state->current_filter->GetInputType();
+  m_type = state->current_stream->GetInputType();
   return m_type->IsValid();
 }
 
@@ -531,7 +594,7 @@ bool PushStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_ta
 {
   bool result = m_expr->SemanticAnalysis(state, symbol_table);
 
-  const Type* filter_output_type = state->current_filter->GetOutputType();
+  const Type* filter_output_type = state->current_stream->GetOutputType();
   if (!m_expr->GetType()->CanImplicitlyConvertTo(filter_output_type))
   {
     state->LogError(m_sloc, "Cannot implicitly convert between '%s' and '%s'", m_expr->GetType()->GetName().c_str(),

@@ -87,6 +87,7 @@ bool Builder::GenerateCode()
   if (!GenerateMain())
     return false;
 
+  m_context->DumpModule(m_module.get());
   return result;
 }
 
@@ -122,8 +123,8 @@ bool Builder::GenerateStreamFunctionPrototype(AST::StreamDeclaration* decl)
   // These functions will call the runtime StreamGraph methods
   // TODO: Work out how to handle stream parameters.. varargs?
   std::string name = StringFromFormat("%s_add", decl->GetName().c_str());
-  llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), ret_type, nullptr);
+  llvm::FunctionType* func_type = Frontend::FunctionBuilder::GetFunctionType(m_context, decl->GetParameters());
+  llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), func_type);
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
   assert(func_cons && func);
 
@@ -138,6 +139,7 @@ bool Builder::GenerateStreamFunction(AST::StreamDeclaration* decl)
   Log::Debug("StreamGraphBuilder", "Generating stream function for %s", decl->GetName().c_str());
 
   StreamGraphFunctionBuilder builder(m_context, m_module.get(), iter->second);
+  builder.CreateParameterVariables(decl->GetParameters());
   return decl->Accept(&builder);
 }
 

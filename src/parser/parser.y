@@ -177,12 +177,12 @@ StreamDeclaration
   ;
 
 PipelineDeclaration
-  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' StatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, nullptr, $7); }
+  : TypeName TK_ARROW TypeName TK_PIPELINE Identifier '{' StatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, new ParameterDeclarationList(), $7); }
   | TypeName TK_ARROW TypeName TK_PIPELINE Identifier '(' ParameterDeclarationList ')' '{' StatementList '}' { $$ = new PipelineDeclaration(@1, $1, $3, $5, $7, $10); }
   ;
 
 SplitJoinDeclaration
-  : TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '{' StatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, nullptr, $7); }
+  : TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '{' StatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, new ParameterDeclarationList(), $7); }
   | TypeName TK_ARROW TypeName TK_SPLITJOIN Identifier '(' ParameterDeclarationList ')' '{' StatementList '}' { $$ = new SplitJoinDeclaration(@1, $1, $3, $5, $7, $10); }
   ;
 
@@ -190,7 +190,7 @@ AnonymousFilterDeclaration
   : TypeName TK_ARROW TypeName TK_FILTER FilterDefinition
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_filter");
-    FilterDeclaration* decl = new FilterDeclaration(@1, $1, $3, name.c_str(), nullptr, $5->vars, $5->init, $5->prework, $5->work);
+    FilterDeclaration* decl = new FilterDeclaration(@1, $1, $3, name.c_str(), new ParameterDeclarationList(), $5->vars, $5->init, $5->prework, $5->work);
     state->AddFilter(decl);
     $$ = decl;
   }
@@ -200,16 +200,16 @@ AnonymousStreamDeclaration
   : TK_SPLITJOIN '{' StatementList '}'
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_splitjoin");
-    SplitJoinDeclaration* decl = new SplitJoinDeclaration(@1, nullptr, nullptr, name.c_str(), nullptr, $3);
+    SplitJoinDeclaration* decl = new SplitJoinDeclaration(@1, nullptr, nullptr, name.c_str(), new ParameterDeclarationList(), $3);
     state->AddStream(decl);
     $$ = decl;
   }
   ;
 
 FilterDeclaration
-  : TypeName TK_ARROW TypeName TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, nullptr, $6->vars, $6->init, $6->prework, $6->work); }
+  : TypeName TK_ARROW TypeName TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, new ParameterDeclarationList(), $6->vars, $6->init, $6->prework, $6->work); }
   | TypeName TK_ARROW TypeName TK_FILTER Identifier '(' ParameterDeclarationList ')' FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, $7, $9->vars, $9->init, $9->prework, $9->work); }
-  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, nullptr, $7->vars, $7->init, $7->prework, $7->work); }
+  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, new ParameterDeclarationList(), $7->vars, $7->init, $7->prework, $7->work); }
   | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier '(' ParameterDeclarationList ')' FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, $8, $10->vars, $10->init, $10->prework, $10->work); }
   ;
 
@@ -349,11 +349,11 @@ StreamStatement
   ;
 
 AddStatement
-  : TK_ADD Identifier ';' { $$ = new AddStatement(@1, $2, nullptr); }
-  | TK_ADD Identifier '(' ')' ';' { $$ = new AddStatement(@1, $2, nullptr); }
+  : TK_ADD Identifier ';' { $$ = new AddStatement(@1, $2, new NodeList()); }
+  | TK_ADD Identifier '(' ')' ';' { $$ = new AddStatement(@1, $2, new NodeList()); }
   | TK_ADD Identifier '(' ArgumentExpressionList ')' ';' { $$ = new AddStatement(@1, $2, $4); }
-  | TK_ADD AnonymousFilterDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList()); }
-  | TK_ADD AnonymousStreamDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList()); }
+  | TK_ADD AnonymousFilterDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), nullptr); }
+  | TK_ADD AnonymousStreamDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), nullptr); }
   ;
 
 SplitStatement

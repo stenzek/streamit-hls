@@ -113,17 +113,19 @@ private:
 class Declaration : public Node
 {
 public:
-  Declaration(const SourceLocation& sloc, const std::string& name);
+  Declaration(const SourceLocation& sloc, const std::string& name, bool constant);
   virtual ~Declaration() = default;
 
   const SourceLocation& GetSourceLocation() const { return m_sloc; }
   const Type* GetType() const { return m_type; }
   const std::string& GetName() const { return m_name; }
+  bool IsConstant() const { return m_constant; }
 
 protected:
   SourceLocation m_sloc;
   const Type* m_type = nullptr;
   std::string m_name;
+  bool m_constant;
 };
 
 class Statement : public Node
@@ -240,15 +242,25 @@ using ParameterDeclarationList = std::vector<ParameterDeclaration*>;
 class StreamDeclaration : public Node
 {
 public:
-  StreamDeclaration(const SourceLocation& sloc, const char* name);
+  StreamDeclaration(const SourceLocation& sloc, const char* name, ParameterDeclarationList* params);
   ~StreamDeclaration() = default;
+
+  const Type* GetInputType() const { return m_input_type; }
+  const Type* GetOutputType() const { return m_output_type; }
 
   const SourceLocation& GetSourceLocation() const { return m_sloc; }
   const std::string& GetName() const { return m_name; }
 
+  ParameterDeclarationList* GetParameters() const { return m_parameters; }
+
 protected:
   SourceLocation m_sloc;
   std::string m_name;
+
+  const Type* m_input_type = nullptr;
+  const Type* m_output_type = nullptr;
+
+  ParameterDeclarationList* m_parameters;
 };
 
 class PipelineDeclaration : public StreamDeclaration
@@ -263,7 +275,6 @@ public:
   bool Accept(Visitor* visitor) override;
 
   NodeList* GetStatements() const { return m_statements; }
-  ParameterDeclarationList* GetParameters() const { return m_parameters; }
 
 private:
   TypeName* m_input_type_specifier;
@@ -271,7 +282,6 @@ private:
   const Type* m_input_type = nullptr;
   const Type* m_output_type = nullptr;
   NodeList* m_statements;
-  ParameterDeclarationList* m_parameters;
 };
 
 class SplitJoinDeclaration : public StreamDeclaration
@@ -286,15 +296,11 @@ public:
   bool Accept(Visitor* visitor) override;
 
   NodeList* GetStatements() const { return m_statements; }
-  ParameterDeclarationList* GetParameters() const { return m_parameters; }
 
 private:
   TypeName* m_input_type_specifier;
   TypeName* m_output_type_specifier;
-  const Type* m_input_type = nullptr;
-  const Type* m_output_type = nullptr;
   NodeList* m_statements;
-  ParameterDeclarationList* m_parameters;
 };
 
 class FilterDeclaration : public StreamDeclaration
@@ -304,9 +310,6 @@ public:
                     const char* name, ParameterDeclarationList* params, NodeList* vars, FilterWorkBlock* init,
                     FilterWorkBlock* prework, FilterWorkBlock* work);
   ~FilterDeclaration() = default;
-
-  const Type* GetInputType() const { return m_input_type; }
-  const Type* GetOutputType() const { return m_output_type; }
 
   // TODO: Const here, but this is a larger change (e.g. visitor impact)
   FilterWorkBlock* GetInitBlock() const { return m_init; }
@@ -330,9 +333,6 @@ private:
 
   TypeName* m_input_type_specifier;
   TypeName* m_output_type_specifier;
-  const Type* m_input_type = nullptr;
-  const Type* m_output_type = nullptr;
-  ParameterDeclarationList* m_parameters;
   NodeList* m_vars;
   FilterWorkBlock* m_init;
   FilterWorkBlock* m_prework;
@@ -739,7 +739,7 @@ private:
 class AddStatement : public Statement
 {
 public:
-  AddStatement(const SourceLocation& sloc, const char* filter_name, const NodeList* parameters);
+  AddStatement(const SourceLocation& sloc, const char* filter_name, NodeList* parameters);
   ~AddStatement();
 
   void Dump(ASTPrinter* printer) const override;
@@ -747,10 +747,12 @@ public:
   bool Accept(Visitor* visitor) override;
 
   const std::string& GetStreamName() const { return m_stream_name; }
+  StreamDeclaration* GetStreamDeclaration() const { return m_stream_declaration; }
+  NodeList* GetStreamParameters() const { return m_stream_parameters; }
 
 private:
   std::string m_stream_name;
-  const NodeList* m_stream_parameters;
+  NodeList* m_stream_parameters;
   StreamDeclaration* m_stream_declaration = nullptr;
 };
 
