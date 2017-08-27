@@ -72,9 +72,7 @@ bool StreamGraphFunctionBuilder::Visit(AST::SplitJoinDeclaration* node)
 {
   // We're a splitjoin
   llvm::Function* call_func = GetModule()->getFunction("StreamGraphBuilder_BeginSplitJoin");
-  std::vector<llvm::Value*> call_params = {m_context->CreateHostPointerValue(node)};
-  AddStreamParameterValues(this, node, call_params);
-  GetCurrentIRBuilder().CreateCall(call_func, call_params);
+  GetCurrentIRBuilder().CreateCall(call_func, {m_context->CreateHostPointerValue(node)});
 
   // Generate statements
   bool result = node->GetStatements()->Accept(this);
@@ -90,9 +88,7 @@ bool StreamGraphFunctionBuilder::Visit(AST::PipelineDeclaration* node)
 {
   // We're a pipeline
   llvm::Function* call_func = GetModule()->getFunction("StreamGraphBuilder_BeginPipeline");
-  std::vector<llvm::Value*> call_params = {m_context->CreateHostPointerValue(node)};
-  AddStreamParameterValues(this, node, call_params);
-  GetCurrentIRBuilder().CreateCall(call_func, call_params);
+  GetCurrentIRBuilder().CreateCall(call_func, {m_context->CreateHostPointerValue(node)});
 
   // Generate statements
   bool result = node->GetStatements()->Accept(this);

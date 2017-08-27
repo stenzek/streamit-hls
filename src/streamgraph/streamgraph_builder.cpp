@@ -87,7 +87,6 @@ bool Builder::GenerateCode()
   if (!GenerateMain())
     return false;
 
-  m_context->DumpModule(m_module.get());
   return result;
 }
 
@@ -98,12 +97,14 @@ bool Builder::GenerateGlobals()
 
 bool Builder::GenerateStreamGraphFunctions()
 {
-  m_module->getOrInsertFunction("StreamGraphBuilder_BeginPipeline",
-                                llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetPointerType()}, true));
+  m_module->getOrInsertFunction(
+    "StreamGraphBuilder_BeginPipeline",
+    llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetPointerType()}, false));
   m_module->getOrInsertFunction("StreamGraphBuilder_EndPipeline",
                                 llvm::FunctionType::get(m_context->GetVoidType(), false));
-  m_module->getOrInsertFunction("StreamGraphBuilder_BeginSplitJoin",
-                                llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetPointerType()}, true));
+  m_module->getOrInsertFunction(
+    "StreamGraphBuilder_BeginSplitJoin",
+    llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetPointerType()}, false));
   m_module->getOrInsertFunction("StreamGraphBuilder_EndSplitJoin",
                                 llvm::FunctionType::get(m_context->GetVoidType(), false));
   m_module->getOrInsertFunction("StreamGraphBuilder_Split",
@@ -196,7 +197,7 @@ void Builder::ExecuteMain()
   assert(main_func && "main function exists in execution engine");
 
   // Setup static state.
-  s_builder_state = std::make_unique<BuilderState>(m_parser_state);
+  s_builder_state = std::make_unique<BuilderState>(m_context, m_parser_state);
 
   m_execution_engine->runFunction(main_func, {});
 
@@ -206,11 +207,40 @@ void Builder::ExecuteMain()
   s_builder_state.reset();
 }
 
-BuilderState::BuilderState(ParserState* state) : m_parser_state(state)
+BuilderState::BuilderState(WrappedLLVMContext* context, ParserState* state) : m_context(context), m_parser_state(state)
 {
 }
 
-void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, int pop_rate, int push_rate)
+void BuilderState::ExtractParameters(FilterParameters* out_params, const AST::StreamDeclaration* stream_decl,
+                                     va_list ap)
+{
+  for (const AST::ParameterDeclaration* param_decl : *stream_decl->GetParameters())
+  {
+    const Type* ty = param_decl->GetType();
+
+    // TODO: Handle array types here.
+    assert(!ty->IsArrayType());
+    if (ty->IsInt())
+    {
+      int data = va_arg(ap, int);
+      llvm::Constant* value =
+        llvm::ConstantInt::get(m_context->GetIntType(), static_cast<uint64_t>(static_cast<int64_t>(data)));
+      out_params->AddParameter(param_decl, &data, sizeof(data), value);
+    }
+    else if (ty->IsBoolean())
+    {
+      bool data = (va_arg(ap, int)) ? true : false;
+      llvm::Constant* value = llvm::ConstantInt::get(m_context->GetBooleanType(), static_cast<uint64_t>(data));
+      out_params->AddParameter(param_decl, &data, sizeof(data), value);
+    }
+    else
+    {
+      assert(0 && "unknown type");
+    }
+  }
+}
+
+void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, int pop_rate, int push_rate, va_list ap)
 {
   if (!HasTopNode())
   {
@@ -218,11 +248,15 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
     return;
   }
 
+  FilterParameters filter_params;
+  ExtractParameters(&filter_params, decl, ap);
+
   // Find a matching permutation
   // This is where we would compare parameter values
   FilterPermutation* filter_perm;
-  auto iter = std::find_if(m_filter_permutations.begin(), m_filter_permutations.end(),
-                           [&](const auto& it) { return (it->GetFilterDeclaration() == decl); });
+  auto iter = std::find_if(m_filter_permutations.begin(), m_filter_permutations.end(), [&](const auto& it) {
+    return (it->GetFilterDeclaration() == decl && it->GetFilterParameters() == filter_params);
+  });
   if (iter != m_filter_permutations.end())
   {
     // These should match
@@ -237,7 +271,7 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
   else
   {
     // Create new permutation
-    filter_perm = new FilterPermutation(decl, peek_rate, pop_rate, push_rate);
+    filter_perm = new FilterPermutation(decl, filter_params, peek_rate, pop_rate, push_rate);
     m_filter_permutations.push_back(filter_perm);
   }
 
@@ -376,7 +410,7 @@ std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, Parse
 // Functions visible to generated code
 //////////////////////////////////////////////////////////////////////////
 extern "C" {
-EXPORT void StreamGraphBuilder_BeginPipeline(const AST::PipelineDeclaration* pipeline, ...)
+EXPORT void StreamGraphBuilder_BeginPipeline(const AST::PipelineDeclaration* pipeline)
 {
   // Begin new pipeline
   Log::Debug("StreamGraphBuilder", "StreamGraph BeginPipeline %s", pipeline->GetName().c_str());
@@ -388,7 +422,7 @@ EXPORT void StreamGraphBuilder_EndPipeline(const intptr_t pipeline_ptr)
   Log::Debug("StreamGraphBuilder", "StreamGraph EndPipeline");
   s_builder_state->EndPipeline();
 }
-EXPORT void StreamGraphBuilder_BeginSplitJoin(const AST::SplitJoinDeclaration* splitjoin, ...)
+EXPORT void StreamGraphBuilder_BeginSplitJoin(const AST::SplitJoinDeclaration* splitjoin)
 {
   Log::Debug("StreamGraphBuilder", "StreamGraph BeginSplitJoin %s", splitjoin->GetName().c_str());
   s_builder_state->BeginSplitJoin(splitjoin);
@@ -413,8 +447,11 @@ EXPORT void StreamGraphBuilder_AddFilter(const AST::FilterDeclaration* filter, i
                                          int push_rate, ...)
 {
   // Direct add to current
+  va_list ap;
+  va_start(ap, push_rate);
   Log::Debug("StreamGraphBuilder", "StreamGraph AddFilter %s peek=%d pop=%d push=%d", filter->GetName().c_str(),
              peek_rate, pop_rate, push_rate);
-  s_builder_state->AddFilter(filter, peek_rate, pop_rate, push_rate);
+  s_builder_state->AddFilter(filter, peek_rate, pop_rate, push_rate, ap);
+  va_end(ap);
 }
 }

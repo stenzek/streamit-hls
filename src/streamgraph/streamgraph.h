@@ -8,9 +8,15 @@ class Type;
 class ParserState;
 class WrappedLLVMContext;
 
+namespace llvm
+{
+class Constant;
+}
+
 namespace AST
 {
 class FilterDeclaration;
+class ParameterDeclaration;
 }
 
 namespace StreamGraph
@@ -61,15 +67,45 @@ public:
   virtual bool Visit(Join* node) { return true; }
 };
 
+class FilterParameters
+{
+public:
+  struct Parameter
+  {
+    const Type* type;
+    const AST::ParameterDeclaration* decl;
+    size_t data_offset;
+    size_t data_length;
+    llvm::Constant* value;
+  };
+
+  FilterParameters() = default;
+  ~FilterParameters() = default;
+
+  void AddParameter(const AST::ParameterDeclaration* decl, const void* data, size_t data_len, llvm::Constant* value);
+
+  std::vector<Parameter>::const_iterator begin() const { return m_params.begin(); }
+  std::vector<Parameter>::const_iterator end() const { return m_params.end(); }
+  const Parameter& GetParameter(size_t i) { return m_params.at(i); }
+
+  bool operator==(const FilterParameters& rhs) const;
+  bool operator!=(const FilterParameters& rhs) const;
+
+private:
+  std::vector<unsigned char> m_data;
+  std::vector<Parameter> m_params;
+};
+
 class FilterPermutation
 {
 public:
-  // TODO: Parameters
-  FilterPermutation(const AST::FilterDeclaration* filter_decl, int peek_rate, int pop_rate, int push_rate);
+  FilterPermutation(const AST::FilterDeclaration* filter_decl, const FilterParameters& filter_params, int peek_rate,
+                    int pop_rate, int push_rate);
   ~FilterPermutation() = default;
 
   const std::string& GetName() const { return m_name; }
   const AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
+  const FilterParameters& GetFilterParameters() const { return m_filter_params; }
   const Type* GetInputType() const { return m_input_type; }
   const Type* GetOutputType() const { return m_output_type; }
   int GetPeekRate() const { return m_peek_rate; }
@@ -79,6 +115,7 @@ public:
 private:
   std::string m_name;
   const AST::FilterDeclaration* m_filter_decl;
+  FilterParameters m_filter_params;
   const Type* m_input_type;
   const Type* m_output_type;
   int m_peek_rate;

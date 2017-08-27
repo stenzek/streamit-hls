@@ -1,4 +1,5 @@
 #pragma once
+#include <cstdarg>
 #include <memory>
 #include <stack>
 #include <unordered_map>
@@ -26,6 +27,7 @@ class SplitJoinDeclaration;
 
 namespace StreamGraph
 {
+class FilterParameters;
 class FilterPermutation;
 class Node;
 }
@@ -68,13 +70,13 @@ private:
 class BuilderState
 {
 public:
-  BuilderState(ParserState* state);
+  BuilderState(WrappedLLVMContext* context, ParserState* state);
   ~BuilderState() = default;
 
   Node* GetStartNode() const { return m_start_node; }
   const std::vector<FilterPermutation*>& GetFilterPermutations() { return m_filter_permutations; }
 
-  void AddFilter(const AST::FilterDeclaration* decl, int peek_rate, int pop_rate, int push_rate);
+  void AddFilter(const AST::FilterDeclaration* decl, int peek_rate, int pop_rate, int push_rate, va_list ap);
   void BeginPipeline(const AST::PipelineDeclaration* decl);
   void EndPipeline();
   void BeginSplitJoin(const AST::SplitJoinDeclaration* decl);
@@ -89,6 +91,9 @@ private:
   bool HasTopNode() const;
   Node* GetTopNode();
 
+  void ExtractParameters(FilterParameters* out_params, const AST::StreamDeclaration* stream_decl, va_list ap);
+
+  WrappedLLVMContext* m_context;
   ParserState* m_parser_state;
   bool m_error_state = false;
 

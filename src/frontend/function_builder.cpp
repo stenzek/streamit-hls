@@ -39,10 +39,10 @@ void FunctionBuilder::CreateParameterVariables(const std::vector<AST::ParameterD
   }
 }
 
-void FunctionBuilder::AddVariable(const AST::Declaration* var, llvm::GlobalVariable* gvar)
+void FunctionBuilder::AddVariable(const AST::Declaration* var, llvm::Value* val)
 {
   assert(m_vars.find(var) == m_vars.end());
-  m_vars.emplace(var, gvar);
+  m_vars.emplace(var, val);
 }
 
 llvm::AllocaInst* FunctionBuilder::CreateVariable(const AST::Declaration* var)

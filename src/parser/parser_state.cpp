@@ -259,6 +259,23 @@ bool ParserState::SemanticAnalysis()
     }
   }
 
+  // Pick up any unused filters so we don't crash later.
+  for (auto* filter : m_filters)
+  {
+    if (!HasActiveStream(filter))
+    {
+      AddActiveStream(filter);
+      result &= filter->SemanticAnalysis(this, m_global_lexical_scope.get());
+    }
+  }
+
+  // Ensure the entry point exists
+  if (!m_global_lexical_scope->HasName(m_entry_point_name))
+  {
+    LogError("Entry point '%s' not found in global scope", m_entry_point_name.c_str());
+    result = false;
+  }
+
   return result;
 }
 

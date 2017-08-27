@@ -1,6 +1,7 @@
 #include "streamgraph/streamgraph.h"
 #include <algorithm>
 #include <cassert>
+#include <cstring>
 #include "common/string_helpers.h"
 #include "parser/ast.h"
 #include "streamgraph/streamgraph_builder.h"
@@ -30,10 +31,40 @@ StreamGraph::FilterInstanceList StreamGraph::GetFilterInstanceList() const
   return {};
 }
 
-FilterPermutation::FilterPermutation(const AST::FilterDeclaration* filter_decl, int peek_rate, int pop_rate,
-                                     int push_rate)
-  : m_name(filter_decl->GetName()), m_filter_decl(filter_decl), m_input_type(filter_decl->GetInputType()),
-    m_output_type(filter_decl->GetOutputType()), m_peek_rate(peek_rate), m_pop_rate(pop_rate), m_push_rate(push_rate)
+void FilterParameters::AddParameter(const AST::ParameterDeclaration* decl, const void* data, size_t data_len,
+                                    llvm::Constant* value)
+{
+  Parameter p;
+  p.type = decl->GetType();
+  p.decl = decl;
+  p.data_offset = m_data.size();
+  p.data_length = data_len;
+  p.value = value;
+
+  if (data_len > 0)
+  {
+    m_data.resize(m_data.size() + data_len);
+    std::memcpy(&m_data[p.data_offset], data, data_len);
+  }
+
+  m_params.emplace_back(std::move(p));
+}
+
+bool FilterParameters::operator==(const FilterParameters& rhs) const
+{
+  return (m_data == rhs.m_data);
+}
+
+bool FilterParameters::operator!=(const FilterParameters& rhs) const
+{
+  return (m_data != rhs.m_data);
+}
+
+FilterPermutation::FilterPermutation(const AST::FilterDeclaration* filter_decl, const FilterParameters& filter_params,
+                                     int peek_rate, int pop_rate, int push_rate)
+  : m_name(filter_decl->GetName()), m_filter_decl(filter_decl), m_filter_params(filter_params),
+    m_input_type(filter_decl->GetInputType()), m_output_type(filter_decl->GetOutputType()), m_peek_rate(peek_rate),
+    m_pop_rate(pop_rate), m_push_rate(push_rate)
 {
 }
 

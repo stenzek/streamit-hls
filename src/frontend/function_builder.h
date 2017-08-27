@@ -43,7 +43,7 @@ public:
   llvm::IRBuilder<>& GetCurrentIRBuilder() { return m_current_ir_builder; }
 
   void CreateParameterVariables(const std::vector<AST::ParameterDeclaration*>* func_params);
-  void AddVariable(const AST::Declaration* var, llvm::GlobalVariable* gvar);
+  void AddVariable(const AST::Declaration* var, llvm::Value* val);
   llvm::AllocaInst* CreateVariable(const AST::Declaration* var);
   llvm::Value* GetVariable(const AST::Declaration* var);
 

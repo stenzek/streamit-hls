@@ -137,6 +137,10 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   FragmentBuilder fragment_builder(m_peek_function, m_pop_function, m_push_function);
   Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, func);
 
+  // Add constants for the filter parameters
+  for (const auto& it : m_filter_permutation->GetFilterParameters())
+    entry_bb_builder.AddVariable(it.decl, it.value);
+
   // Add global variable references
   for (const auto& it : m_global_variable_map)
     entry_bb_builder.AddVariable(it.first, it.second);

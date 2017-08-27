@@ -281,6 +281,8 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
                                  m_filter_permutation->GetPopRate());
 
   // Add global variable references
+  for (const auto& it : m_filter_permutation->GetFilterParameters())
+    function_builder.AddVariable(it.decl, it.value);
   for (const auto& it : m_global_variable_map)
     function_builder.AddVariable(it.first, it.second);
 
