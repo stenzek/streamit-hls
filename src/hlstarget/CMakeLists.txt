@@ -1,9 +1,11 @@
 set(SRCS
     CBackend.cpp
     component_generator.cpp
+    component_test_bench_generator.cpp
     filter_builder.cpp
     project_generator.cpp
     test_bench_generator.cpp
+    vhdl_helpers.cpp
 )
 
 add_library(hlstarget

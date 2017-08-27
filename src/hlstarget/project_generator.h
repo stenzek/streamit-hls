@@ -52,8 +52,9 @@ private:
 
   bool CleanOutputDirectory();
   bool WriteCCode();
-  bool GenerateTestBenches();
+  bool GenerateCTestBench();
   bool GenerateComponent();
+  bool GenerateComponentTestBench();
   bool WriteFIFOComponent();
   bool WriteHLSScript();
   bool WriteVivadoScript();

@@ -6,28 +6,10 @@
 #include "common/log.h"
 #include "common/string_helpers.h"
 #include "core/type.h"
+#include "hlstarget/vhdl_helpers.h"
 #include "llvm/Support/raw_ostream.h"
 #include "parser/ast.h"
 Log_SetChannel(HLSTarget::ComponentGenerator);
-
-constexpr const char* HLS_VARIABLE_PREFIX = "llvm_cbe_";
-constexpr const char* FIFO_COMPONENT_NAME = "fifo";
-
-static u32 GetBitWidthForType(const Type* type)
-{
-  if (type->IsInt())
-    return 32;
-  else if (type->IsBit() || type->IsBoolean())
-    return 8;
-
-  Log_ErrorPrintf("Unknown type for bit width %s", type->GetName().c_str());
-  return 1;
-}
-
-static std::string GetVHDLBitVectorType(const Type* type)
-{
-  return StringFromFormat("std_logic_vector(%u downto 0)", GetBitWidthForType(type) - 1);
-}
 
 namespace HLSTarget
 {
@@ -86,13 +68,13 @@ void ComponentGenerator::WriteHeader()
   const Type* program_output_type = m_streamgraph->GetProgramOutputType();
   if (!program_input_type->IsVoid())
   {
-    m_os << "    prog_din : in " << GetVHDLBitVectorType(program_input_type) << ";\n";
+    m_os << "    prog_din : in " << VHDLHelpers::GetVHDLBitVectorType(program_input_type) << ";\n";
     m_os << "    prog_empty_n : in std_logic;\n";
     m_os << "    prog_read : out std_logic;\n";
   }
   if (!program_output_type->IsVoid())
   {
-    m_os << "    prog_dout : out " << GetVHDLBitVectorType(program_output_type) << ";\n";
+    m_os << "    prog_dout : out " << VHDLHelpers::GetVHDLBitVectorType(program_output_type) << ";\n";
     m_os << "    prog_full_n : in std_logic;\n";
     m_os << "    prog_write : out std_logic;\n";
   }
@@ -119,7 +101,7 @@ void ComponentGenerator::WriteGlobalSignals()
 void ComponentGenerator::WriteFIFOComponentDeclaration()
 {
   m_os << "-- FIFO queue component declaration\n";
-  m_os << "component " << FIFO_COMPONENT_NAME << " is\n";
+  m_os << "component " << VHDLHelpers::FIFO_COMPONENT_NAME << " is\n";
   m_os << "  generic (\n";
   m_os << "    constant DATA_WIDTH : positive := 8;\n";
   m_os << "    constant SIZE : positive := 16;\n";
@@ -149,19 +131,19 @@ void ComponentGenerator::WriteFilterPermutation(const StreamGraph::FilterPermuta
   if (!filter->GetInputType()->IsVoid())
   {
     m_os << ";\n";
-    m_os << "    " << HLS_VARIABLE_PREFIX << "in_ptr_dout : in " << GetVHDLBitVectorType(filter->GetInputType())
-         << ";\n";
-    m_os << "    " << HLS_VARIABLE_PREFIX << "in_ptr_empty_n : in std_logic;\n";
-    m_os << "    " << HLS_VARIABLE_PREFIX << "in_ptr_read : out std_logic";
+    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_dout : in "
+         << VHDLHelpers::GetVHDLBitVectorType(filter->GetInputType()) << ";\n";
+    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_empty_n : in std_logic;\n";
+    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_read : out std_logic";
   }
 
   if (!filter->GetOutputType()->IsVoid())
   {
     m_os << ";\n";
-    m_os << "    " << HLS_VARIABLE_PREFIX << "out_ptr_dout : out " << GetVHDLBitVectorType(filter->GetOutputType())
-         << ";\n";
-    m_os << "    " << HLS_VARIABLE_PREFIX << "out_ptr_full_n : in std_logic;\n";
-    m_os << "    " << HLS_VARIABLE_PREFIX << "out_ptr_write : out std_logic";
+    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_dout : out "
+         << VHDLHelpers::GetVHDLBitVectorType(filter->GetOutputType()) << ";\n";
+    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_full_n : in std_logic;\n";
+    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_write : out std_logic";
   }
 
   m_os << "\n";
@@ -182,15 +164,17 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
     m_signals << "signal " << name << "_fifo_write : std_logic;\n";
     m_signals << "signal " << name << "_fifo_empty_n : std_logic;\n";
     m_signals << "signal " << name << "_fifo_full_n : std_logic;\n";
-    m_signals << "signal " << name << "_fifo_dout : " << GetVHDLBitVectorType(node->GetInputType()) << ";\n";
-    m_signals << "signal " << name << "_fifo_din : " << GetVHDLBitVectorType(node->GetInputType()) << ";\n";
+    m_signals << "signal " << name << "_fifo_dout : " << VHDLHelpers::GetVHDLBitVectorType(node->GetInputType())
+              << ";\n";
+    m_signals << "signal " << name << "_fifo_din : " << VHDLHelpers::GetVHDLBitVectorType(node->GetInputType())
+              << ";\n";
 
     u32 fifo_depth = std::max(node->GetNetPeek(), node->GetNetPop()) * 16;
     m_body << "-- FIFO with depth " << fifo_depth << "\n";
     // m_body << name << "_fifo : " << FIFO_COMPONENT_NAME << "\n";
-    m_body << name << "_fifo : entity work." << FIFO_COMPONENT_NAME << "(behav)\n";
+    m_body << name << "_fifo : entity work." << VHDLHelpers::FIFO_COMPONENT_NAME << "(behav)\n";
     m_body << "  generic map (\n";
-    m_body << "    DATA_WIDTH => " << GetBitWidthForType(node->GetInputType()) << ",\n";
+    m_body << "    DATA_WIDTH => " << VHDLHelpers::GetBitWidthForType(node->GetInputType()) << ",\n";
     m_body << "    SIZE => " << fifo_depth << "\n";
     m_body << "  )\n";
     m_body << "  port map (\n";
@@ -215,9 +199,9 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
   if (!node->GetInputType()->IsVoid())
   {
     m_body << ",\n";
-    m_body << "    " << HLS_VARIABLE_PREFIX << "in_ptr_dout => " << name << "_fifo_dout,\n";
-    m_body << "    " << HLS_VARIABLE_PREFIX << "in_ptr_read => " << name << "_fifo_read,\n";
-    m_body << "    " << HLS_VARIABLE_PREFIX << "in_ptr_empty_n => " << name << "_fifo_empty_n";
+    m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_dout => " << name << "_fifo_dout,\n";
+    m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_read => " << name << "_fifo_read,\n";
+    m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_empty_n => " << name << "_fifo_empty_n";
   }
   if (!node->GetOutputType()->IsVoid())
   {
@@ -225,17 +209,17 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
     if (!output_name.empty())
     {
       m_body << ",\n";
-      m_body << "    " << HLS_VARIABLE_PREFIX << "out_ptr_din => " << output_name << "_fifo_din,\n";
-      m_body << "    " << HLS_VARIABLE_PREFIX << "out_ptr_write => " << output_name << "_fifo_write,\n";
-      m_body << "    " << HLS_VARIABLE_PREFIX << "out_ptr_full_n => " << output_name << "_fifo_full_n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_din => " << output_name << "_fifo_din,\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_write => " << output_name << "_fifo_write,\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_full_n => " << output_name << "_fifo_full_n";
     }
     else
     {
       // This is the last filter in the program.
       m_body << ",\n";
-      m_body << "    " << HLS_VARIABLE_PREFIX << "out_ptr_din => prog_dout,\n";
-      m_body << "    " << HLS_VARIABLE_PREFIX << "out_ptr_write => prog_write,\n";
-      m_body << "    " << HLS_VARIABLE_PREFIX << "out_ptr_full_n => prog_full_n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_din => prog_dout,\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_write => prog_write,\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_full_n => prog_full_n";
     }
   }
   m_body << "\n";

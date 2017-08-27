@@ -8,6 +8,7 @@
 #include "core/type.h"
 #include "core/wrapped_llvm_context.h"
 #include "hlstarget/component_generator.h"
+#include "hlstarget/component_test_bench_generator.h"
 #include "hlstarget/filter_builder.h"
 #include "hlstarget/test_bench_generator.h"
 #include "llvm/IR/Argument.h"
@@ -81,9 +82,9 @@ bool ProjectGenerator::GenerateProject()
     return false;
   }
 
-  if (!GenerateTestBenches())
+  if (!GenerateCTestBench())
   {
-    Log_ErrorPrintf("Failed to generate test benches.");
+    Log_ErrorPrintf("Failed to generate C test bench.");
     return false;
   }
 
@@ -102,6 +103,12 @@ bool ProjectGenerator::GenerateProject()
   if (!GenerateComponent())
   {
     Log_ErrorPrintf("Failed to generate component.");
+    return false;
+  }
+
+  if (!GenerateComponentTestBench())
+  {
+    Log_ErrorPrintf("Failed to generate component test bench.\n");
     return false;
   }
 
@@ -209,7 +216,7 @@ bool ProjectGenerator::WriteCCode()
   return true;
 }
 
-bool ProjectGenerator::GenerateTestBenches()
+bool ProjectGenerator::GenerateCTestBench()
 {
   Log_InfoPrintf("Generating test benches...");
 
@@ -230,6 +237,24 @@ bool ProjectGenerator::GenerateComponent()
 
   ComponentGenerator cg(m_context, m_streamgraph, m_module_name, os);
   if (!cg.GenerateComponent())
+    return false;
+
+  os.flush();
+  return true;
+}
+
+bool ProjectGenerator::GenerateComponentTestBench()
+{
+  std::string filename = StringFromFormat("%s/_autogen_vhdl/%s_tb.vhd", m_output_dir.c_str(), m_module_name.c_str());
+  Log_InfoPrintf("Writing wrapper test bench to %s...", filename.c_str());
+
+  std::error_code ec;
+  llvm::raw_fd_ostream os(filename, ec, llvm::sys::fs::F_None);
+  if (ec || os.has_error())
+    return false;
+
+  ComponentTestBenchGenerator cg(m_context, m_streamgraph, m_module_name, os);
+  if (!cg.GenerateTestBench())
     return false;
 
   os.flush();
@@ -329,7 +354,10 @@ bool ProjectGenerator::WriteVivadoScript()
   os << "\n";
 
   // Add wrapper component.
+  os << "add_files -norecurse \"./_autogen_vhdl/fifo.vhd\"\n";
   os << "add_files -norecurse \"./_autogen_vhdl/" << m_module_name << ".vhd"
+     << "\"\n";
+  os << "add_files -norecurse \"./_autogen_vhdl/" << m_module_name << "_tb.vhd"
      << "\"\n";
   os << "\n";
 
@@ -338,6 +366,11 @@ bool ProjectGenerator::WriteVivadoScript()
   os << "update_compile_order -fileset sources_1\n";
   os << "\n";
 
+  // Set top-level modules.
+  os << "set_property top " << m_module_name << " [current_fileset]\n";
+  os << "set_property top " << m_module_name << "_tb [get_filesets sim_1]\n";
+  os << "update_compile_order -fileset sources_1\n";
+
   os << "exit\n";
   os.flush();
   return !os.has_error();
@@ -345,8 +378,7 @@ bool ProjectGenerator::WriteVivadoScript()
 
 bool ProjectGenerator::WriteFIFOComponent()
 {
-  static const char* fifo_vhdl = R"(
-library IEEE;
+  static const char fifo_vhdl[] = R"(library IEEE;
 use IEEE.STD_LOGIC_1164.ALL;
 use IEEE.NUMERIC_STD.ALL;
 
