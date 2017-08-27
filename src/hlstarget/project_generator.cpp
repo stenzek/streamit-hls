@@ -227,6 +227,12 @@ bool ProjectGenerator::WriteHLSScript()
 
     os << "# directives\n";
 
+    // Since all our static variables are "state", they must be initialized at reset.
+    // We don't use statics for any data storage, except for the FIFO peek buffer.
+    // TODO: We can optimize this by setting them specifically instead of globally,
+    // set_directive_reset "filter_counter" counter_last
+    os << "config_rtl -reset state\n";
+
     // Disable handshake signals on block, we don't need them, since use the fifo for control
     os << "set_directive_interface -mode ap_ctrl_none \"" << function_name << "\"\n";
 
