@@ -1,0 +1,46 @@
+int->int pipeline simple5 {
+    add counter();
+    add stuff();
+    //add printer();
+}
+
+void->int filter counter {
+    int last = 1;
+    work push 1 {
+        push(last);
+        last = last + 1;
+    }
+}
+
+int->int filter adder {
+    work pop 1 push 1 {
+        push(pop() * 2);
+    }
+}
+int->int filter subber {
+    work pop 1 push 1 {
+        push(pop() - 1);
+    }
+}
+
+int->int splitjoin stuff {
+    split duplicate;
+    add adder();
+    add subber();
+    join roundrobin;
+}
+
+int->void filter printer {
+    work pop 1 {
+        int x = pop();
+        println(x);
+    }
+}
+
+int->void filter sink {
+    work pop 1 {
+        int x = pop();
+    }
+}
+
+

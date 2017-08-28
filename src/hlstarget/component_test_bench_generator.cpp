@@ -82,16 +82,16 @@ void ComponentTestBenchGenerator::WriteWrapperComponent()
   if (!m_streamgraph->GetProgramInputType()->IsVoid())
   {
     m_body << ",\n";
-    m_body << "    prog_din => input_fifo_dout,\n";
-    m_body << "    prog_read => input_fifo_read,\n";
-    m_body << "    prog_empty_n => input_fifo_empty_n";
+    m_body << "    prog_input_dout => input_fifo_dout,\n";
+    m_body << "    prog_input_read => input_fifo_read,\n";
+    m_body << "    prog_input_empty_n => input_fifo_empty_n";
   }
   if (!m_streamgraph->GetProgramOutputType()->IsVoid())
   {
     m_body << ",\n";
-    m_body << "    prog_dout => output_fifo_din,\n";
-    m_body << "    prog_write => output_fifo_write,\n";
-    m_body << "    prog_full_n => output_fifo_full_n";
+    m_body << "    prog_output_din => output_fifo_din,\n";
+    m_body << "    prog_output_write => output_fifo_write,\n";
+    m_body << "    prog_output_full_n => output_fifo_full_n";
   }
   m_body << "\n";
   m_body << "  );\n";

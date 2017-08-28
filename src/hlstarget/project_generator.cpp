@@ -469,7 +469,7 @@ end behav;
   if (ec || os.has_error())
     return false;
 
-  os.write(fifo_vhdl, sizeof(fifo_vhdl));
+  os.write(fifo_vhdl, sizeof(fifo_vhdl) - 1);
   os.flush();
   return true;
 }

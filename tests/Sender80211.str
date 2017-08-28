@@ -7,7 +7,7 @@ void->void pipeline Sender80211
 	add chunk2symbol;
 	add fir_filter;
 	//add output;
-    add sink;
+    //add sink;
 	//add FileWriter<int>("output.stream");
 }
 

@@ -362,8 +362,9 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
 
     if (m_children.empty())
     {
-      // first child
+      // first child - input type because this is the filter *in* the splitjoin
       m_split_node->SetDataType(node->GetInputType());
+      m_input_type = node->GetInputType();
     }
 
     m_children.push_back(node);
@@ -408,6 +409,7 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
     else
     {
       m_join_node->SetDataType(m_children.back()->GetOutputType());
+      m_output_type = m_children.back()->GetOutputType();
       for (Node* child_node : m_children)
       {
         m_join_node->AddIncomingStream();

@@ -41,6 +41,7 @@ private:
   void WriteGlobalSignals();
   void WriteFIFOComponentDeclaration();
   void WriteFilterPermutation(const StreamGraph::FilterPermutation* filter);
+  void WriteFIFO(const std::string& name, u32 data_width, u32 depth);
 
   // StreamGraph Visitor Interface
   bool Visit(StreamGraph::Filter* node) override;
