@@ -42,7 +42,7 @@ ProjectGenerator::~ProjectGenerator()
   delete m_module;
 }
 
-static bool debug_opt = false;
+static bool debug_opt = true;
 
 bool ProjectGenerator::GenerateCode()
 {

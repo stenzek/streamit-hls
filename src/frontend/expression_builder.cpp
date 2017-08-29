@@ -217,13 +217,13 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
     switch (node->GetOperator())
     {
     case AST::BinaryExpression::Add:
-      m_result_value = GetIRBuilder().CreateAdd(lhs_val, rhs_val);
+      m_result_value = GetIRBuilder().CreateNSWAdd(lhs_val, rhs_val);
       break;
     case AST::BinaryExpression::Subtract:
-      m_result_value = GetIRBuilder().CreateSub(lhs_val, rhs_val);
+      m_result_value = GetIRBuilder().CreateNSWSub(lhs_val, rhs_val);
       break;
     case AST::BinaryExpression::Multiply:
-      m_result_value = GetIRBuilder().CreateMul(lhs_val, rhs_val);
+      m_result_value = GetIRBuilder().CreateNSWMul(lhs_val, rhs_val);
       break;
     case AST::BinaryExpression::Divide:
       m_result_value = GetIRBuilder().CreateSDiv(lhs_val, rhs_val);

@@ -57,7 +57,7 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       return false;
     }
 
-    //BuildDebugPrintf(m_context, builder, StringFromFormat("%s push %%d", m_filter_name.c_str()).c_str(), {value});
+    BuildDebugPrintf(m_context, builder, StringFromFormat("%s push %%d", m_filter_name.c_str()).c_str(), {value});
     builder.CreateCall(m_push_function, {value});
     return true;
   }
