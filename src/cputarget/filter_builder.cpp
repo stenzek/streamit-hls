@@ -3,6 +3,7 @@
 #include "common/string_helpers.h"
 #include "core/type.h"
 #include "core/wrapped_llvm_context.h"
+#include "cputarget/debug_print_builder.h"
 #include "frontend/constant_expression_builder.h"
 #include "frontend/function_builder.h"
 #include "frontend/state_variables_builder.h"
@@ -19,8 +20,10 @@ namespace CPUTarget
 // Dummy interface for push/pop/peek
 struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
-  FragmentBuilder(llvm::Constant* peek_function, llvm::Constant* pop_function, llvm::Constant* push_function)
-    : m_peek_function(peek_function), m_pop_function(pop_function), m_push_function(push_function)
+  FragmentBuilder(WrappedLLVMContext* context, const std::string& filter_name, llvm::Constant* peek_function,
+                  llvm::Constant* pop_function, llvm::Constant* push_function)
+    : m_context(context), m_filter_name(filter_name), m_peek_function(peek_function), m_pop_function(pop_function),
+      m_push_function(push_function)
   {
   }
 
@@ -54,11 +57,14 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       return false;
     }
 
+    //BuildDebugPrintf(m_context, builder, StringFromFormat("%s push %%d", m_filter_name.c_str()).c_str(), {value});
     builder.CreateCall(m_push_function, {value});
     return true;
   }
 
 private:
+  WrappedLLVMContext* m_context;
+  std::string m_filter_name;
   llvm::Constant* m_peek_function;
   llvm::Constant* m_pop_function;
   llvm::Constant* m_push_function;
@@ -134,7 +140,7 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   func->setLinkage(llvm::GlobalValue::PrivateLinkage);
 
   // Start at the entry basic block for the work function.
-  FragmentBuilder fragment_builder(m_peek_function, m_pop_function, m_push_function);
+  FragmentBuilder fragment_builder(m_context, name, m_peek_function, m_pop_function, m_push_function);
   Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, func);
 
   // Add constants for the filter parameters
