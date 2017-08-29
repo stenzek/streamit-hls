@@ -272,34 +272,21 @@ bool ComponentGenerator::Visit(StreamGraph::Split* node)
 
   // Split process
   m_body << "-- split node " << name << " with " << node->GetOutputChannelNames().size() << " outgoing streams\n";
-  m_body << name << "_split_process : process(clk)\n";
-  m_body << "begin\n";
+  m_signals << "signal " << name << "_write : std_logic;\n";
 
-  // din signals are wired directly, this saves creating a register between the incoming and outgoing filters.
+  // Signals are wired directly, this saves creating a register between the incoming and outgoing filters.
+  // TODO: Remove the FIFO queue for the split completely.
+  m_body << name << "_write <= (" << fifo_name << "_empty_n";
   for (const std::string& output_name : node->GetOutputChannelNames())
-    m_body << "        " << output_name << "_fifo_din <= " << fifo_name << "_dout;\n";
+    m_body << " and " << output_name << "_fifo_full_n";
+  m_body << ");\n";
+  m_body << fifo_name << "_read <= " << name << "_write;\n";
+  for (const std::string& output_name : node->GetOutputChannelNames())
+  {
+    m_body << output_name << "_fifo_din <= " << fifo_name << "_dout;\n";
+    m_body << output_name << "_fifo_write <= " << name << "_write;\n";
+  }
 
-  m_body << "  if (rising_edge(clk)) then\n";
-  m_body << "    if (rst_n = '0') then\n";
-  m_body << "      " << fifo_name << "_read <= '0';\n";
-  for (const std::string& output_name : node->GetOutputChannelNames())
-    m_body << "      " << output_name << "_fifo_write <= '0';\n";
-  m_body << "    else\n";
-  m_body << "      if (" << fifo_name << "_empty_n = '1'";
-  for (const std::string& output_name : node->GetOutputChannelNames())
-    m_body << " and " << output_name << "_fifo_full_n = '1'";
-  m_body << ") then\n";
-  m_body << "        " << fifo_name << "_read <= '1';\n";
-  for (const std::string& output_name : node->GetOutputChannelNames())
-    m_body << "        " << output_name << "_fifo_write <= '1';\n";
-  m_body << "      else\n";
-  m_body << "        " << fifo_name << "_read <= '0';\n";
-  for (const std::string& output_name : node->GetOutputChannelNames())
-    m_body << "        " << output_name << "_fifo_write <= '0';\n";
-  m_body << "      end if;\n";
-  m_body << "    end if;\n";
-  m_body << "  end if;\n";
-  m_body << "end process;\n";
   m_body << "\n";
   return true;
 }

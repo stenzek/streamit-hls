@@ -1,7 +1,7 @@
+#include "parser/ast.h"
 #include <array>
 #include <cassert>
 #include "core/type.h"
-#include "parser/ast.h"
 #include "parser/ast_printer.h"
 
 namespace AST
