@@ -324,9 +324,6 @@ bool ComponentGenerator::Visit(StreamGraph::Join* node)
   m_body << "  if (rising_edge(clk)) then\n";
   m_body << "    if (rst_n = '0') then\n";
   m_body << "      " << state_signal << " <= " << name << "_state_1;\n";
-  m_body << "      " << output_name << "_write <= '0';\n";
-  for (u32 idx = 1; idx <= node->GetIncomingStreams(); idx++)
-    m_body << "      " << name << "_" << idx << "_fifo_read <= '0';\n";
   m_body << "    else\n";
   m_body << "      case " << state_signal << " is\n";
   for (u32 idx = 1; idx <= node->GetIncomingStreams(); idx++)
@@ -334,11 +331,14 @@ bool ComponentGenerator::Visit(StreamGraph::Join* node)
     std::string fifo_name = StringFromFormat("%s_%u_fifo", name.c_str(), idx);
     u32 next_state = (idx % node->GetIncomingStreams()) + 1;
     m_body << "        when " << name << "_state_" << idx << " =>\n";
+    m_body << "          " << output_name << "_din <= " << fifo_name << "_dout;\n";
     m_body << "          if (" << fifo_name << "_empty_n = '1' and " << output_name << "_full_n = '1') then\n";
     m_body << "            " << fifo_name << "_read <= '1';\n";
     m_body << "            " << output_name << "_write <= '1';\n";
-    m_body << "            " << output_name << "_din <= " << fifo_name << "_dout;\n";
     m_body << "            " << state_signal << " <= " << name << "_state_" << next_state << ";\n";
+    m_body << "          else\n";
+    m_body << "            " << fifo_name << "_read <= '0';\n";
+    m_body << "            " << output_name << "_write <= '0';\n";
     m_body << "          end if;\n";
     for (u32 other_idx = 1; other_idx <= node->GetIncomingStreams(); other_idx++)
     {

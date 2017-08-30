@@ -173,8 +173,12 @@ void ComponentTestBenchGenerator::WriteOutputConsumer()
   m_body << "begin\n";
   m_body << "  if (rising_edge(clk)) then\n";
   m_body << "    if (output_fifo_empty_n = '1') then\n";
-  m_body << "      output_fifo_read <= '1';\n";
-  m_body << "      report \"Program output \" & integer'image(to_integer(signed(output_fifo_dout)));\n";
+  m_body << "      if (output_fifo_read = '0') then\n";
+  m_body << "        output_fifo_read <= '1';\n";
+  m_body << "      else\n";
+  m_body << "        -- This is behind the if because it seems to print the last value, not the current value\n";
+  m_body << "        report \"Program output \" & integer'image(to_integer(signed(output_fifo_dout)));\n";
+  m_body << "      end if;\n";
   m_body << "    else\n";
   m_body << "      output_fifo_read <= '0';\n";
   m_body << "    end if;\n";
