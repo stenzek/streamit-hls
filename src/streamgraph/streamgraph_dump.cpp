@@ -40,8 +40,6 @@ void StreamGraphDumpVisitor::Write(const char* fmt, ...)
   va_start(ap, fmt);
   m_out << StringFromFormatV(fmt, ap);
   va_end(ap);
-
-  m_out << std::endl;
 }
 
 void StreamGraphDumpVisitor::WriteLine(const char* fmt, ...)
@@ -137,6 +135,11 @@ bool StreamGraphDumpVisitor::Visit(Split* node)
             node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
             node->GetMultiplicity());
 
+  Write("# %s", (node->GetMode() == Split::Mode::Duplicate) ? "duplicate" : "roundrobin");
+  for (int dist : node->GetDistribution())
+    Write(", %d", dist);
+  WriteLine("");
+
   for (const Node* out_node : node->GetOutputs())
     WriteEdge(node, out_node);
 
@@ -149,6 +152,11 @@ bool StreamGraphDumpVisitor::Visit(Join* node)
   WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
             node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
             node->GetMultiplicity());
+
+  Write("# ");
+  for (int dist : node->GetDistribution())
+    Write(", %d", dist);
+  WriteLine("");
 
   if (node->HasOutputConnection())
     WriteEdge(node, node->GetOutputConnection());

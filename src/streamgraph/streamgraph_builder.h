@@ -81,8 +81,8 @@ public:
   void EndPipeline();
   void BeginSplitJoin(const AST::SplitJoinDeclaration* decl);
   void EndSplitJoin();
-  void SplitJoinSplit(int mode);
-  void SplitJoinJoin();
+  void SplitJoinSplit(int mode, const std::vector<int>& distribution);
+  void SplitJoinJoin(const std::vector<int>& distribution);
 
   std::string GenerateName(const std::string& prefix);
   void Error(const char* fmt, ...);

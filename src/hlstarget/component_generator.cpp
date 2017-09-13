@@ -262,7 +262,7 @@ bool ComponentGenerator::Visit(StreamGraph::SplitJoin* node)
   return true;
 }
 
-bool ComponentGenerator::Visit(StreamGraph::Split* node)
+void ComponentGenerator::WriteSplitDuplicate(const StreamGraph::Split* node)
 {
   const std::string& name = node->GetName();
   std::string fifo_name = StringFromFormat("%s_fifo", name.c_str());
@@ -288,6 +288,19 @@ bool ComponentGenerator::Visit(StreamGraph::Split* node)
   }
 
   m_body << "\n";
+}
+
+void ComponentGenerator::WriteSplitRoundrobin(const StreamGraph::Split* node)
+{
+}
+
+bool ComponentGenerator::Visit(StreamGraph::Split* node)
+{
+  if (node->GetMode() == StreamGraph::Split::Mode::Duplicate)
+    WriteSplitDuplicate(node);
+  else
+    WriteSplitRoundrobin(node);
+
   return true;
 }
 

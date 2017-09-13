@@ -357,12 +357,14 @@ AddStatement
   ;
 
 SplitStatement
-  : TK_SPLIT TK_ROUNDROBIN ';' { $$ = new SplitStatement(@1, SplitStatement::RoundRobin); }
-  | TK_SPLIT TK_DUPLICATE ';' { $$ = new SplitStatement(@1, SplitStatement::Duplicate); }
+  : TK_SPLIT TK_ROUNDROBIN ';' { $$ = new SplitStatement(@1, SplitStatement::RoundRobin, nullptr); }
+  | TK_SPLIT TK_ROUNDROBIN '(' ArgumentExpressionList ')' ';' { $$ = new SplitStatement(@1, SplitStatement::RoundRobin, $4); }
+  | TK_SPLIT TK_DUPLICATE ';' { $$ = new SplitStatement(@1, SplitStatement::Duplicate, nullptr); }
   ;
 
 JoinStatement
-  : TK_JOIN TK_ROUNDROBIN ';' { $$ = new JoinStatement(@1, JoinStatement::RoundRobin); }
+  : TK_JOIN TK_ROUNDROBIN ';' { $$ = new JoinStatement(@1, JoinStatement::RoundRobin, nullptr); }
+  | TK_JOIN TK_ROUNDROBIN '(' ArgumentExpressionList ')' ';' { $$ = new JoinStatement(@1, JoinStatement::RoundRobin, $4); }
   ;
 
 PushStatement

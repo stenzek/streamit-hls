@@ -253,12 +253,20 @@ protected:
 class Split : public Node
 {
 public:
-  // TODO: Mode
-  Split(const std::string& name);
+  enum class Mode
+  {
+    Duplicate,
+    Roundrobin
+  };
+
+  Split(const std::string& name, Mode mode, const std::vector<int>& distribution);
   ~Split() = default;
 
   const NodeList& GetOutputs() const { return m_outputs; }
   const StringList& GetOutputChannelNames() const { return m_output_channel_names; }
+  const Mode GetMode() const { return m_mode; }
+  const std::vector<int>& GetDistribution() const { return m_distribution; }
+  std::vector<int>& GetDistribution() { return m_distribution; }
   void SetDataType(const Type* type);
 
   bool Accept(Visitor* visitor) override;
@@ -275,17 +283,21 @@ public:
 private:
   NodeList m_outputs;
   StringList m_output_channel_names;
+  Mode m_mode;
+  std::vector<int> m_distribution;
 };
 
 class Join : public Node
 {
 public:
-  Join(const std::string& name);
+  Join(const std::string& name, const std::vector<int>& distribution);
   ~Join() = default;
 
   Node* GetOutputConnection() const { return m_output_connection; }
   bool HasOutputConnection() const { return (m_output_connection != nullptr); }
   const std::string& GetOutputChannelName() const { return m_output_channel_name; }
+  const std::vector<int>& GetDistribution() const { return m_distribution; }
+  std::vector<int>& GetDistribution() { return m_distribution; }
 
   u32 GetIncomingStreams() const { return m_incoming_streams; }
   void AddIncomingStream();
@@ -306,5 +318,6 @@ private:
   Node* m_output_connection = nullptr;
   std::string m_output_channel_name;
   u32 m_incoming_streams = 0;
+  std::vector<int> m_distribution;
 };
 }

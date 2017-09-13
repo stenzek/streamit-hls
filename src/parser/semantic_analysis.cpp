@@ -244,14 +244,50 @@ bool FunctionDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
 
 bool SplitStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
-  // TODO
-  return true;
+  if (m_type == SplitStatement::Duplicate && m_distribution != nullptr && m_distribution->HasChildren())
+  {
+    state->LogError(m_sloc, "Duplicate split statement must not have any distribution");
+    return false;
+  }
+
+  bool result = true;
+  if (m_distribution)
+  {
+    for (AST::Node* node : *m_distribution)
+    {
+      AST::Expression* expr = dynamic_cast<AST::Expression*>(node);
+      if (!expr)
+      {
+        state->LogError(m_sloc, "Parameters to split must be expressions");
+        return false;
+      }
+
+      result &= expr->SemanticAnalysis(state, symbol_table);
+    }
+  }
+
+  return result;
 }
 
 bool JoinStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
-  // TODO
-  return true;
+  bool result = true;
+  if (m_distribution)
+  {
+    for (AST::Node* node : *m_distribution)
+    {
+      AST::Expression* expr = dynamic_cast<AST::Expression*>(node);
+      if (!expr)
+      {
+        state->LogError(m_sloc, "Parameters to join must be expressions");
+        return false;
+      }
+
+      result &= expr->SemanticAnalysis(state, symbol_table);
+    }
+  }
+
+  return result;
 }
 
 bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)

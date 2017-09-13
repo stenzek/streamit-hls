@@ -56,7 +56,7 @@ public:
 
   unsigned int GenerateNameId() { return m_id_counter++; }
 
-  std::string GenerateName(const char* prefix) { return StringFromFormat("%s_%u", prefix, m_id_counter); }
+  std::string GenerateName(const char* prefix) { return StringFromFormat("%s_%u", prefix, m_id_counter++); }
 
 private:
   SymbolTable* m_parent;

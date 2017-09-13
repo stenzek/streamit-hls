@@ -5,6 +5,7 @@
 #include <iostream>
 #include <memory>
 #include <stack>
+#include <vector>
 #include "common/log.h"
 #include "common/string_helpers.h"
 #include "core/type.h"
@@ -107,9 +108,11 @@ bool Builder::GenerateStreamGraphFunctions()
     llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetPointerType()}, false));
   m_module->getOrInsertFunction("StreamGraphBuilder_EndSplitJoin",
                                 llvm::FunctionType::get(m_context->GetVoidType(), false));
-  m_module->getOrInsertFunction("StreamGraphBuilder_Split",
-                                llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetIntType()}, false));
-  m_module->getOrInsertFunction("StreamGraphBuilder_Join", llvm::FunctionType::get(m_context->GetVoidType(), false));
+  m_module->getOrInsertFunction(
+    "StreamGraphBuilder_Split",
+    llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetIntType(), m_context->GetIntType()}, true));
+  m_module->getOrInsertFunction("StreamGraphBuilder_Join",
+                                llvm::FunctionType::get(m_context->GetVoidType(), {m_context->GetIntType()}, true));
   m_module->getOrInsertFunction("StreamGraphBuilder_AddFilter",
                                 llvm::FunctionType::get(m_context->GetVoidType(),
                                                         {m_context->GetPointerType(), m_context->GetIntType(),
@@ -334,7 +337,7 @@ void BuilderState::EndSplitJoin()
     delete p;
 }
 
-void BuilderState::SplitJoinSplit(int mode)
+void BuilderState::SplitJoinSplit(int mode, const std::vector<int>& distribution)
 {
   if (!HasTopNode())
   {
@@ -343,12 +346,12 @@ void BuilderState::SplitJoinSplit(int mode)
   }
 
   std::string instance_name = GenerateName("split");
-  Split* split = new Split(instance_name);
+  Split* split = new Split(instance_name, (mode == 0) ? Split::Mode::Duplicate : Split::Mode::Roundrobin, distribution);
   if (!GetTopNode()->AddChild(this, split))
     delete split;
 }
 
-void BuilderState::SplitJoinJoin()
+void BuilderState::SplitJoinJoin(const std::vector<int>& distribution)
 {
   if (!HasTopNode())
   {
@@ -357,7 +360,7 @@ void BuilderState::SplitJoinJoin()
   }
 
   std::string instance_name = GenerateName("join");
-  Join* join = new Join(instance_name);
+  Join* join = new Join(instance_name, distribution);
   if (!GetTopNode()->AddChild(this, join))
     delete join;
 }
@@ -432,16 +435,38 @@ EXPORT void StreamGraphBuilder_EndSplitJoin(const intptr_t splitjoin_ptr)
   Log::Debug("StreamGraphBuilder", "StreamGraph EndSplitJoin");
   s_builder_state->EndSplitJoin();
 }
-EXPORT void StreamGraphBuilder_Split(int mode)
+EXPORT void StreamGraphBuilder_Split(int mode, int num_args, ...)
 {
   const char* mode_str = (mode == 0) ? "duplicate" : "roundrobin";
   Log::Debug("StreamGraphBuilder", "StreamGraph Split %s", mode_str);
-  s_builder_state->SplitJoinSplit(mode);
+
+  std::vector<int> distribution;
+  va_list ap;
+  va_start(ap, num_args);
+  for (int i = 0; i < num_args; i++)
+  {
+    int val = va_arg(ap, int);
+    distribution.push_back(val);
+  }
+  va_end(ap);
+
+  s_builder_state->SplitJoinSplit(mode, distribution);
 }
-EXPORT void StreamGraphBuilder_Join()
+EXPORT void StreamGraphBuilder_Join(int num_args, ...)
 {
   Log::Debug("StreamGraphBuilder", "StreamGraph Join");
-  s_builder_state->SplitJoinJoin();
+
+  std::vector<int> distribution;
+  va_list ap;
+  va_start(ap, num_args);
+  for (int i = 0; i < num_args; i++)
+  {
+    int val = va_arg(ap, int);
+    distribution.push_back(val);
+  }
+  va_end(ap);
+
+  s_builder_state->SplitJoinJoin(distribution);
 }
 EXPORT void StreamGraphBuilder_AddFilter(const AST::FilterDeclaration* filter, int peek_rate, int pop_rate,
                                          int push_rate, ...)

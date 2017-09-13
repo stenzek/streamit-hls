@@ -568,21 +568,13 @@ bool ReturnStatement::HasReturnValue() const
   return (m_expr != nullptr);
 }
 
-SplitStatement::SplitStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
+SplitStatement::SplitStatement(const SourceLocation& sloc, Type type, NodeList* distribution)
+  : Statement(sloc), m_type(type), m_distribution(distribution)
 {
 }
 
-SplitStatement::Type SplitStatement::GetType() const
+JoinStatement::JoinStatement(const SourceLocation& sloc, Type type, NodeList* distribution)
+  : Statement(sloc), m_type(type), m_distribution(distribution)
 {
-  return m_type;
-}
-
-JoinStatement::JoinStatement(const SourceLocation& sloc, Type type) : Statement(sloc), m_type(type)
-{
-}
-
-JoinStatement::Type JoinStatement::GetType() const
-{
-  return m_type;
 }
 }

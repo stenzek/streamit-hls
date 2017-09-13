@@ -387,6 +387,12 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
   Join* join = dynamic_cast<Join*>(node);
   if (join)
   {
+    if (!m_split_node)
+    {
+      state->Error("Split not defined");
+      return false;
+    }
+
     if (m_join_node)
     {
       state->Error("Join already defined");
@@ -415,6 +421,37 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
         m_join_node->AddIncomingStream();
         if (!child_node->ConnectTo(state, m_join_node))
           return false;
+      }
+
+      // For roundrobin splits
+      if (m_split_node->GetMode() == Split::Mode::Roundrobin)
+      {
+        if (m_split_node->GetDistribution().size() == 1)
+        {
+          // Set distribution of all to the first
+          for (size_t i = 1; i < m_children.size(); i++)
+            m_split_node->GetDistribution().push_back(m_split_node->GetDistribution()[0]);
+        }
+        else if (m_split_node->GetDistribution().size() == 0)
+        {
+          // Set distribution for all to one
+          for (size_t i = 0; i < m_children.size(); i++)
+            m_split_node->GetDistribution().push_back(1);
+        }
+      }
+
+      // For roundrobin joins
+      if (m_join_node->GetDistribution().size() == 1)
+      {
+        // Set distribution of all to the first
+        for (size_t i = 1; i < m_children.size(); i++)
+          m_join_node->GetDistribution().push_back(m_join_node->GetDistribution()[0]);
+      }
+      else if (m_join_node->GetDistribution().size() == 0)
+      {
+        // Set distribution for all to one
+        for (size_t i = 0; i < m_children.size(); i++)
+          m_join_node->GetDistribution().push_back(1);
       }
 
       return true;
@@ -446,10 +483,27 @@ bool SplitJoin::Validate(BuilderState* state)
   result &= m_join_node->Validate(state);
   for (Node* child : m_children)
     result &= child->Validate(state);
+
+  // For roundrobin splits, we either have to have a distribution of size zero or one, or numchildren == distribution
+  if (m_split_node->GetMode() == Split::Mode::Roundrobin && m_split_node->GetDistribution().size() > 1 &&
+      m_children.size() != m_split_node->GetDistribution().size())
+  {
+    state->Error("Fixed distributions must match the number of filters.");
+    return false;
+  }
+
+  // Same for roundrobin joins
+  if (m_join_node->GetDistribution().size() > 1 && m_children.size() != m_join_node->GetDistribution().size())
+  {
+    state->Error("Fixed distributions must match the number of filters.");
+    return false;
+  }
+
   return result;
 }
 
-Split::Split(const std::string& name) : Node(name, nullptr, nullptr)
+Split::Split(const std::string& name, Mode mode, const std::vector<int>& distribution)
+  : Node(name, nullptr, nullptr), m_mode(mode), m_distribution(distribution)
 {
   m_peek_rate = 0;
   m_pop_rate = 1;
@@ -506,7 +560,8 @@ bool Split::Validate(BuilderState* state)
   return true;
 }
 
-Join::Join(const std::string& name) : Node(name, nullptr, nullptr)
+Join::Join(const std::string& name, const std::vector<int>& distribution)
+  : Node(name, nullptr, nullptr), m_distribution(distribution)
 {
   m_peek_rate = 0;
   m_pop_rate = 1;

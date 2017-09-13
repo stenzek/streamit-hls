@@ -209,9 +209,32 @@ bool StatementBuilder::Visit(AST::AddStatement* node)
 bool StatementBuilder::Visit(AST::SplitStatement* node)
 {
   llvm::Function* func = GetModule()->getFunction("StreamGraphBuilder_Split");
-  llvm::Value* mode_arg = GetIRBuilder().getInt32((node->GetType() == AST::SplitStatement::Duplicate) ? 0 : 1);
   assert(func && "Split function exists");
-  GetIRBuilder().CreateCall(func, mode_arg);
+
+  // Mode
+  std::vector<llvm::Value*> func_params;
+  func_params.push_back(GetIRBuilder().getInt32((node->GetType() == AST::SplitStatement::Duplicate) ? 0 : 1));
+
+  if (node->GetDistribution() != nullptr)
+  {
+    // Distribution - number of args
+    func_params.push_back(GetIRBuilder().getInt32(static_cast<int>(node->GetDistribution()->GetNumChildren())));
+    for (AST::Node* node : *node->GetDistribution())
+    {
+      ExpressionBuilder param_eb(m_func_builder);
+      if (!node->Accept(&param_eb) || !param_eb.IsValid())
+        return false;
+
+      func_params.push_back(param_eb.GetResultValue());
+    }
+  }
+  else
+  {
+    // No distribution
+    func_params.push_back(GetIRBuilder().getInt32(0));
+  }
+
+  GetIRBuilder().CreateCall(func, func_params);
   return true;
 }
 
@@ -219,7 +242,28 @@ bool StatementBuilder::Visit(AST::JoinStatement* node)
 {
   llvm::Function* func = GetModule()->getFunction("StreamGraphBuilder_Join");
   assert(func && "Join function exists");
-  GetIRBuilder().CreateCall(func);
+
+  std::vector<llvm::Value*> func_params;
+  if (node->GetDistribution() != nullptr)
+  {
+    // Distribution - number of args
+    func_params.push_back(GetIRBuilder().getInt32(static_cast<int>(node->GetDistribution()->GetNumChildren())));
+    for (AST::Node* node : *node->GetDistribution())
+    {
+      ExpressionBuilder param_eb(m_func_builder);
+      if (!node->Accept(&param_eb) || !param_eb.IsValid())
+        return false;
+
+      func_params.push_back(param_eb.GetResultValue());
+    }
+  }
+  else
+  {
+    // No distribution
+    func_params.push_back(GetIRBuilder().getInt32(0));
+  }
+
+  GetIRBuilder().CreateCall(func, func_params);
   return true;
 }
 }

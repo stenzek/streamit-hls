@@ -90,6 +90,7 @@ public:
   ListType::iterator end() { return m_nodes.end(); }
 
   const ListType& GetNodeList() const { return m_nodes; }
+  const size_t GetNumChildren() const { return m_nodes.size(); }
 
   bool HasChildren() const;
   const Node* GetFirst() const;
@@ -765,17 +766,19 @@ public:
     Duplicate
   };
 
-  SplitStatement(const SourceLocation& sloc, Type type);
+  SplitStatement(const SourceLocation& sloc, Type type, NodeList* distribution);
   ~SplitStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
-  Type GetType() const;
+  Type GetType() const { return m_type; }
+  NodeList* GetDistribution() const { return m_distribution; }
 
 private:
   Type m_type;
+  NodeList* m_distribution;
 };
 
 class JoinStatement : public Statement
@@ -786,17 +789,19 @@ public:
     RoundRobin
   };
 
-  JoinStatement(const SourceLocation& sloc, Type type);
+  JoinStatement(const SourceLocation& sloc, Type type, NodeList* distribution);
   ~JoinStatement() = default;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
-  Type GetType() const;
+  Type GetType() const { return m_type; }
+  NodeList* GetDistribution() const { return m_distribution; }
 
 private:
   Type m_type;
+  NodeList* m_distribution;
 };
 
 class InitializerListExpression : public Expression
