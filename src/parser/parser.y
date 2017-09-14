@@ -190,7 +190,7 @@ AnonymousFilterDeclaration
   : TypeName TK_ARROW TypeName TK_FILTER FilterDefinition
   {
     std::string name = state->GetGlobalLexicalScope()->GenerateName("anon_filter");
-    FilterDeclaration* decl = new FilterDeclaration(@1, $1, $3, name.c_str(), new ParameterDeclarationList(), $5->vars, $5->init, $5->prework, $5->work);
+    FilterDeclaration* decl = new FilterDeclaration(@1, $1, $3, name.c_str(), new ParameterDeclarationList(), $5->vars, $5->init, $5->prework, $5->work, false);
     state->AddFilter(decl);
     $$ = decl;
   }
@@ -207,10 +207,10 @@ AnonymousStreamDeclaration
   ;
 
 FilterDeclaration
-  : TypeName TK_ARROW TypeName TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, new ParameterDeclarationList(), $6->vars, $6->init, $6->prework, $6->work); }
-  | TypeName TK_ARROW TypeName TK_FILTER Identifier '(' ParameterDeclarationList ')' FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, $7, $9->vars, $9->init, $9->prework, $9->work); }
-  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, new ParameterDeclarationList(), $7->vars, $7->init, $7->prework, $7->work); }
-  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier '(' ParameterDeclarationList ')' FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, $8, $10->vars, $10->init, $10->prework, $10->work); }
+  : TypeName TK_ARROW TypeName TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, new ParameterDeclarationList(), $6->vars, $6->init, $6->prework, $6->work, false); }
+  | TypeName TK_ARROW TypeName TK_FILTER Identifier '(' ParameterDeclarationList ')' FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $5, $7, $9->vars, $9->init, $9->prework, $9->work, false); }
+  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, new ParameterDeclarationList(), $7->vars, $7->init, $7->prework, $7->work, true); }
+  | TypeName TK_ARROW TypeName TK_STATEFUL TK_FILTER Identifier '(' ParameterDeclarationList ')' FilterDefinition { $$ = new FilterDeclaration(@1, $1, $3, $6, $8, $10->vars, $10->init, $10->prework, $10->work, true); }
   ;
 
 FilterDefinition

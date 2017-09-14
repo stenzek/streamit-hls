@@ -310,4 +310,29 @@ bool FilterBuilder::GenerateGlobals()
   return true;
 }
 
+bool FilterBuilder::CanMakeCombinational() const
+{
+  // Requires the filter be stateless.
+  if (m_filter_decl->IsStateful() /* || m_filter_decl->HasStateVariables()*/)
+    return false;
+
+  // We require a push and pop rate of <= 1, and no peeking.
+  if (m_filter_permutation->GetPopRate() > 1 || m_filter_permutation->GetPushRate() > 1 ||
+      m_filter_permutation->GetPeekRate() > 0)
+    return false;
+
+  // If there is any control flow, we can't optimize it (HLS turns it into a state machine).
+  // TODO: This will break with function calls.. Inline them first?
+  size_t num_basic_blocks = 0;
+  for (llvm::BasicBlock& BB : *m_function)
+    num_basic_blocks++;
+  if (num_basic_blocks > 1)
+    return false;
+
+  // TODO: The last statement should be a push.
+
+  // Safe to make combinational.
+  return true;
+}
+
 } // namespace HLSTarget

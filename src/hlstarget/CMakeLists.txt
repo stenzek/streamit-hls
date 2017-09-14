@@ -1,5 +1,6 @@
 set(SRCS
     CBackend.cpp
+    combinational_filter_builder.cpp
     component_generator.cpp
     component_test_bench_generator.cpp
     filter_builder.cpp

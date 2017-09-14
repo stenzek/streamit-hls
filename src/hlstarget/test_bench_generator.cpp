@@ -389,23 +389,45 @@ static void WriteTestBenchFor(const StreamGraph::FilterPermutation* filter_perm,
   u32 outputs_per_iteration = 0;
 
   // Declaration of top function
-  os << "void filter_" << filter_perm->GetName() << "(";
-  if (input_data)
+  if (!filter_perm->IsCombinational())
   {
-    os << in_type << "*";
-    inputs_per_iteration = filter_perm->GetPopRate();
-    if (output_data)
+    os << "void filter_" << filter_perm->GetName() << "(";
+    if (input_data)
     {
-      os << ", " << out_type << "*";
+      os << in_type << "*";
+      inputs_per_iteration = filter_perm->GetPopRate();
+      if (output_data)
+      {
+        os << ", " << out_type << "*";
+        outputs_per_iteration = filter_perm->GetPushRate();
+      }
+    }
+    else if (output_data)
+    {
+      os << out_type << "*";
       outputs_per_iteration = filter_perm->GetPushRate();
     }
+    os << ");\n";
   }
-  else if (output_data)
+  else
   {
-    os << out_type << "*";
-    outputs_per_iteration = filter_perm->GetPushRate();
+    if (output_data)
+    {
+      os << out_type << " ";
+      outputs_per_iteration = filter_perm->GetPushRate();
+    }
+    else
+    {
+      os << out_type << "void ";
+    }
+    os << "filter_" << filter_perm->GetName() << "(";
+    if (input_data)
+    {
+      os << in_type;
+      inputs_per_iteration = filter_perm->GetPopRate();
+    }
+    os << ");\n";
   }
-  os << ");\n";
 
   // Definition of test function
   os << "int test_filter_" << filter_perm->GetName() << "() {\n";
@@ -461,18 +483,32 @@ static void WriteTestBenchFor(const StreamGraph::FilterPermutation* filter_perm,
     os << "  " << out_type << "* current_out_ptr = OUTPUT_DATA;\n";
 
   os << "  for (i = 0; i < " << num_iterations << "; i++) {\n";
-  os << "    filter_" << filter_perm->GetName() << "(";
-  if (input_data)
+  if (!filter_perm->IsCombinational())
   {
-    os << "current_in_ptr";
+    os << "    filter_" << filter_perm->GetName() << "(";
+    if (input_data)
+    {
+      os << "current_in_ptr";
+      if (output_data)
+        os << ", current_out_ptr";
+    }
+    else if (output_data)
+    {
+      os << "current_out_ptr";
+    }
+    os << ");\n";
+  }
+  else
+  {
+    os << "    ";
     if (output_data)
-      os << ", current_out_ptr";
+      os << "*current_out_ptr = ";
+    os << "filter_" << filter_perm->GetName() << "(";
+    if (input_data)
+      os << "*current_in_ptr";
+    os << ");\n";
   }
-  else if (output_data)
-  {
-    os << "current_out_ptr";
-  }
-  os << ");\n";
+
   if (input_data)
     os << "    current_in_ptr += " << inputs_per_iteration << ";\n";
   if (output_data)

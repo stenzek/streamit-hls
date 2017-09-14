@@ -309,7 +309,7 @@ class FilterDeclaration : public StreamDeclaration
 public:
   FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
                     const char* name, ParameterDeclarationList* params, NodeList* vars, FilterWorkBlock* init,
-                    FilterWorkBlock* prework, FilterWorkBlock* work);
+                    FilterWorkBlock* prework, FilterWorkBlock* work, bool stateful);
   ~FilterDeclaration() = default;
 
   // TODO: Const here, but this is a larger change (e.g. visitor impact)
@@ -318,6 +318,8 @@ public:
   FilterWorkBlock* GetWorkBlock() const { return m_work; }
   ParameterDeclarationList* GetParameters() const { return m_parameters; }
   NodeList* GetStateVariables() const { return m_vars; }
+  bool IsStateful() const { return m_stateful; }
+  bool IsStateless() const { return !m_stateful; }
 
   bool HasInitBlock() const { return (m_init != nullptr); }
   bool HasPreworkBlock() const { return (m_prework != nullptr); }
@@ -338,6 +340,7 @@ private:
   FilterWorkBlock* m_init;
   FilterWorkBlock* m_prework;
   FilterWorkBlock* m_work;
+  bool m_stateful;
 };
 
 struct FilterWorkParts

@@ -181,10 +181,9 @@ void ComponentGenerator::WriteFIFO(const std::string& name, u32 data_width, u32 
   m_body << "\n";
 }
 
-bool ComponentGenerator::Visit(StreamGraph::Filter* node)
+void ComponentGenerator::WriteFilterInstance(StreamGraph::Filter* node)
 {
   const std::string& name = node->GetName();
-  m_body << "-- Filter instance " << name << " (filter " << node->GetFilterPermutation()->GetName() << ")\n";
 
   // Input FIFO queue
   if (!node->GetInputType()->IsVoid())
@@ -194,7 +193,6 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
               fifo_depth);
   }
 
-  // Component instantiation
   // m_body << name << " : filter_" << node->GetFilterPermutation()->GetName() << "\n";
   m_body << name << " : entity work.filter_" << node->GetFilterPermutation()->GetName() << "(behav)\n";
   m_body << "  port map (\n";
@@ -229,6 +227,73 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
   m_body << "\n";
   m_body << "  );\n";
   m_body << "\n";
+}
+
+void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* node)
+{
+  const std::string& name = node->GetName();
+
+  // Combinational filter
+  if (!node->GetInputType()->IsVoid())
+  {
+    m_signals << "signal " << name << "_fifo_write : std_logic;\n";
+    m_signals << "signal " << name << "_fifo_full_n : std_logic;\n";
+    m_signals << "signal " << name << "_fifo_din : std_logic_vector("
+              << (VHDLHelpers::GetBitWidthForType(node->GetInputType()) - 1) << " downto 0);\n";
+  }
+
+  m_body << name << " : entity work.filter_" << node->GetFilterPermutation()->GetName() << "(behav)\n";
+  m_body << "  port map (\n";
+  if (!node->GetInputType()->IsVoid())
+  {
+    m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_value => " << name << "_fifo_din";
+    if (!node->GetOutputType()->IsVoid())
+      m_body << ",\n";
+    else
+      m_body << "\n";
+  }
+  if (!node->GetOutputType()->IsVoid())
+  {
+    if (!node->GetOutputChannelName().empty())
+      m_body << "    ap_return => " << node->GetOutputChannelName() << "_fifo_din\n";
+    else
+      m_body << "    ap_return => prog_output_din\n";
+  }
+  m_body << "  );\n";
+
+  // Tie write/full signals to the next filter in the chain
+  if (!node->GetInputType()->IsVoid() && !node->GetOutputType()->IsVoid())
+  {
+    const std::string& output_name = node->GetOutputChannelName();
+    if (!output_name.empty())
+    {
+      m_body << name << "_write <= " << output_name << "_fifo_write;\n";
+      m_body << name << "_full_n <= " << output_name << "_fifo_full_n;\n";
+    }
+    else
+    {
+      m_body << name << "_write <= " << output_name << "prog_output_write;\n";
+      m_body << name << "_full_n <= " << output_name << "prog_output_full_n;\n";
+    }
+  }
+  else if (!node->GetInputType()->IsVoid())
+  {
+    // If there is an input type, tie it to always push.
+    m_body << name << "_full_n <= '0';\n";
+  }
+  m_body << "\n";
+}
+
+bool ComponentGenerator::Visit(StreamGraph::Filter* node)
+{
+  const std::string& name = node->GetName();
+  m_body << "-- Filter instance " << name << " (filter " << node->GetFilterPermutation()->GetName() << ")\n";
+
+  // Component instantiation
+  if (node->GetFilterPermutation()->IsCombinational())
+    WriteCombinationalFilterInstance(node);
+  else
+    WriteFilterInstance(node);
 
   return true;
 }

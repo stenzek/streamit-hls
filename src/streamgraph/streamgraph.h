@@ -116,6 +116,9 @@ public:
   int GetPopRate() const { return m_pop_rate; }
   int GetPushRate() const { return m_push_rate; }
 
+  bool IsCombinational() const { return m_combinational; }
+  void SetCombinational() { m_combinational = true; }
+
 private:
   std::string m_name;
   const AST::FilterDeclaration* m_filter_decl;
@@ -125,6 +128,7 @@ private:
   int m_peek_rate;
   int m_pop_rate;
   int m_push_rate;
+  bool m_combinational = false;
 };
 
 class Node

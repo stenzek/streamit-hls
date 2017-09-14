@@ -26,16 +26,16 @@ class FilterPermutation;
 
 namespace HLSTarget
 {
-class FilterBuilder
+class CombinationalFilterBuilder
 {
 public:
-  FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod, const StreamGraph::FilterPermutation* filter_perm);
-  ~FilterBuilder();
+  CombinationalFilterBuilder(WrappedLLVMContext* context, llvm::Module* mod,
+                             const StreamGraph::FilterPermutation* filter_perm);
+  ~CombinationalFilterBuilder();
 
   WrappedLLVMContext* GetContext() const { return m_context; }
   const AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
   llvm::Function* GetFunction() const { return m_function; }
-  bool CanMakeCombinational() const;
 
   bool GenerateCode();
 
