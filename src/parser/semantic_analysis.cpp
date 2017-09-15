@@ -37,7 +37,31 @@ bool TypeName::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
   else
   {
     // Array types have to have the array sizes annotated
-    m_final_type = state->GetArrayType(type_ref_ptr->GetType(), m_array_sizes);
+    std::vector<int> array_sizes;
+    for (Expression* expr : m_array_sizes)
+    {
+      if (!expr->SemanticAnalysis(state, symbol_table))
+      {
+        m_final_type = state->GetErrorType();
+        return false;
+      }
+      
+      if (!expr->IsConstant())
+      {
+        state->LogError(m_sloc, "Array size is not constant");
+        return false;
+      }
+
+      int size = expr->GetConstantInt();
+      if (size <= 0)
+      {
+        state->LogError(m_sloc, "Array size must be non-zero and positive");
+        return false;
+      }
+
+      array_sizes.push_back(size);
+    }
+    m_final_type = state->GetArrayType(type_ref_ptr->GetType(), array_sizes);
   }
 
   return m_final_type->IsValid();
@@ -602,6 +626,26 @@ bool CallExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_t
   }
 
   m_type = m_function_ref->GetReturnType();
+  return result;
+}
+
+bool CastExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  // Resolve type name
+  bool result = m_to_type_name->SemanticAnalysis(state, symbol_table);
+  result &= m_expr->SemanticAnalysis(state, symbol_table);
+  m_type = m_to_type_name->GetFinalType();
+  
+  if (result)
+  {
+    // Check it is a valid conversion, int->apint, or apint->int for now
+    if (!(m_expr->GetType()->IsInt() || m_expr->GetType()->IsAPInt()) || !(m_type->IsInt() || m_type->IsAPInt()))
+    {
+      state->LogError(m_sloc, "Cannot cast from %s to %s", m_expr->GetType()->GetName().c_str(), m_type->GetName().c_str());
+      result = false;
+    }
+  }
+
   return result;
 }
 

@@ -219,10 +219,10 @@ bool StatementBuilder::Visit(AST::SplitStatement* node)
   {
     // Distribution - number of args
     func_params.push_back(GetIRBuilder().getInt32(static_cast<int>(node->GetDistribution()->GetNumChildren())));
-    for (AST::Node* node : *node->GetDistribution())
+    for (AST::Node* child_node : *node->GetDistribution())
     {
       ExpressionBuilder param_eb(m_func_builder);
-      if (!node->Accept(&param_eb) || !param_eb.IsValid())
+      if (!child_node->Accept(&param_eb) || !param_eb.IsValid())
         return false;
 
       func_params.push_back(param_eb.GetResultValue());
@@ -248,10 +248,10 @@ bool StatementBuilder::Visit(AST::JoinStatement* node)
   {
     // Distribution - number of args
     func_params.push_back(GetIRBuilder().getInt32(static_cast<int>(node->GetDistribution()->GetNumChildren())));
-    for (AST::Node* node : *node->GetDistribution())
+    for (AST::Node* child_node : *node->GetDistribution())
     {
       ExpressionBuilder param_eb(m_func_builder);
-      if (!node->Accept(&param_eb) || !param_eb.IsValid())
+      if (!child_node->Accept(&param_eb) || !param_eb.IsValid())
         return false;
 
       func_params.push_back(param_eb.GetResultValue());

@@ -59,6 +59,11 @@ bool Visitor::Visit(CallExpression* node)
   return Visit(static_cast<Expression*>(node));
 }
 
+bool Visitor::Visit(CastExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
 bool Visitor::Visit(PeekExpression* node)
 {
   return Visit(static_cast<Expression*>(node));
@@ -280,6 +285,11 @@ bool PopExpression::Accept(Visitor* visitor)
 }
 
 bool CallExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool CastExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

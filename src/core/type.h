@@ -16,6 +16,7 @@ public:
     Bit,
     Int,
     Float,
+    APInt,
     Array,
     Struct,
     Function
@@ -45,6 +46,7 @@ public:
   bool IsBit() const;
   bool IsInt() const;
   bool IsFloat() const;
+  bool IsAPInt() const;
 
   bool CanImplicitlyConvertTo(const Type* type) const;
   bool HasSameArrayTraits(const Type* type) const;
@@ -89,4 +91,17 @@ protected:
 
   const Type* m_return_type = nullptr;
   std::vector<const Type*> m_parameter_types;
+};
+
+class APIntType : public Type
+{
+public:
+  ~APIntType() = default;
+
+  unsigned GetNumBits() const { return m_num_bits; }
+
+  static APIntType* Create(unsigned num_bits);
+
+private:
+  unsigned m_num_bits = 0;
 };

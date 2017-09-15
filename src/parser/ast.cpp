@@ -75,6 +75,21 @@ bool Expression::IsConstant() const
   return false;
 }
 
+bool Expression::GetConstantBool() const
+{
+  return false;
+}
+
+int Expression::GetConstantInt() const
+{
+  return 0;
+}
+
+float Expression::GetConstantFloat() const
+{
+  return 0.0f;
+}
+
 const Type* Expression::GetType() const
 {
   return m_type;
@@ -99,33 +114,9 @@ TypeName::TypeName(const Type* from_type) : m_sloc{}
   if (from_type->IsArrayType())
   {
     m_base_type_name = from_type->GetBaseType()->GetName();
-    m_array_sizes = static_cast<const ArrayType*>(from_type)->GetArraySizes();
+    for (int size : static_cast<const ArrayType*>(from_type)->GetArraySizes())
+      m_array_sizes.push_back(new IntegerLiteralExpression({}, size));
   }
-}
-
-const std::string& TypeName::GetBaseTypeName() const
-{
-  return m_base_type_name;
-}
-
-const std::vector<int>& TypeName::GetArraySizes() const
-{
-  return m_array_sizes;
-}
-
-const Type* TypeName::GetFinalType() const
-{
-  return m_final_type;
-}
-
-void TypeName::SetBaseTypeName(const char* name)
-{
-  m_base_type_name = name;
-}
-
-void TypeName::AddArraySize(int size)
-{
-  m_array_sizes.push_back(size);
 }
 
 void TypeName::Merge(ParserState* state, TypeName* rhs)
@@ -257,6 +248,46 @@ bool BinaryExpression::IsConstant() const
   return (m_lhs->IsConstant() && m_rhs->IsConstant());
 }
 
+int BinaryExpression::GetConstantInt() const
+{
+  switch (m_op)
+  {
+  case Add:
+    return m_lhs->GetConstantInt() + m_rhs->GetConstantInt();
+
+  case Subtract:
+    return m_lhs->GetConstantInt() - m_rhs->GetConstantInt();
+
+  case Multiply:
+    return m_lhs->GetConstantInt() * m_rhs->GetConstantInt();
+
+  case Divide:
+    if (m_rhs->GetConstantInt() == 0)
+      return 0;
+    return m_lhs->GetConstantInt() / m_rhs->GetConstantInt();
+
+  case Modulo:
+    if (m_rhs->GetConstantInt() == 0)
+      return 0;
+    return m_lhs->GetConstantInt() % m_rhs->GetConstantInt();
+
+  case BitwiseAnd:
+    return m_lhs->GetConstantInt() & m_rhs->GetConstantInt();
+
+  case BitwiseOr:
+    return m_lhs->GetConstantInt() | m_rhs->GetConstantInt();
+
+  case BitwiseXor:
+    return m_lhs->GetConstantInt() ^ m_rhs->GetConstantInt();
+
+  case LeftShift:
+    return m_lhs->GetConstantInt() << m_rhs->GetConstantInt();
+
+  case RightShift:
+    return m_lhs->GetConstantInt() >> m_rhs->GetConstantInt();
+  }
+}
+
 Expression* BinaryExpression::GetLHSExpression() const
 {
   return m_lhs;
@@ -352,29 +383,9 @@ IntegerLiteralExpression::IntegerLiteralExpression(const SourceLocation& sloc, i
 {
 }
 
-int IntegerLiteralExpression::GetValue() const
-{
-  return m_value;
-}
-
-bool IntegerLiteralExpression::IsConstant() const
-{
-  return true;
-}
-
 BooleanLiteralExpression::BooleanLiteralExpression(const SourceLocation& sloc, bool value)
   : Expression(sloc), m_value(value)
 {
-}
-
-bool BooleanLiteralExpression::GetValue() const
-{
-  return m_value;
-}
-
-bool BooleanLiteralExpression::IsConstant() const
-{
-  return true;
 }
 
 PeekExpression::PeekExpression(const SourceLocation& sloc, Expression* expr) : Expression(sloc), m_expr(expr)
@@ -392,6 +403,11 @@ PopExpression::PopExpression(const SourceLocation& sloc) : Expression(sloc)
 
 CallExpression::CallExpression(const SourceLocation& sloc, const char* function_name, NodeList* args)
   : Expression(sloc), m_function_name(function_name), m_args(args)
+{
+}
+
+CastExpression::CastExpression(const SourceLocation& sloc, TypeName* to_type, Expression* expr)
+  : Expression(sloc), m_to_type_name(to_type), m_expr(expr)
 {
 }
 

@@ -214,6 +214,14 @@ void ParserState::CreateBuiltinTypes()
 
   // Error type doesn't get added to the symbol table
   m_error_type = Type::CreatePrimitive(Type::TypeId::Error);
+
+  // Arbitrary precision types
+  for (unsigned num_bits = 1; num_bits <= 32; num_bits++)
+  {
+    Type* ty = APIntType::Create(num_bits);
+    m_global_lexical_scope->AddName(ty->GetName(), new AST::TypeReference(ty->GetName(), ty));
+    m_types.emplace(ty->GetName(), ty);
+  }
 }
 
 void ParserState::CreateBuiltinFunctions()

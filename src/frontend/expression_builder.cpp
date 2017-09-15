@@ -161,7 +161,7 @@ bool ExpressionBuilder::Visit(AST::UnaryExpression* node)
   }
 
   // TODO: Float operands
-  if (node->GetType()->IsInt())
+  if (node->GetType()->IsInt() || node->GetType()->IsAPInt())
   {
     // NSW - overflow handling
     llvm::Value* temp;
@@ -206,7 +206,7 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
   }
 
   // TODO: Float operands
-  if (node->GetType()->IsInt())
+  if (node->GetType()->IsInt() || node->GetType()->IsAPInt())
   {
     // TODO: Type conversion where LHS type != RHS type
     assert(node->GetLHSExpression()->GetType() == node->GetType() &&
@@ -267,7 +267,7 @@ bool ExpressionBuilder::Visit(AST::RelationalExpression* node)
   }
 
   // TODO: Float operands
-  if (node->GetIntermediateType()->IsInt())
+  if (node->GetIntermediateType()->IsInt() || node->GetIntermediateType()->IsAPInt())
   {
     // TODO: Type conversion where LHS type != RHS type
     assert(node->GetLHSExpression()->GetType() == node->GetIntermediateType() &&

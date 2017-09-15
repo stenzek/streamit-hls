@@ -77,6 +77,11 @@ bool Type::IsFloat() const
   return m_type_id == TypeId::Float;
 }
 
+bool Type::IsAPInt() const
+{
+  return m_type_id == TypeId::APInt;
+}
+
 bool Type::CanImplicitlyConvertTo(const Type* type) const
 {
   // Same type, no conversion needed.
@@ -154,5 +159,14 @@ Type* FunctionType::Create(const Type* return_type, const std::vector<const Type
   FunctionType* ty = new FunctionType();
   ty->m_return_type = return_type;
   ty->m_parameter_types = param_types;
+  return ty;
+}
+
+APIntType* APIntType::Create(unsigned num_bits)
+{
+  APIntType* ty = new APIntType();
+  ty->m_name = StringFromFormat("int%u", num_bits);
+  ty->m_type_id = TypeId::APInt;
+  ty->m_num_bits = num_bits;
   return ty;
 }

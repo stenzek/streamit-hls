@@ -150,6 +150,9 @@ public:
   const SourceLocation& GetSourceLocation() const { return m_sloc; }
 
   virtual bool IsConstant() const;
+  virtual bool GetConstantBool() const;
+  virtual int GetConstantInt() const;
+  virtual float GetConstantFloat() const;
   const Type* GetType() const;
 
 protected:
@@ -183,12 +186,12 @@ public:
   TypeName(const Type* from_type);
   ~TypeName() = default;
 
-  const std::string& GetBaseTypeName() const;
-  const std::vector<int>& GetArraySizes() const;
-  const Type* GetFinalType() const;
+  const std::string& GetBaseTypeName() const { return m_base_type_name; }
+  const std::vector<Expression*>& GetArraySizes() const { return m_array_sizes; }
+  const Type* GetFinalType() const { return m_final_type; }
 
-  void SetBaseTypeName(const char* name);
-  void AddArraySize(int size);
+  void SetBaseTypeName(const char* name) { m_base_type_name = name; }
+  void AddArraySize(Expression* size_expr) { m_array_sizes.push_back(size_expr); }
 
   void Merge(ParserState* state, TypeName* rhs);
 
@@ -199,7 +202,7 @@ public:
 private:
   SourceLocation m_sloc;
   std::string m_base_type_name;
-  std::vector<int> m_array_sizes;
+  std::vector<Expression*> m_array_sizes;
   const Type* m_final_type = nullptr;
 };
 
@@ -435,12 +438,14 @@ public:
   IntegerLiteralExpression(const SourceLocation& sloc, int value);
   ~IntegerLiteralExpression() = default;
 
-  bool IsConstant() const override;
+  bool IsConstant() const override { return true; }
+  int GetConstantInt() const override { return m_value; }
+
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
-  int GetValue() const;
+  int GetValue() const { return m_value; }
 
 private:
   int m_value;
@@ -452,12 +457,14 @@ public:
   BooleanLiteralExpression(const SourceLocation& sloc, bool value);
   ~BooleanLiteralExpression() = default;
 
-  bool IsConstant() const override;
+  bool IsConstant() const override { return true; }
+  bool GetConstantBool() const override { return m_value; }
+
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
-  bool GetValue() const;
+  bool GetValue() const { return m_value; }
 
 private:
   bool m_value;
@@ -550,6 +557,8 @@ public:
   ~BinaryExpression() = default;
 
   bool IsConstant() const override;
+  int GetConstantInt() const override;
+
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
@@ -722,6 +731,23 @@ private:
   NodeList* m_args;
 
   const FunctionReference* m_function_ref = nullptr;
+};
+
+class CastExpression : public Expression
+{
+public:
+  CastExpression(const SourceLocation& sloc, TypeName* to_type, Expression* expr);
+  ~CastExpression() = default;
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  const Expression* GetExpression() const { return m_expr; }
+
+private:
+  TypeName* m_to_type_name;
+  Expression* m_expr;
 };
 
 class PushStatement : public Statement

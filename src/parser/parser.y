@@ -31,7 +31,7 @@ using namespace AST;
 %token TK_JOIN TK_ROUNDROBIN
 %token TK_INIT TK_PREWORK TK_WORK
 
-%token TK_BOOLEAN TK_BIT TK_INT TK_FLOAT TK_COMPLEX TK_VOID
+%token TK_BOOLEAN TK_BIT TK_INT TK_FLOAT TK_COMPLEX TK_VOID TK_APINT
 
 %token TK_LOGICAL_AND TK_LOGICAL_OR
 %token TK_EQUALS TK_NOT_EQUALS
@@ -75,6 +75,7 @@ using namespace AST;
   int integer_literal;
   double float_literal;
   const char* string_literal;
+  int apint_num_bits;
 }
 
 %type <stream_decl> StreamDeclaration
@@ -167,8 +168,8 @@ PrimitiveTypeName
 TypeName
   : PrimitiveTypeName { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }
   /* TODO: This causes a shift/reduce conflict, e.g. some_struct[10] and some_var[10]. */
-  /*| Identifier { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }*/
-  | TypeName '[' IntegerLiteral ']' { $1->AddArraySize($3); }
+  | Identifier { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }
+  | TypeName '[' Expression ']' { $1->AddArraySize($3); }
   ;
 
 StreamDeclaration

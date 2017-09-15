@@ -34,6 +34,7 @@ class AssignmentExpression;
 class PeekExpression;
 class PopExpression;
 class CallExpression;
+class CastExpression;
 class PushStatement;
 class InitializerListExpression;
 class VariableDeclaration;
@@ -77,6 +78,7 @@ public:
   virtual bool Visit(PeekExpression* node);
   virtual bool Visit(PopExpression* node);
   virtual bool Visit(CallExpression* node);
+  virtual bool Visit(CastExpression* node);
   virtual bool Visit(PushStatement* node);
   virtual bool Visit(InitializerListExpression* node);
   virtual bool Visit(VariableDeclaration* node);

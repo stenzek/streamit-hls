@@ -1,7 +1,7 @@
+#include "parser/ast.h"
 #include <array>
 #include <cassert>
 #include "core/type.h"
-#include "parser/ast.h"
 #include "parser/ast_printer.h"
 
 namespace AST
@@ -26,8 +26,12 @@ void TypeName::Dump(ASTPrinter* printer) const
   if (!m_array_sizes.empty())
   {
     printer->Write(",array=");
-    for (int sz : m_array_sizes)
-      printer->Write("[%d]", sz);
+    for (Expression* expr : m_array_sizes)
+    {
+      printer->Write("[");
+      expr->Dump(printer);
+      printer->Write("]");
+    }
   }
   printer->WriteLine("");
 }
@@ -252,6 +256,14 @@ void CallExpression::Dump(ASTPrinter* printer) const
     printer->Write("parameters = ");
     m_args->Dump(printer);
   }
+  printer->EndBlock();
+}
+
+void CastExpression::Dump(ASTPrinter* printer) const
+{
+  printer->BeginBlock("CastExpression: ");
+  printer->Write("ToType = %s, Expression = ", m_type->GetName().c_str());
+  m_expr->Dump(printer);
   printer->EndBlock();
 }
 

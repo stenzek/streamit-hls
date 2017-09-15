@@ -176,6 +176,10 @@ llvm::Type* WrappedLLVMContext::CreateLLVMType(const Type* type)
       llvm_ty = llvm::Type::getDoubleTy(*m_llvm_context);
       break;
 
+    case Type::TypeId::APInt:
+      llvm_ty = llvm::IntegerType::get(*m_llvm_context, static_cast<const APIntType*>(type)->GetNumBits());
+      break;
+
     default:
       assert(0 && "unknown base type");
       return nullptr;

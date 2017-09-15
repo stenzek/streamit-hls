@@ -54,6 +54,7 @@ public:
   const Type* GetBitType() const { return m_bit_type; }
   const Type* GetIntType() const { return m_int_type; }
   const Type* GetFloatType() const { return m_float_type; }
+  const Type* GetAPIntType(unsigned num_bits) const;
 
   // Implicit type conversions
   const Type* GetResultType(const Type* lhs, const Type* rhs);
