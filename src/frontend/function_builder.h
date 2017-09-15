@@ -10,10 +10,11 @@ namespace llvm
 {
 class FunctionType;
 }
-class WrappedLLVMContext;
 
 namespace Frontend
 {
+class WrappedLLVMContext;
+
 class FunctionBuilder : public AST::Visitor
 {
 public:

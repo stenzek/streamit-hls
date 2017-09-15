@@ -1,8 +1,8 @@
 #include "frontend/function_builder.h"
 #include <cassert>
-#include "core/wrapped_llvm_context.h"
 #include "frontend/expression_builder.h"
 #include "frontend/statement_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "parser/ast.h"
 
 namespace Frontend

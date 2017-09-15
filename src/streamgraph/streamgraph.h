@@ -4,19 +4,23 @@
 #include <vector>
 #include "common/types.h"
 
-class Type;
 class ParserState;
-class WrappedLLVMContext;
 
 namespace llvm
 {
 class Constant;
+class Type;
 }
 
 namespace AST
 {
 class FilterDeclaration;
 class ParameterDeclaration;
+}
+
+namespace Frontend
+{
+class WrappedLLVMContext;
 }
 
 namespace StreamGraph
@@ -51,15 +55,15 @@ public:
   const FilterPermutationList& GetFilterPermutationList() const { return m_filter_permutations; }
 
   // Input/output types of the whole program
-  const Type* GetProgramInputType() const;
-  const Type* GetProgramOutputType() const;
+  llvm::Type* GetProgramInputType() const;
+  llvm::Type* GetProgramOutputType() const;
 
 private:
   Node* m_root_node;
   FilterPermutationList m_filter_permutations;
 };
 
-std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, ParserState* parser);
+std::unique_ptr<StreamGraph> BuildStreamGraph(Frontend::WrappedLLVMContext* context, ParserState* parser);
 
 class Visitor
 {
@@ -76,7 +80,6 @@ class FilterParameters
 public:
   struct Parameter
   {
-    const Type* type;
     const AST::ParameterDeclaration* decl;
     size_t data_offset;
     size_t data_length;
@@ -103,15 +106,15 @@ private:
 class FilterPermutation
 {
 public:
-  FilterPermutation(const AST::FilterDeclaration* filter_decl, const FilterParameters& filter_params, int peek_rate,
-                    int pop_rate, int push_rate);
+  FilterPermutation(const AST::FilterDeclaration* filter_decl, const FilterParameters& filter_params,
+                    llvm::Type* input_type, llvm::Type* output_type, int peek_rate, int pop_rate, int push_rate);
   ~FilterPermutation() = default;
 
   const std::string& GetName() const { return m_name; }
   const AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
   const FilterParameters& GetFilterParameters() const { return m_filter_params; }
-  const Type* GetInputType() const { return m_input_type; }
-  const Type* GetOutputType() const { return m_output_type; }
+  llvm::Type* GetInputType() const { return m_input_type; }
+  llvm::Type* GetOutputType() const { return m_output_type; }
   int GetPeekRate() const { return m_peek_rate; }
   int GetPopRate() const { return m_pop_rate; }
   int GetPushRate() const { return m_push_rate; }
@@ -123,8 +126,8 @@ private:
   std::string m_name;
   const AST::FilterDeclaration* m_filter_decl;
   FilterParameters m_filter_params;
-  const Type* m_input_type;
-  const Type* m_output_type;
+  llvm::Type* m_input_type;
+  llvm::Type* m_output_type;
   int m_peek_rate;
   int m_pop_rate;
   int m_push_rate;
@@ -134,12 +137,12 @@ private:
 class Node
 {
 public:
-  Node(const std::string& name, const Type* input_type, const Type* output_type);
+  Node(const std::string& name, llvm::Type* input_type, llvm::Type* output_type);
   virtual ~Node() = default;
 
   const std::string& GetName() const { return m_name; }
-  const Type* GetInputType() const { return m_input_type; }
-  const Type* GetOutputType() const { return m_output_type; }
+  llvm::Type* GetInputType() const { return m_input_type; }
+  llvm::Type* GetOutputType() const { return m_output_type; }
   u32 GetPeekRate() const { return m_peek_rate; }
   u32 GetPopRate() const { return m_pop_rate; }
   u32 GetPushRate() const { return m_push_rate; }
@@ -165,8 +168,8 @@ public:
 
 protected:
   std::string m_name;
-  const Type* m_input_type;
-  const Type* m_output_type;
+  llvm::Type* m_input_type;
+  llvm::Type* m_output_type;
   u32 m_peek_rate = 0;
   u32 m_pop_rate = 0;
   u32 m_push_rate = 0;
@@ -271,7 +274,7 @@ public:
   const Mode GetMode() const { return m_mode; }
   const std::vector<int>& GetDistribution() const { return m_distribution; }
   std::vector<int>& GetDistribution() { return m_distribution; }
-  void SetDataType(const Type* type);
+  void SetDataType(llvm::Type* type);
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* node) override;
@@ -305,7 +308,7 @@ public:
 
   u32 GetIncomingStreams() const { return m_incoming_streams; }
   void AddIncomingStream();
-  void SetDataType(const Type* type);
+  void SetDataType(llvm::Type* type);
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* node) override;

@@ -4,8 +4,8 @@
 #include <iostream>
 #include <memory>
 #include "common/log.h"
-#include "core/wrapped_llvm_context.h"
 #include "cputarget/program_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/Bitcode/BitcodeWriter.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
@@ -21,17 +21,19 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<ParserState> ParseFile(WrappedLLVMContext* ctx, const char* filename, std::FILE* fp, bool debug);
+static std::unique_ptr<ParserState> ParseFile(Frontend::WrappedLLVMContext* ctx, const char* filename, std::FILE* fp,
+                                              bool debug);
 static void DumpAST(ParserState* parser);
 
-static std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(WrappedLLVMContext* ctx, ParserState* parser);
+static std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(Frontend::WrappedLLVMContext* ctx,
+                                                                     ParserState* parser);
 static void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph);
 
-static std::unique_ptr<llvm::Module> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
+static std::unique_ptr<llvm::Module> GenerateCode(Frontend::WrappedLLVMContext* ctx, ParserState* parser,
                                                   StreamGraph::StreamGraph* streamgraph, bool optimize);
-static void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod);
-static void WriteModule(WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename);
-static bool ExecuteModule(WrappedLLVMContext* ctx, std::unique_ptr<llvm::Module> mod);
+static void DumpModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod);
+static void WriteModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename);
+static bool ExecuteModule(Frontend::WrappedLLVMContext* ctx, std::unique_ptr<llvm::Module> mod);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -122,7 +124,7 @@ int main(int argc, char* argv[])
     }
   }
 
-  std::unique_ptr<WrappedLLVMContext> llvm_context = WrappedLLVMContext::Create();
+  std::unique_ptr<Frontend::WrappedLLVMContext> llvm_context = Frontend::WrappedLLVMContext::Create();
   std::unique_ptr<ParserState> parser = ParseFile(llvm_context.get(), filename, fp, debug_parser);
   std::fclose(fp);
   if (!parser)
@@ -157,7 +159,8 @@ int main(int argc, char* argv[])
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ParserState> ParseFile(WrappedLLVMContext* ctx, const char* filename, std::FILE* fp, bool debug)
+std::unique_ptr<ParserState> ParseFile(Frontend::WrappedLLVMContext* ctx, const char* filename, std::FILE* fp,
+                                       bool debug)
 {
   Log::Info("CPUCompiler", "Parsing %s...", filename);
 
@@ -179,7 +182,7 @@ void DumpAST(ParserState* parser)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(WrappedLLVMContext* ctx, ParserState* parser)
+std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(Frontend::WrappedLLVMContext* ctx, ParserState* parser)
 {
   Log::Info("CPUCompiler", "Generating stream graph...");
 
@@ -201,7 +204,7 @@ void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<llvm::Module> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
+std::unique_ptr<llvm::Module> GenerateCode(Frontend::WrappedLLVMContext* ctx, ParserState* parser,
                                            StreamGraph::StreamGraph* streamgraph, bool optimize)
 {
   Log::Info("CPUCompiler", "Generating code...");
@@ -226,13 +229,13 @@ std::unique_ptr<llvm::Module> GenerateCode(WrappedLLVMContext* ctx, ParserState*
   return builder.DetachModule();
 }
 
-void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod)
+void DumpModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod)
 {
   Log::Info("CPUCompiler", "Dumping LLVM IR...");
   ctx->DumpModule(mod);
 }
 
-void WriteModule(WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename)
+void WriteModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename)
 {
   Log::Info("CPUCompiler", "Writing LLVM IR to %s...", filename);
 
@@ -242,7 +245,7 @@ void WriteModule(WrappedLLVMContext* ctx, llvm::Module* mod, const char* filenam
   os.flush();
 }
 
-bool ExecuteModule(WrappedLLVMContext* ctx, std::unique_ptr<llvm::Module> mod)
+bool ExecuteModule(Frontend::WrappedLLVMContext* ctx, std::unique_ptr<llvm::Module> mod)
 {
   Log::Info("CPUCompiler", "Executing program...");
 

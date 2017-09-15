@@ -11,8 +11,13 @@ class Module;
 class Type;
 class Value;
 }
-class Type;
+namespace AST
+{
+class TypeSpecifier;
+}
 
+namespace Frontend
+{
 class WrappedLLVMContext
 {
 public:
@@ -20,7 +25,7 @@ public:
   ~WrappedLLVMContext();
 
   llvm::LLVMContext& GetLLVMContext() { return *m_llvm_context; }
-  llvm::Type* GetLLVMType(const Type* type);
+  llvm::Type* GetLLVMType(const AST::TypeSpecifier* type_specifier);
 
   llvm::Type* GetVoidType();
   llvm::Type* GetByteType();
@@ -51,12 +56,7 @@ public:
   static std::unique_ptr<WrappedLLVMContext> Create();
 
 private:
-  llvm::Type* CreateLLVMType(const Type* type);
-
   std::unique_ptr<llvm::LLVMContext> m_llvm_context;
-
-  using TypeMap = std::unordered_map<const Type*, llvm::Type*>;
-  TypeMap m_type_map;
-
   int m_id_counter = 1;
 };
+} // namespace Frontend

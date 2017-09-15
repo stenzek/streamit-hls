@@ -2,7 +2,10 @@
 #include <vector>
 #include "llvm/IR/IRBuilder.h"
 
+namespace Frontend
+{
 class WrappedLLVMContext;
+}
 
 namespace llvm
 {
@@ -14,7 +17,7 @@ class Module;
 
 namespace CPUTarget
 {
-void BuildDebugPrint(WrappedLLVMContext* context, llvm::IRBuilder<>& builder, const char* msg);
-void BuildDebugPrintf(WrappedLLVMContext* context, llvm::IRBuilder<>& builder, const char* fmt,
+void BuildDebugPrint(Frontend::WrappedLLVMContext* context, llvm::IRBuilder<>& builder, const char* msg);
+void BuildDebugPrintf(Frontend::WrappedLLVMContext* context, llvm::IRBuilder<>& builder, const char* fmt,
                       const std::vector<llvm::Value*>& args);
 }

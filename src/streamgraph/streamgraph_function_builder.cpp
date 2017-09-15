@@ -1,8 +1,8 @@
 #include "streamgraph/streamgraph_function_builder.h"
 #include <cassert>
-#include "core/wrapped_llvm_context.h"
 #include "frontend/expression_builder.h"
 #include "frontend/statement_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
 
@@ -19,7 +19,8 @@ struct StreamGraphTargetFragmentBuilder : public Frontend::FunctionBuilder::Targ
   bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final { return false; }
 };
 
-StreamGraphFunctionBuilder::StreamGraphFunctionBuilder(WrappedLLVMContext* ctx, llvm::Module* mod, llvm::Function* func)
+StreamGraphFunctionBuilder::StreamGraphFunctionBuilder(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod,
+                                                       llvm::Function* func)
   : Frontend::FunctionBuilder(ctx, mod, new StreamGraphTargetFragmentBuilder(), func)
 {
 }

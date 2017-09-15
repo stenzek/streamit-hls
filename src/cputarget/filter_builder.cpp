@@ -1,12 +1,11 @@
 #include "cputarget/filter_builder.h"
 #include <cassert>
 #include "common/string_helpers.h"
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
 #include "cputarget/debug_print_builder.h"
 #include "frontend/constant_expression_builder.h"
 #include "frontend/function_builder.h"
 #include "frontend/state_variables_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -20,7 +19,7 @@ namespace CPUTarget
 // Dummy interface for push/pop/peek
 struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
-  FragmentBuilder(WrappedLLVMContext* context, const std::string& filter_name, llvm::Constant* peek_function,
+  FragmentBuilder(Frontend::WrappedLLVMContext* context, const std::string& filter_name, llvm::Constant* peek_function,
                   llvm::Constant* pop_function, llvm::Constant* push_function)
     : m_context(context), m_filter_name(filter_name), m_peek_function(peek_function), m_pop_function(pop_function),
       m_push_function(push_function)
@@ -63,14 +62,15 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
   }
 
 private:
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   std::string m_filter_name;
   llvm::Constant* m_peek_function;
   llvm::Constant* m_pop_function;
   llvm::Constant* m_push_function;
 };
 
-FilterBuilder::FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod) : m_context(context), m_module(mod)
+FilterBuilder::FilterBuilder(Frontend::WrappedLLVMContext* context, llvm::Module* mod)
+  : m_context(context), m_module(mod)
 {
 }
 
@@ -178,27 +178,27 @@ bool FilterBuilder::GenerateGlobals()
 bool FilterBuilder::GenerateChannelPrototypes()
 {
   // TODO: Don't generate these prototypes when the rate is zero?
-  if (!m_filter_permutation->GetInputType()->IsVoid())
+  if (!m_filter_permutation->GetInputType()->isVoidTy())
   {
     // Peek
-    llvm::Type* ret_ty = m_context->GetLLVMType(m_filter_permutation->GetInputType());
-    llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {m_context->GetIntType()}, false);
+    llvm::FunctionType* llvm_peek_fn =
+      llvm::FunctionType::get(m_filter_permutation->GetInputType(), {m_context->GetIntType()}, false);
     m_peek_function = m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_instance_name.c_str()), llvm_peek_fn);
     if (!m_peek_function)
       return false;
 
     // Pop
-    llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
+    llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(m_filter_permutation->GetInputType(), false);
     m_pop_function = m_module->getOrInsertFunction(StringFromFormat("%s_pop", m_instance_name.c_str()), llvm_pop_fn);
     if (!m_pop_function)
       return false;
   }
 
-  if (!m_filter_permutation->GetOutputType()->IsVoid())
+  if (!m_filter_permutation->GetOutputType()->isVoidTy())
   {
     // Push - this needs the name of the output filter
-    llvm::Type* param_ty = m_context->GetLLVMType(m_filter_permutation->GetOutputType());
-    llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(m_context->GetVoidType(), {param_ty}, false);
+    llvm::FunctionType* llvm_push_fn =
+      llvm::FunctionType::get(m_context->GetVoidType(), {m_filter_permutation->GetOutputType()}, false);
     m_push_function =
       m_module->getOrInsertFunction(StringFromFormat("%s_push", m_output_channel_name.c_str()), llvm_push_fn);
     if (!m_push_function)

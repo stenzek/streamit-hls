@@ -1,8 +1,6 @@
 #pragma once
 #include <unordered_map>
 
-class WrappedLLVMContext;
-
 namespace llvm
 {
 class Constant;
@@ -10,6 +8,11 @@ class Function;
 class GlobalVariable;
 class Module;
 class Type;
+}
+
+namespace Frontend
+{
+class WrappedLLVMContext;
 }
 
 namespace StreamGraph
@@ -24,10 +27,10 @@ namespace CPUTarget
 class ChannelBuilder
 {
 public:
-  ChannelBuilder(WrappedLLVMContext* context, llvm::Module* mod);
+  ChannelBuilder(Frontend::WrappedLLVMContext* context, llvm::Module* mod);
   ~ChannelBuilder();
 
-  WrappedLLVMContext* GetContext() const { return m_context; }
+  Frontend::WrappedLLVMContext* GetContext() const { return m_context; }
 
   // TODO: Enum for mode, 0=roundrobin, 1=duplicate
   bool GenerateCode(StreamGraph::Filter* filter);
@@ -47,7 +50,7 @@ private:
   bool GenerateJoinSyncFunction(StreamGraph::Join* join);
   bool GenerateJoinPushFunction(StreamGraph::Join* join);
 
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   llvm::Module* m_module;
   std::string m_instance_name;
 

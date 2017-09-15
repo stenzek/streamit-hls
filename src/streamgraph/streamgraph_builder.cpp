@@ -8,8 +8,7 @@
 #include <vector>
 #include "common/log.h"
 #include "common/string_helpers.h"
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
@@ -25,7 +24,7 @@ static std::unique_ptr<StreamGraph::BuilderState> s_builder_state;
 
 namespace StreamGraph
 {
-Builder::Builder(WrappedLLVMContext* context, ParserState* state) : m_context(context), m_parser_state(state)
+Builder::Builder(Frontend::WrappedLLVMContext* context, ParserState* state) : m_context(context), m_parser_state(state)
 {
   m_module = std::unique_ptr<llvm::Module>(m_context->CreateModule("streamgraph"));
 }
@@ -210,7 +209,8 @@ void Builder::ExecuteMain()
   s_builder_state.reset();
 }
 
-BuilderState::BuilderState(WrappedLLVMContext* context, ParserState* state) : m_context(context), m_parser_state(state)
+BuilderState::BuilderState(Frontend::WrappedLLVMContext* context, ParserState* state)
+  : m_context(context), m_parser_state(state)
 {
 }
 
@@ -219,7 +219,7 @@ void BuilderState::ExtractParameters(FilterParameters* out_params, const AST::St
 {
   for (const AST::ParameterDeclaration* param_decl : *stream_decl->GetParameters())
   {
-    const Type* ty = param_decl->GetType();
+    const AST::TypeSpecifier* ty = param_decl->GetType();
 
     // TODO: Handle array types here.
     assert(!ty->IsArrayType());
@@ -254,6 +254,9 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
   FilterParameters filter_params;
   ExtractParameters(&filter_params, decl, ap);
 
+  llvm::Type* filter_input_type = m_context->GetLLVMType(decl->GetInputType());
+  llvm::Type* filter_output_type = m_context->GetLLVMType(decl->GetOutputType());
+
   // Find a matching permutation
   // This is where we would compare parameter values
   FilterPermutation* filter_perm;
@@ -274,7 +277,8 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
   else
   {
     // Create new permutation
-    filter_perm = new FilterPermutation(decl, filter_params, peek_rate, pop_rate, push_rate);
+    filter_perm =
+      new FilterPermutation(decl, filter_params, filter_input_type, filter_output_type, peek_rate, pop_rate, push_rate);
     m_filter_permutations.push_back(filter_perm);
   }
 
@@ -389,7 +393,7 @@ void BuilderState::Error(const char* fmt, ...)
   va_end(ap);
 }
 
-std::unique_ptr<StreamGraph> BuildStreamGraph(WrappedLLVMContext* context, ParserState* parser)
+std::unique_ptr<StreamGraph> BuildStreamGraph(Frontend::WrappedLLVMContext* context, ParserState* parser)
 {
   Builder builder(context, parser);
   if (!builder.GenerateGraph() || !builder.GetStartNode())

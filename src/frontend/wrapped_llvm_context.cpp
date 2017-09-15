@@ -1,10 +1,11 @@
-#include "core/wrapped_llvm_context.h"
+#include "frontend/wrapped_llvm_context.h"
 #include <algorithm>
+#include <cassert>
 #include <cstdarg>
 #include <cstring>
 #include "common/log.h"
 #include "common/string_helpers.h"
-#include "core/type.h"
+#include "frontend/constant_expression_builder.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/IRBuilder.h"
@@ -15,24 +16,16 @@
 #include "llvm/IR/PassManager.h"
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/FormattedStream.h"
+#include "parser/ast.h"
 
+namespace Frontend
+{
 WrappedLLVMContext::WrappedLLVMContext() : m_llvm_context(std::make_unique<llvm::LLVMContext>())
 {
 }
 
 WrappedLLVMContext::~WrappedLLVMContext()
 {
-}
-
-llvm::Type* WrappedLLVMContext::GetLLVMType(const Type* type)
-{
-  auto it = m_type_map.find(type);
-  if (it != m_type_map.end())
-    return it->second;
-
-  llvm::Type* ty = CreateLLVMType(type);
-  m_type_map.emplace(type, ty);
-  return ty;
 }
 
 llvm::Type* WrappedLLVMContext::GetVoidType()
@@ -151,33 +144,33 @@ void WrappedLLVMContext::LogDebug(const char* fmt, ...)
   Log::Debug("frontend", "%s", msg.c_str());
 }
 
-llvm::Type* WrappedLLVMContext::CreateLLVMType(const Type* type)
+llvm::Type* WrappedLLVMContext::GetLLVMType(const AST::TypeSpecifier* type_specifier)
 {
   llvm::Type* llvm_ty;
-  if (type->IsPrimitiveType())
+  if (type_specifier->IsPrimitiveType())
   {
     // Resolve base type -> LLVM type
-    switch (type->GetTypeId())
+    switch (type_specifier->GetTypeId())
     {
-    case Type::TypeId::Void:
+    case AST::TypeSpecifier::TypeId::Void:
       llvm_ty = llvm::Type::getVoidTy(*m_llvm_context);
       break;
 
-    case Type::TypeId::Boolean:
-    case Type::TypeId::Bit:
+    case AST::TypeSpecifier::TypeId::Boolean:
+    case AST::TypeSpecifier::TypeId::Bit:
       llvm_ty = llvm::Type::getInt1Ty(*m_llvm_context);
       break;
 
-    case Type::TypeId::Int:
+    case AST::TypeSpecifier::TypeId::Int:
       llvm_ty = llvm::Type::getInt32Ty(*m_llvm_context);
       break;
 
-    case Type::TypeId::Float:
+    case AST::TypeSpecifier::TypeId::Float:
       llvm_ty = llvm::Type::getDoubleTy(*m_llvm_context);
       break;
 
-    case Type::TypeId::APInt:
-      llvm_ty = llvm::IntegerType::get(*m_llvm_context, static_cast<const APIntType*>(type)->GetNumBits());
+    case AST::TypeSpecifier::TypeId::APInt:
+      llvm_ty = llvm::IntegerType::get(*m_llvm_context, type_specifier->GetNumBits());
       break;
 
     default:
@@ -188,23 +181,41 @@ llvm::Type* WrappedLLVMContext::CreateLLVMType(const Type* type)
     return llvm_ty;
   }
 
-  if (type->IsStructType())
+  if (type_specifier->IsStructType())
   {
     assert(0 && "TODO Implement structs");
     return nullptr;
   }
 
-  if (type->IsArrayType())
+  if (type_specifier->IsArrayType())
   {
-    // Get base type
-    auto array_ty = static_cast<const ArrayType*>(type);
-    llvm_ty = GetLLVMType(array_ty->GetBaseType());
+    // TODO: Pass "global variable" table for identifier expression resolving
+    const AST::ArrayTypeSpecifier* array_type_specifier = static_cast<const AST::ArrayTypeSpecifier*>(type_specifier);
 
-    // Work in reverse, so int[10][5][2] would be 2 int[10][5]s, which are 5 int[10]s, which are 10 ints.
-    for (auto it = array_ty->GetArraySizes().rbegin(); it != array_ty->GetArraySizes().rend(); it++)
-      llvm_ty = llvm::ArrayType::get(llvm_ty, *it);
+    // Resolve base type.
+    llvm::Type* base_ty = GetLLVMType(array_type_specifier->GetBaseType());
 
-    return llvm_ty;
+    // Get the length of the array.
+    ConstantExpressionBuilder ceb(this);
+    if (!array_type_specifier->GetArrayDimensions()->Accept(&ceb) || !ceb.IsValid())
+    {
+      assert(0 && "failed to get constant expression for array size");
+      return nullptr;
+    }
+
+    unsigned array_length;
+    llvm::ConstantInt* CI = llvm::dyn_cast<llvm::ConstantInt>(ceb.GetResultValue());
+    if (CI && CI->getBitWidth() <= 32)
+    {
+      array_length = static_cast<unsigned>(CI->getSExtValue());
+    }
+    else
+    {
+      assert(0 && "failed to get constant expression value type for array size");
+      return nullptr;
+    }
+
+    return llvm::ArrayType::get(base_ty, array_length);
   }
 
   assert(0 && "Unknown type");
@@ -215,3 +226,4 @@ std::unique_ptr<WrappedLLVMContext> WrappedLLVMContext::Create()
 {
   return std::make_unique<WrappedLLVMContext>();
 }
+} // namespace Frontend

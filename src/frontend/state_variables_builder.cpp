@@ -1,12 +1,11 @@
 #include "frontend/state_variables_builder.h"
 #include <cassert>
-#include "core/wrapped_llvm_context.h"
 #include "frontend/constant_expression_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "parser/ast.h"
 
 namespace Frontend
 {
-
 StateVariablesBuilder::StateVariablesBuilder(WrappedLLVMContext* context_, llvm::Module* mod_,
                                              const std::string& prefix_)
   : m_context(context_), m_module(mod_), m_prefix(prefix_)
@@ -22,7 +21,7 @@ bool StateVariablesBuilder::Visit(AST::VariableDeclaration* node)
     assert(node->GetInitializer()->IsConstant());
 
     // The types should be the same..
-    assert(node->GetInitializer()->GetType() == node->GetType());
+    assert(*node->GetInitializer()->GetType() == *node->GetType());
 
     // Translate to a LLVM constant
     ConstantExpressionBuilder ceb(m_context);

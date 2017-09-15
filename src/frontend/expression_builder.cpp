@@ -1,8 +1,7 @@
 #include "frontend/expression_builder.h"
 #include <cassert>
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
 #include "frontend/function_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Module.h"
@@ -209,8 +208,8 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
   if (node->GetType()->IsInt() || node->GetType()->IsAPInt())
   {
     // TODO: Type conversion where LHS type != RHS type
-    assert(node->GetLHSExpression()->GetType() == node->GetType() &&
-           node->GetRHSExpression()->GetType() == node->GetType());
+    assert(*node->GetLHSExpression()->GetType() == *node->GetType() &&
+           *node->GetRHSExpression()->GetType() == *node->GetType());
 
     llvm::Value* lhs_val = eb_lhs.GetResultValue();
     llvm::Value* rhs_val = eb_rhs.GetResultValue();
@@ -270,8 +269,8 @@ bool ExpressionBuilder::Visit(AST::RelationalExpression* node)
   if (node->GetIntermediateType()->IsInt() || node->GetIntermediateType()->IsAPInt())
   {
     // TODO: Type conversion where LHS type != RHS type
-    assert(node->GetLHSExpression()->GetType() == node->GetIntermediateType() &&
-           node->GetRHSExpression()->GetType() == node->GetIntermediateType());
+    assert(*node->GetLHSExpression()->GetType() == *node->GetIntermediateType() &&
+           *node->GetRHSExpression()->GetType() == *node->GetIntermediateType());
 
     llvm::Value* lhs_val = eb_lhs.GetResultValue();
     llvm::Value* rhs_val = eb_rhs.GetResultValue();
@@ -378,13 +377,13 @@ bool ExpressionBuilder::Visit(AST::PopExpression* node)
 
 bool ExpressionBuilder::Visit(AST::CallExpression* node)
 {
-  const AST::FunctionReference* fref = node->GetFunctionReference();
+  const AST::FunctionDeclaration* fref = node->GetFunctionReference();
   assert(fref != nullptr);
 
   // Map types
   llvm::Type* return_type = GetContext()->GetLLVMType(fref->GetReturnType());
   std::vector<llvm::Type*> param_types;
-  for (const Type* param_ty : fref->GetParameterTypes())
+  for (const AST::TypeSpecifier* param_ty : fref->GetParameterTypes())
     param_types.push_back(GetContext()->GetLLVMType(param_ty));
 
   // Create prototype if it doesn't already exist. This may be external.

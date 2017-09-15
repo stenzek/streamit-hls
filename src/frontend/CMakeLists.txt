@@ -4,6 +4,7 @@ set(SRCS
     function_builder.cpp
     state_variables_builder.cpp
     statement_builder.cpp
+    wrapped_llvm_context.cpp
 )
 
 add_library(frontend

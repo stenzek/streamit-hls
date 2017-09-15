@@ -10,9 +10,9 @@ void->void pipeline Sender80211CPU
 	//add FileWriter<int>("output.stream");
 }
 
-void -> int8 stateful filter input
+void -> apint8 stateful filter input
 {
-    int8 last_out = 0;
+    apint8 last_out = 0;
     work push 1
     {
 //        for (int i = 0; i < 8; i++)
@@ -34,9 +34,9 @@ int -> void filter output
 	}
 }
 
-int8 -> int8 stateful filter scramble
+apint8 -> apint8 stateful filter scramble
 {
-	int8[7] shift = {1, 1, 0, 1, 1, 0, 0};
+	apint8[7] shift = {1, 1, 0, 1, 1, 0, 0};
 
 	work pop 1 push 8
 	{
@@ -56,9 +56,9 @@ int8 -> int8 stateful filter scramble
 	}
 }
 		
-int8 -> int8 stateful filter diff_encode
+apint8 -> apint8 stateful filter diff_encode
 {
-	int8 last_out = 0;
+	apint8 last_out = 0;
 
 	work push 1 pop 1
 	{
@@ -67,7 +67,7 @@ int8 -> int8 stateful filter diff_encode
 	}
 }
 
-int8 -> int filter chunk2symbol
+apint8 -> int filter chunk2symbol
 {
 	int[2] bpsk_mod = {741343, -741343};
 	//int counter = 0;

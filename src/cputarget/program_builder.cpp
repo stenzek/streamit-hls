@@ -3,11 +3,10 @@
 #include <vector>
 #include "common/log.h"
 #include "common/string_helpers.h"
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
 #include "cputarget/channel_builder.h"
 #include "cputarget/debug_print_builder.h"
 #include "cputarget/filter_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -22,7 +21,7 @@ Log_SetChannel(CPUTarget::ProgramBuilder);
 
 namespace CPUTarget
 {
-ProgramBuilder::ProgramBuilder(WrappedLLVMContext* context, const std::string& module_name)
+ProgramBuilder::ProgramBuilder(Frontend::WrappedLLVMContext* context, const std::string& module_name)
   : m_context(context), m_module_name(module_name)
 {
 }
@@ -92,7 +91,10 @@ void ProgramBuilder::OptimizeModule()
 class CodeGeneratorVisitor : public StreamGraph::Visitor
 {
 public:
-  CodeGeneratorVisitor(WrappedLLVMContext* context, llvm::Module* module) : m_context(context), m_module(module) {}
+  CodeGeneratorVisitor(Frontend::WrappedLLVMContext* context, llvm::Module* module)
+    : m_context(context), m_module(module)
+  {
+  }
 
   virtual bool Visit(StreamGraph::Filter* node) override;
   virtual bool Visit(StreamGraph::Pipeline* node) override;
@@ -101,7 +103,7 @@ public:
   virtual bool Visit(StreamGraph::Join* node) override;
 
 private:
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   llvm::Module* m_module;
 };
 

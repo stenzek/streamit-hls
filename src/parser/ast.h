@@ -7,13 +7,13 @@
 class ASTPrinter;
 class CodeGenerator;
 class ParserState;
-class Type;
 
 namespace AST
 {
 class Visitor;
 class Node;
 class NodeList;
+class TypeSpecifier;
 class Statement;
 class Declaration;
 class Expression;
@@ -31,6 +31,7 @@ class VariableDeclaration;
 class ExpressionStatement;
 
 using LexicalScope = SymbolTable<std::string, AST::Node>;
+using ExpressionList = std::vector<Expression*>;
 
 struct SourceLocation
 {
@@ -111,20 +112,108 @@ private:
   ListType m_nodes;
 };
 
+class TypeSpecifier : public Node
+{
+public:
+  enum class TypeId
+  {
+    Error,
+    Void,
+    Boolean,
+    Bit,
+    Int,
+    Float,
+    APInt,
+    Array,
+    Struct
+  };
+
+public:
+  TypeSpecifier(TypeId tid, const std::string& name, TypeSpecifier* base_type, unsigned num_bits);
+  virtual ~TypeSpecifier() = default;
+
+  TypeId GetTypeId() const { return m_type_id; }
+  const std::string& GetName() const { return m_name; }
+  const TypeSpecifier* GetBaseType() const { return m_base_type; }
+  unsigned GetNumBits() const { return m_num_bits; }
+
+  // Helper methods
+  bool IsPrimitiveType() const { return (m_type_id >= TypeId::Void && m_type_id <= TypeId::APInt); }
+  bool IsErrorType() const { return (m_type_id == TypeId::Error); }
+  bool IsArrayType() const { return (m_type_id == TypeId::Array); }
+  bool IsStructType() const { return (m_type_id == TypeId::Struct); }
+  bool HasBooleanBase() const
+  {
+    return (m_type_id == TypeId::Boolean || (m_base_type && m_base_type->HasBooleanBase()));
+  }
+  bool HasBitBase() const { return (m_type_id == TypeId::Bit || (m_base_type && m_base_type->HasBitBase())); }
+  bool HasIntBase() const { return (m_type_id == TypeId::Int || (m_base_type && m_base_type->HasIntBase())); }
+  bool HasFloatBase() const { return (m_type_id == TypeId::Float || (m_base_type && m_base_type->HasFloatBase())); }
+  bool IsVoid() const { return (m_type_id == TypeId::Void); }
+  bool IsBoolean() const { return (m_type_id == TypeId::Boolean); }
+  bool IsBit() const { return (m_type_id == TypeId::Bit); }
+  bool IsInt() const { return (m_type_id == TypeId::Int); }
+  bool IsFloat() const { return (m_type_id == TypeId::Float); }
+  bool IsAPInt() const { return (m_type_id == TypeId::APInt); }
+
+  // Validity -> error
+  bool IsValid() const { return !IsErrorType(); }
+
+  // Clones this type
+  virtual TypeSpecifier* Clone() const;
+
+  // Inherited methods
+  virtual void Dump(ASTPrinter* printer) const override;
+  virtual bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  virtual bool Accept(Visitor* visitor) override;
+
+  // equality operators
+  virtual bool operator==(const TypeSpecifier& rhs) const;
+  bool operator!=(const TypeSpecifier& rhs) const;
+
+protected:
+  TypeId m_type_id;
+  std::string m_name;
+  TypeSpecifier* m_base_type;
+  unsigned m_num_bits;
+};
+
+class ArrayTypeSpecifier : public TypeSpecifier
+{
+public:
+  ArrayTypeSpecifier(const std::string& name, TypeSpecifier* base_type, Expression* dimensions);
+  virtual ~ArrayTypeSpecifier() = default;
+
+  Expression* GetArrayDimensions() const { return m_array_dimensions; }
+
+  // Inherited methods
+  virtual void Dump(ASTPrinter* printer) const override;
+  virtual bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  virtual bool Accept(Visitor* visitor) override;
+
+  // Clones this type
+  virtual TypeSpecifier* Clone() const override;
+
+  virtual bool operator==(const TypeSpecifier& rhs) const;
+
+private:
+  Expression* m_array_dimensions;
+};
+
 class Declaration : public Node
 {
 public:
-  Declaration(const SourceLocation& sloc, const std::string& name, bool constant);
+  Declaration(const SourceLocation& sloc, TypeSpecifier* type, const std::string& name, bool constant);
   virtual ~Declaration() = default;
 
   const SourceLocation& GetSourceLocation() const { return m_sloc; }
-  const Type* GetType() const { return m_type; }
+  const TypeSpecifier* GetType() const { return m_type; }
   const std::string& GetName() const { return m_name; }
   bool IsConstant() const { return m_constant; }
 
 protected:
   SourceLocation m_sloc;
-  const Type* m_type = nullptr;
+  TypeSpecifier* m_type;
   std::string m_name;
   bool m_constant;
 };
@@ -153,116 +242,46 @@ public:
   virtual bool GetConstantBool() const;
   virtual int GetConstantInt() const;
   virtual float GetConstantFloat() const;
-  const Type* GetType() const;
+  const TypeSpecifier* GetType() const;
 
 protected:
   SourceLocation m_sloc;
-  const Type* m_type = nullptr;
-};
-
-// References are placed in the symbol table to resolve names -> type pointers
-class TypeReference : public Node
-{
-public:
-  TypeReference(const std::string& name, const Type* type);
-  ~TypeReference() = default;
-
-  const std::string& GetName() const { return m_name; }
-  const Type* GetType() const { return m_type; }
-
-  void Dump(ASTPrinter* printer) const override {}
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override { return true; }
-  bool Accept(Visitor* visitor) override { return false; }
-
-private:
-  std::string m_name;
-  const Type* m_type;
-};
-
-class TypeName : public Node
-{
-public:
-  TypeName(const SourceLocation& sloc);
-  TypeName(const Type* from_type);
-  ~TypeName() = default;
-
-  const std::string& GetBaseTypeName() const { return m_base_type_name; }
-  const std::vector<Expression*>& GetArraySizes() const { return m_array_sizes; }
-  const Type* GetFinalType() const { return m_final_type; }
-
-  void SetBaseTypeName(const char* name) { m_base_type_name = name; }
-  void AddArraySize(Expression* size_expr) { m_array_sizes.push_back(size_expr); }
-
-  void Merge(ParserState* state, TypeName* rhs);
-
-  void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
-  bool Accept(Visitor* visitor) override;
-
-private:
-  SourceLocation m_sloc;
-  std::string m_base_type_name;
-  std::vector<Expression*> m_array_sizes;
-  const Type* m_final_type = nullptr;
-};
-
-class StructSpecifier : public Node
-{
-public:
-  StructSpecifier(const SourceLocation& sloc, const char* name);
-  ~StructSpecifier() = default;
-
-  const std::string& GetName() const;
-  const std::vector<std::pair<std::string, TypeName*>>& GetFields() const;
-
-  void AddField(const char* name, TypeName* specifier);
-
-  void Dump(ASTPrinter* printer) const override;
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
-  bool Accept(Visitor* visitor) override;
-
-private:
-  SourceLocation m_sloc;
-  std::string m_name;
-  std::vector<std::pair<std::string, TypeName*>> m_fields;
-  const Type* m_final_type = nullptr;
+  const TypeSpecifier* m_type = nullptr;
 };
 
 class ParameterDeclaration : public Declaration
 {
 public:
-  ParameterDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const std::string& name);
+  ParameterDeclaration(const SourceLocation& sloc, TypeSpecifier* type_specifier, const std::string& name);
   ~ParameterDeclaration() = default;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
-
-private:
-  TypeName* m_type_specifier;
 };
 using ParameterDeclarationList = std::vector<ParameterDeclaration*>;
 
 class StreamDeclaration : public Node
 {
 public:
-  StreamDeclaration(const SourceLocation& sloc, const char* name, ParameterDeclarationList* params);
+  StreamDeclaration(const SourceLocation& sloc, TypeSpecifier* input_type_specifier,
+                    TypeSpecifier* output_type_specifier, const char* name, ParameterDeclarationList* params);
   ~StreamDeclaration() = default;
 
-  const Type* GetInputType() const { return m_input_type; }
-  const Type* GetOutputType() const { return m_output_type; }
+  const TypeSpecifier* GetInputType() const { return m_input_type; }
+  const TypeSpecifier* GetOutputType() const { return m_output_type; }
+  ParameterDeclarationList* GetParameters() const { return m_parameters; }
 
   const SourceLocation& GetSourceLocation() const { return m_sloc; }
   const std::string& GetName() const { return m_name; }
 
-  ParameterDeclarationList* GetParameters() const { return m_parameters; }
-
 protected:
   SourceLocation m_sloc;
-  std::string m_name;
 
-  const Type* m_input_type = nullptr;
-  const Type* m_output_type = nullptr;
+  TypeSpecifier* m_input_type = nullptr;
+  TypeSpecifier* m_output_type = nullptr;
+
+  std::string m_name;
 
   ParameterDeclarationList* m_parameters;
 };
@@ -270,8 +289,9 @@ protected:
 class PipelineDeclaration : public StreamDeclaration
 {
 public:
-  PipelineDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
-                      const char* name, ParameterDeclarationList* params, NodeList* statements);
+  PipelineDeclaration(const SourceLocation& sloc, TypeSpecifier* input_type_specifier,
+                      TypeSpecifier* output_type_specifier, const char* name, ParameterDeclarationList* params,
+                      NodeList* statements);
   ~PipelineDeclaration() override;
 
   void Dump(ASTPrinter* printer) const override;
@@ -281,18 +301,15 @@ public:
   NodeList* GetStatements() const { return m_statements; }
 
 private:
-  TypeName* m_input_type_specifier;
-  TypeName* m_output_type_specifier;
-  const Type* m_input_type = nullptr;
-  const Type* m_output_type = nullptr;
   NodeList* m_statements;
 };
 
 class SplitJoinDeclaration : public StreamDeclaration
 {
 public:
-  SplitJoinDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
-                       const char* name, ParameterDeclarationList* params, NodeList* statements);
+  SplitJoinDeclaration(const SourceLocation& sloc, TypeSpecifier* input_type_specifier,
+                       TypeSpecifier* output_type_specifier, const char* name, ParameterDeclarationList* params,
+                       NodeList* statements);
   ~SplitJoinDeclaration() override;
 
   void Dump(ASTPrinter* printer) const override;
@@ -302,17 +319,16 @@ public:
   NodeList* GetStatements() const { return m_statements; }
 
 private:
-  TypeName* m_input_type_specifier;
-  TypeName* m_output_type_specifier;
   NodeList* m_statements;
 };
 
 class FilterDeclaration : public StreamDeclaration
 {
 public:
-  FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier, TypeName* output_type_specifier,
-                    const char* name, ParameterDeclarationList* params, NodeList* vars, FilterWorkBlock* init,
-                    FilterWorkBlock* prework, FilterWorkBlock* work, bool stateful);
+  FilterDeclaration(const SourceLocation& sloc, TypeSpecifier* input_type_specifier,
+                    TypeSpecifier* output_type_specifier, const char* name, ParameterDeclarationList* params,
+                    NodeList* vars, FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work,
+                    bool stateful);
   ~FilterDeclaration() = default;
 
   // TODO: Const here, but this is a larger change (e.g. visitor impact)
@@ -337,8 +353,6 @@ private:
   // Moves non-constant state initializers to the init function
   void MoveStateAssignmentsToInit();
 
-  TypeName* m_input_type_specifier;
-  TypeName* m_output_type_specifier;
   NodeList* m_vars;
   FilterWorkBlock* m_init;
   FilterWorkBlock* m_prework;
@@ -384,16 +398,17 @@ private:
 };
 
 // Function references map names -> types
-class FunctionReference : public Node
+class FunctionDeclaration : public Declaration
 {
 public:
-  FunctionReference(const std::string& name, const Type* return_type, const std::vector<const Type*>& param_types,
-                    bool builtin);
-  ~FunctionReference() = default;
+  FunctionDeclaration(const std::string& name, TypeSpecifier* return_type,
+                      const std::vector<TypeSpecifier*>& param_types);
+  // FunctionDeclaration(const SourceLocation& sloc, const std::string& name, TypeSpecifier* return_type, NodeList*
+  // params, NodeList* body);
+  ~FunctionDeclaration() = default;
 
-  const std::string& GetName() const { return m_name; }
-  const Type* GetReturnType() const { return m_return_type; }
-  const std::vector<const Type*>& GetParameterTypes() const { return m_param_types; }
+  TypeSpecifier* GetReturnType() const { return m_return_type; }
+  const std::vector<TypeSpecifier*>& GetParameterTypes() const { return m_param_types; }
 
   // Turns println(int) into println___int.
   const std::string& GetSymbolName() const { return m_symbol_name; }
@@ -401,33 +416,17 @@ public:
   // Adds streamit_ prefix to builtin symbols.
   std::string GetExecutableSymbolName() const;
 
-  void Dump(ASTPrinter* printer) const override {}
-  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override { return true; }
-  bool Accept(Visitor* visitor) override { return false; }
-
-private:
-  std::string m_name;
-  std::string m_symbol_name;
-  const Type* m_function_type;
-  const Type* m_return_type;
-  std::vector<const Type*> m_param_types;
-  bool m_builtin;
-};
-
-class FunctionDeclaration : public Declaration
-{
-public:
-  FunctionDeclaration(const SourceLocation& sloc, const char* name, TypeName* return_type, NodeList* params,
-                      NodeList* body);
-  ~FunctionDeclaration() = default;
+  // Builtin function?
+  bool IsBuiltin() const { return (m_body == nullptr); }
 
   void Dump(ASTPrinter* printer) const;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table);
   bool Accept(Visitor* visitor);
 
 private:
-  TypeName* m_return_type_specifier;
-  const Type* m_final_return_type;
+  std::string m_symbol_name;
+  TypeSpecifier* m_return_type;
+  std::vector<TypeSpecifier*> m_param_types;
   NodeList* m_params;
   NodeList* m_body;
 };
@@ -595,13 +594,13 @@ public:
 
   Expression* GetLHSExpression() const;
   Expression* GetRHSExpression() const;
-  const Type* GetIntermediateType() const;
+  const TypeSpecifier* GetIntermediateType() const;
   Operator GetOperator() const;
 
 private:
   Expression* m_lhs;
   Expression* m_rhs;
-  const Type* m_intermediate_type;
+  TypeSpecifier* m_intermediate_type;
   Operator m_op;
 };
 
@@ -724,29 +723,30 @@ public:
   const NodeList* GetArgList() const { return m_args; }
   bool HasArgs() const { return (m_args != nullptr); }
 
-  const FunctionReference* GetFunctionReference() const { return m_function_ref; }
+  const FunctionDeclaration* GetFunctionReference() const { return m_function_ref; }
 
 private:
   std::string m_function_name;
   NodeList* m_args;
 
-  const FunctionReference* m_function_ref = nullptr;
+  const FunctionDeclaration* m_function_ref = nullptr;
 };
 
 class CastExpression : public Expression
 {
 public:
-  CastExpression(const SourceLocation& sloc, TypeName* to_type, Expression* expr);
+  CastExpression(const SourceLocation& sloc, TypeSpecifier* to_type, Expression* expr);
   ~CastExpression() = default;
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
+  const TypeSpecifier* GetToType() const { return m_to_type; }
   const Expression* GetExpression() const { return m_expr; }
 
 private:
-  TypeName* m_to_type_name;
+  TypeSpecifier* m_to_type;
   Expression* m_expr;
 };
 
@@ -863,7 +863,8 @@ using InitDeclaratorList = std::vector<InitDeclarator>;
 class VariableDeclaration final : public Declaration
 {
 public:
-  VariableDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const char* name, Expression* initializer);
+  VariableDeclaration(const SourceLocation& sloc, TypeSpecifier* type_specifier, const char* name,
+                      Expression* initializer);
   ~VariableDeclaration() override final = default;
 
   void Dump(ASTPrinter* printer) const override;
@@ -874,11 +875,9 @@ public:
   Expression* GetInitializer() const { return m_initializer; }
   void RemoveInitializer() { m_initializer = nullptr; }
 
-  static Node* CreateDeclarations(TypeName* type_specifier, const InitDeclaratorList* declarator_list);
+  static Node* CreateDeclarations(TypeSpecifier* type_specifier, const InitDeclaratorList* declarator_list);
 
 private:
-  TypeName* m_type_specifier;
-
   Expression* m_initializer;
 };
 

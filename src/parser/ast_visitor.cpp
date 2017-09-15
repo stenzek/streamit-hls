@@ -184,19 +184,14 @@ bool Visitor::Visit(Statement* node)
   return Visit(static_cast<Node*>(node));
 }
 
-bool Visitor::Visit(TypeReference* node)
+bool Visitor::Visit(TypeSpecifier* node)
 {
   return Visit(static_cast<Node*>(node));
 }
 
-bool Visitor::Visit(TypeName* node)
+bool Visitor::Visit(ArrayTypeSpecifier* node)
 {
-  return Visit(static_cast<Node*>(node));
-}
-
-bool Visitor::Visit(StructSpecifier* node)
-{
-  return Visit(static_cast<Node*>(node));
+  return Visit(static_cast<TypeSpecifier*>(node));
 }
 
 bool Visitor::Visit(Node* node)
@@ -215,12 +210,12 @@ bool NodeList::Accept(Visitor* visitor)
   return true;
 }
 
-bool TypeName::Accept(Visitor* visitor)
+bool TypeSpecifier::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }
 
-bool StructSpecifier::Accept(Visitor* visitor)
+bool ArrayTypeSpecifier::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

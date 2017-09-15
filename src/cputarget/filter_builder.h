@@ -1,8 +1,6 @@
 #pragma once
 #include <unordered_map>
 
-class WrappedLLVMContext;
-
 namespace llvm
 {
 class Constant;
@@ -19,6 +17,11 @@ class FilterWorkBlock;
 class VariableDeclaration;
 }
 
+namespace Frontend
+{
+class WrappedLLVMContext;
+}
+
 namespace StreamGraph
 {
 class FilterPermutation;
@@ -30,10 +33,10 @@ namespace CPUTarget
 class FilterBuilder
 {
 public:
-  FilterBuilder(WrappedLLVMContext* context, llvm::Module* mod);
+  FilterBuilder(Frontend::WrappedLLVMContext* context, llvm::Module* mod);
   ~FilterBuilder();
 
-  WrappedLLVMContext* GetContext() const { return m_context; }
+  Frontend::WrappedLLVMContext* GetContext() const { return m_context; }
   const AST::FilterDeclaration* GetFilterDeclaration() const { return m_filter_decl; }
   const std::string& GetNamePrefix() const { return m_instance_name; }
   llvm::Function* GetInitFunction() const { return m_init_function; }
@@ -50,7 +53,7 @@ private:
   bool GenerateGlobals();
   bool GenerateChannelPrototypes();
 
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   llvm::Module* m_module;
   const StreamGraph::FilterPermutation* m_filter_permutation = nullptr;
   const AST::FilterDeclaration* m_filter_decl = nullptr;

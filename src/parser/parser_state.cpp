@@ -171,68 +171,98 @@ bool ParserState::HasActiveStream(AST::Node* stream)
                      [stream](AST::Node* s) { return (stream == s); });
 }
 
-const Type* ParserState::AddType(const std::string& name, const Type* type)
+bool ParserState::AddType(const std::string& name, AST::TypeSpecifier* type)
 {
-  assert(m_types.find(name) == m_types.end());
+  if (m_types.find(name) != m_types.end())
+    return false;
+
   m_types.emplace(name, type);
-  return type;
+  return true;
 }
 
-const Type* ParserState::GetType(const std::string& name)
+AST::TypeSpecifier* ParserState::GetType(const char* name)
 {
   auto it = m_types.find(name);
   return (it != m_types.end()) ? it->second : nullptr;
 }
 
-const Type* ParserState::GetArrayType(const Type* base_type, const std::vector<int>& array_sizes)
+AST::TypeSpecifier* ParserState::GetErrorType() const
 {
-  auto it = std::find_if(m_array_types.begin(), m_array_types.end(), [base_type, &array_sizes](const auto& ty) {
-    return (ty.first.first == base_type && ty.first.second == array_sizes);
-  });
-  if (it != m_array_types.end())
-    return it->second;
-
-  Type* ty = ArrayType::Create(base_type, array_sizes);
-  m_array_types.emplace_back(std::make_pair(base_type, array_sizes), ty);
-  return ty;
+  // return m_error_type;
+  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Error, "error", nullptr, 0);
 }
+
+AST::TypeSpecifier* ParserState::GetVoidType() const
+{
+  // return m_void_type;
+  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Void, "void", nullptr, 0);
+}
+
+AST::TypeSpecifier* ParserState::GetBooleanType() const
+{
+  // return m_boolean_type;
+  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Boolean, "boolean", nullptr, 1);
+}
+
+AST::TypeSpecifier* ParserState::GetBitType() const
+{
+  // return m_bit_type;
+  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Float, "bit", nullptr, 1);
+}
+
+AST::TypeSpecifier* ParserState::GetIntType() const
+{
+  // return m_int_type;
+  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Int, "int", nullptr, 32);
+}
+
+AST::TypeSpecifier* ParserState::GetFloatType() const
+{
+  // return m_float_type;
+  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Float, "float", nullptr, 32);
+}
+
+// const AST::TypeSpecifier* ParserState::GetArrayType(const AST::TypeSpecifier* base_type, const
+// std::vector<AST::Expression *>& array_sizes)
+// {
+//   auto it = std::find_if(m_array_types.begin(), m_array_types.end(), [base_type, &array_sizes](const auto& ty) {
+//     return (ty.first.first == base_type && ty.first.second == array_sizes);
+//   });
+//   if (it != m_array_types.end())
+//     return it->second;
+//
+//   Type* ty = ArrayType::Create(base_type, array_sizes);
+//   m_array_types.emplace_back(std::make_pair(base_type, array_sizes), ty);
+//   return ty;
+// }
 
 void ParserState::CreateBuiltinTypes()
 {
-  auto MakeType = [this](Type::TypeId base_type_id) {
-    Type* out_ref = Type::CreatePrimitive(base_type_id);
-    m_global_lexical_scope->AddName(out_ref->GetName(), new AST::TypeReference(out_ref->GetName(), out_ref));
-    m_types.emplace(out_ref->GetName(), out_ref);
-    return out_ref;
-  };
-
-  m_void_type = MakeType(Type::TypeId::Void);
-  m_boolean_type = MakeType(Type::TypeId::Boolean);
-  m_bit_type = MakeType(Type::TypeId::Bit);
-  m_int_type = MakeType(Type::TypeId::Int);
-  m_float_type = MakeType(Type::TypeId::Float);
-
-  // Error type doesn't get added to the symbol table
-  m_error_type = Type::CreatePrimitive(Type::TypeId::Error);
-
-  // Arbitrary precision types
-  for (unsigned num_bits = 1; num_bits <= 32; num_bits++)
-  {
-    Type* ty = APIntType::Create(num_bits);
-    m_global_lexical_scope->AddName(ty->GetName(), new AST::TypeReference(ty->GetName(), ty));
-    m_types.emplace(ty->GetName(), ty);
-  }
+  //   auto MakeType = [this](AST::TypeSpecifier::TypeId base_type_id, const char* name, unsigned num_bits) {
+  //     AST::TypeSpecifier* out_ref = new AST::TypeSpecifier(base_type_id, name, nullptr, num_bits);
+  //     m_types.emplace(out_ref->GetName(), out_ref);
+  //     return out_ref;
+  //   };
+  //
+  //   m_void_type = MakeType(AST::TypeSpecifier::TypeId::Void, "void", 0);
+  //   m_boolean_type = MakeType(AST::TypeSpecifier::TypeId::Boolean, "boolean", 1);
+  //   m_bit_type = MakeType(AST::TypeSpecifier::TypeId::Bit, "bit", 1);
+  //   m_int_type = MakeType(AST::TypeSpecifier::TypeId::Int, "int", 32);
+  //   m_float_type = MakeType(AST::TypeSpecifier::TypeId::Float, "float", 32);
+  //
+  //   // Error type doesn't get added to the symbol table
+  //   m_error_type = new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Error, "error", nullptr, 0);
 }
 
 void ParserState::CreateBuiltinFunctions()
 {
-  auto MakeExternalFunction = [this](const char* name, const Type* return_type,
-                                     const std::vector<const Type*>& arg_types) {
-    AST::FunctionReference* fref = new AST::FunctionReference(name, return_type, arg_types, true);
+  auto MakeExternalFunction = [this](const char* name, AST::TypeSpecifier* return_type,
+                                     const std::vector<AST::TypeSpecifier*>& arg_types) {
+    AST::FunctionDeclaration* fref = new AST::FunctionDeclaration(name, return_type, arg_types);
     m_global_lexical_scope->AddName(fref->GetSymbolName(), fref);
   };
 
-  MakeExternalFunction("println", m_void_type, {m_int_type});
+  MakeExternalFunction("println", GetVoidType(), {GetIntType()});
 }
 
 bool ParserState::SemanticAnalysis()
@@ -324,32 +354,30 @@ void ParserState::DumpAST()
   LogInfo("Entry point: %s", m_entry_point_name.c_str());
 }
 
-const Type* ParserState::GetResultType(const Type* lhs, const Type* rhs)
+bool ParserState::CanImplicitlyConvertTo(const AST::TypeSpecifier* from_type, const AST::TypeSpecifier* to_type) const
+{
+  // Same type, no conversion needed.
+  if (*from_type == *to_type)
+  {
+    // Except error->error, just fail early here
+    return from_type->IsValid();
+  }
+
+  // int->float, int->bit can convert implicitly
+  return (from_type->IsInt() && (to_type->IsFloat() || to_type->IsBit()));
+}
+
+AST::TypeSpecifier* ParserState::GetResultType(const AST::TypeSpecifier* lhs, const AST::TypeSpecifier* rhs)
 {
   // same type -> same type
-  if (lhs == rhs)
-    return lhs;
+  if (*lhs == *rhs)
+    return const_cast<AST::TypeSpecifier*>(lhs);
 
   // int + float -> float
   if ((lhs->IsInt() || rhs->IsInt()) && (lhs->IsFloat() || rhs->IsFloat()))
     return GetFloatType();
 
   return GetErrorType();
-}
-
-const Type* ParserState::GetArrayElementType(const ArrayType* ty)
-{
-  if (ty->GetArraySizes().empty())
-    return GetErrorType();
-
-  // Last array index, or single-dimension array
-  if (ty->GetArraySizes().size() == 1)
-    return ty->GetBaseType();
-
-  // Drop one of the arrays off, so int[10][11][12] -> int[10][11].
-  std::vector<int> temp = ty->GetArraySizes();
-  temp.pop_back();
-  return GetArrayType(ty->GetBaseType(), temp);
 }
 
 void yyerror(ParserState* state, const char* s)

@@ -1,7 +1,6 @@
 #include "frontend/constant_expression_builder.h"
 #include <cassert>
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constants.h"
 #include "parser/ast.h"

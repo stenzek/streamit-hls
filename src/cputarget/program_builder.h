@@ -2,14 +2,17 @@
 #include <cstddef>
 #include <memory>
 
-class WrappedLLVMContext;
-
 namespace llvm
 {
 class BasicBlock;
 class Constant;
 class Function;
 class Module;
+}
+
+namespace Frontend
+{
+class WrappedLLVMContext;
 }
 
 namespace StreamGraph
@@ -23,10 +26,10 @@ namespace CPUTarget
 class ProgramBuilder
 {
 public:
-  ProgramBuilder(WrappedLLVMContext* context, const std::string& module_name);
+  ProgramBuilder(Frontend::WrappedLLVMContext* context, const std::string& module_name);
   ~ProgramBuilder();
 
-  WrappedLLVMContext* GetContext() const { return m_context; }
+  Frontend::WrappedLLVMContext* GetContext() const { return m_context; }
   const std::string& GetModuleName() const { return m_module_name; }
   llvm::Module* GetModule() const { return m_module; }
 
@@ -50,7 +53,7 @@ private:
   llvm::BasicBlock* GenerateFunctionCalls(llvm::Function* func, llvm::BasicBlock* entry_bb,
                                           llvm::BasicBlock* current_bb, llvm::Constant* call_func, size_t count);
 
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   std::string m_module_name;
   llvm::Module* m_module = nullptr;
 };

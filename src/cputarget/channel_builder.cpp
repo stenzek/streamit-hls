@@ -3,8 +3,7 @@
 #include <vector>
 #include "common/log.h"
 #include "common/string_helpers.h"
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -18,7 +17,8 @@ namespace CPUTarget
 {
 constexpr unsigned int FIFO_QUEUE_SIZE = 64;
 
-ChannelBuilder::ChannelBuilder(WrappedLLVMContext* context, llvm::Module* mod) : m_context(context), m_module(mod)
+ChannelBuilder::ChannelBuilder(Frontend::WrappedLLVMContext* context, llvm::Module* mod)
+  : m_context(context), m_module(mod)
 {
 }
 
@@ -29,7 +29,7 @@ ChannelBuilder::~ChannelBuilder()
 bool ChannelBuilder::GenerateCode(StreamGraph::Filter* filter)
 {
   m_instance_name = filter->GetName();
-  if (filter->GetInputType()->IsVoid())
+  if (filter->GetInputType()->isVoidTy())
     return true;
 
   return (GenerateFilterGlobals(filter) && GenerateFilterPeekFunction(filter) && GenerateFilterPopFunction(filter) &&
@@ -50,8 +50,6 @@ bool ChannelBuilder::GenerateCode(StreamGraph::Join* join)
 
 bool ChannelBuilder::GenerateFilterGlobals(StreamGraph::Filter* filter)
 {
-  llvm::Type* data_ty = m_context->GetLLVMType(filter->GetInputType());
-
   // Create struct type
   //
   // data_type data[FIFO_QUEUE_SIZE]
@@ -59,7 +57,7 @@ bool ChannelBuilder::GenerateFilterGlobals(StreamGraph::Filter* filter)
   // int tail
   // int size
   //
-  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(data_ty, FIFO_QUEUE_SIZE);
+  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(filter->GetInputType(), FIFO_QUEUE_SIZE);
   m_input_buffer_type =
     llvm::StructType::create(StringFromFormat("%s_buf_type", m_instance_name.c_str()), data_array_ty,
                              m_context->GetIntType(), m_context->GetIntType(), m_context->GetIntType(), nullptr);
@@ -77,8 +75,7 @@ bool ChannelBuilder::GenerateFilterGlobals(StreamGraph::Filter* filter)
 
 bool ChannelBuilder::GenerateFilterPeekFunction(StreamGraph::Filter* filter)
 {
-  llvm::Type* ret_ty = m_context->GetLLVMType(filter->GetInputType());
-  llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(ret_ty, {m_context->GetIntType()}, false);
+  llvm::FunctionType* llvm_peek_fn = llvm::FunctionType::get(filter->GetInputType(), {m_context->GetIntType()}, false);
   llvm::Constant* func_cons =
     m_module->getOrInsertFunction(StringFromFormat("%s_peek", m_instance_name.c_str()), llvm_peek_fn);
   if (!func_cons)
@@ -119,8 +116,7 @@ bool ChannelBuilder::GenerateFilterPeekFunction(StreamGraph::Filter* filter)
 
 bool ChannelBuilder::GenerateFilterPopFunction(StreamGraph::Filter* filter)
 {
-  llvm::Type* ret_ty = m_context->GetLLVMType(filter->GetInputType());
-  llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(ret_ty, false);
+  llvm::FunctionType* llvm_pop_fn = llvm::FunctionType::get(filter->GetInputType(), false);
   llvm::Constant* func_cons =
     m_module->getOrInsertFunction(StringFromFormat("%s_pop", m_instance_name.c_str()), llvm_pop_fn);
   if (!func_cons)
@@ -170,8 +166,7 @@ bool ChannelBuilder::GenerateFilterPopFunction(StreamGraph::Filter* filter)
 
 bool ChannelBuilder::GenerateFilterPushFunction(StreamGraph::Filter* filter)
 {
-  llvm::Type* param_ty = m_context->GetLLVMType(filter->GetInputType());
-  llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(m_context->GetVoidType(), {param_ty}, false);
+  llvm::FunctionType* llvm_push_fn = llvm::FunctionType::get(m_context->GetVoidType(), {filter->GetInputType()}, false);
   llvm::Constant* func_cons =
     m_module->getOrInsertFunction(StringFromFormat("%s_push", m_instance_name.c_str()), llvm_push_fn);
   if (!func_cons)
@@ -250,14 +245,13 @@ bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split, int mo
   //
 
   assert(split->GetInputType() == split->GetOutputType());
-  llvm::Type* data_ty = m_context->GetLLVMType(split->GetOutputType());
 
   // Get output function prototypes
   std::vector<llvm::Constant*> output_functions;
   for (const std::string& output_name : split->GetOutputChannelNames())
   {
     llvm::Constant* func = m_module->getOrInsertFunction(StringFromFormat("%s_push", output_name.c_str()),
-                                                         m_context->GetVoidType(), data_ty, nullptr);
+                                                         m_context->GetVoidType(), split->GetOutputType(), nullptr);
     if (!func)
     {
       Log::Error("ChannelBuilder", "Failed to get function pointer '%s_push'", output_name.c_str());
@@ -269,7 +263,7 @@ bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split, int mo
 
   // Create split push function
   llvm::Constant* func_cons = m_module->getOrInsertFunction(StringFromFormat("%s_push", m_instance_name.c_str()),
-                                                            m_context->GetVoidType(), data_ty, nullptr);
+                                                            m_context->GetVoidType(), split->GetOutputType(), nullptr);
   if (!func_cons)
     return false;
   llvm::Function* func = llvm::cast<llvm::Function>(func_cons);
@@ -314,8 +308,7 @@ bool ChannelBuilder::GenerateJoinGlobals(StreamGraph::Join* join)
   //    data_type buf[num_inputs][FIFO_QUEUE_SIZE]
 
   assert(join->GetInputType() == join->GetInputType());
-  llvm::Type* data_ty = m_context->GetLLVMType(join->GetInputType());
-  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(data_ty, FIFO_QUEUE_SIZE);
+  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(join->GetInputType(), FIFO_QUEUE_SIZE);
   llvm::ArrayType* buf_array_ty = llvm::ArrayType::get(data_array_ty, num_inputs);
   llvm::ArrayType* int_array_ty = llvm::ArrayType::get(m_context->GetIntType(), num_inputs);
   m_input_buffer_type =
@@ -340,9 +333,9 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
   u32 num_inputs = join->GetIncomingStreams();
   assert(num_inputs > 0);
 
-  llvm::Type* data_ty = m_context->GetLLVMType(join->GetOutputType());
-  llvm::Constant* output_func = m_module->getOrInsertFunction(
-    StringFromFormat("%s_push", join->GetOutputChannelName().c_str()), m_context->GetVoidType(), data_ty, nullptr);
+  llvm::Constant* output_func =
+    m_module->getOrInsertFunction(StringFromFormat("%s_push", join->GetOutputChannelName().c_str()),
+                                  m_context->GetVoidType(), join->GetOutputType(), nullptr);
   if (!output_func)
   {
     Log::Error("ChannelBuilder", "Failed to get output function '%s_push'", join->GetOutputChannelName().c_str());
@@ -427,8 +420,6 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
 
 bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
 {
-  llvm::Type* data_ty = m_context->GetLLVMType(join->GetOutputType());
-
   // Look up sync function, since we need to call it
   llvm::Constant* sync_func = m_module->getOrInsertFunction(StringFromFormat("%s_sync", m_instance_name.c_str()),
                                                             m_context->GetVoidType(), nullptr);
@@ -441,7 +432,7 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
   // Generate the main push function (which takes an additional parameter for the source stream)
   llvm::Constant* push_func =
     m_module->getOrInsertFunction(StringFromFormat("%s_push", m_instance_name.c_str()), m_context->GetVoidType(),
-                                  m_context->GetIntType(), data_ty, nullptr);
+                                  m_context->GetIntType(), join->GetOutputType(), nullptr);
   if (!push_func)
     return false;
   {
@@ -502,7 +493,7 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
   {
     llvm::Constant* func_cons =
       m_module->getOrInsertFunction(StringFromFormat("%s_%u_push", m_instance_name.c_str(), source_stream_index),
-                                    m_context->GetVoidType(), data_ty, nullptr);
+                                    m_context->GetVoidType(), join->GetOutputType(), nullptr);
     if (!func_cons)
       return false;
 

@@ -1,7 +1,6 @@
-#include "parser/ast.h"
 #include <array>
 #include <cassert>
-#include "core/type.h"
+#include "parser/ast.h"
 #include "parser/ast_printer.h"
 
 namespace AST
@@ -20,31 +19,30 @@ void NodeList::Dump(ASTPrinter* printer) const
   printer->EndBlock();
 }
 
-void TypeName::Dump(ASTPrinter* printer) const
+void TypeSpecifier::Dump(ASTPrinter* printer) const
 {
-  printer->Write("TypeSpecifier[base=%s", m_base_type_name.c_str());
-  if (!m_array_sizes.empty())
-  {
-    printer->Write(",array=");
-    for (Expression* expr : m_array_sizes)
-    {
-      printer->Write("[");
-      expr->Dump(printer);
-      printer->Write("]");
-    }
-  }
-  printer->WriteLine("");
+  printer->Write("TypeSpecifier[%s]", m_name.c_str());
 }
 
-void StructSpecifier::Dump(ASTPrinter* printer) const
+void ArrayTypeSpecifier::Dump(ASTPrinter* printer) const
 {
-  printer->BeginBlock("StructSpecifier[name=%s]", m_name.c_str());
-  for (const auto& it : m_fields)
-  {
-    printer->Write("field %s: ", it.first.c_str());
-    it.second->Dump(printer);
-  }
+  printer->Write("ArrayTypeSpecifier[%s, base=", m_name.c_str());
+  m_base_type->Dump(printer);
+
+  printer->Write(",dimensions=");
+  m_array_dimensions->Dump(printer);
+  printer->WriteLine("]");
 }
+
+// void StructSpecifier::Dump(ASTPrinter* printer) const
+// {
+//   printer->BeginBlock("StructSpecifier[name=%s]", m_name.c_str());
+//   for (const auto& it : m_fields)
+//   {
+//     printer->Write("field %s: ", it.first.c_str());
+//     it.second->Dump(printer);
+//   }
+// }
 
 void ParameterDeclaration::Dump(ASTPrinter* printer) const
 {

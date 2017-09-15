@@ -1,7 +1,6 @@
 %{
 #include <cassert>
 #include <cstring>
-#include "core/type.h"
 #include "parser/scanner.h"
 #include "parser/parser_defines.h"
 #include "parser/parser_state.h"
@@ -47,11 +46,10 @@ using namespace AST;
 %start		Program
 
 %union {
-  const Type* type;
-
   AST::Node* node;
   AST::NodeList* node_list;
-  AST::TypeName* type_name;
+  AST::TypeSpecifier* type_specifier;
+  AST::ExpressionList* array_specifier;
   AST::Declaration* decl;
   AST::Statement* stmt;
   AST::Expression* expr;
@@ -91,7 +89,7 @@ using namespace AST;
 %type <node> StatementListItem
 %type <node> CompoundStatement
 %type <node> Declaration
-%type <type_name> DeclarationSpecifiers
+%type <type_specifier> DeclarationSpecifiers
 %type <init_declarator> InitDeclarator
 %type <init_declarator_list> InitDeclaratorList
 %type <parameter_declaration> ParameterDeclaration
@@ -133,8 +131,8 @@ using namespace AST;
 %type <identifier> Identifier TK_IDENTIFIER
 %type <integer_literal> IntegerLiteral TK_INTEGER_LITERAL
 %type <boolean_literal> BooleanLiteral TK_BOOLEAN_LITERAL
-%type <identifier> PrimitiveTypeName
-%type <type_name> TypeName
+%type <type_specifier> TypeSpecifier
+%type <type_specifier> TypeName
 
 /* Tie the else branch of an if to the outer-most if */
 %nonassoc IF_THEN
@@ -157,19 +155,27 @@ ProgramStatement
   | FilterDeclaration { state->AddFilter($1); }
   ;
 
-PrimitiveTypeName
-  : TK_BOOLEAN { $$ = "boolean"; }
-  | TK_BIT { $$ = "bit"; }
-  | TK_INT { $$ = "int"; }
-  | TK_FLOAT { $$ = "float"; }
-  | TK_VOID { $$ = "void"; }
+TypeSpecifier
+  : TK_BOOLEAN { $$ = state->GetBooleanType(); }
+  | TK_BIT { $$ = state->GetBitType(); }
+  | TK_INT { $$ = state->GetIntType(); }
+  | TK_FLOAT { $$ = state->GetFloatType(); }
+  | TK_VOID { $$ = state->GetVoidType(); }
+  /*| Identifier {
+    $$ = state->GetType($1);
+    if (!$$) {
+      state->LogError(@1, "Unknown type '%s'", $$);
+      YYERROR;
+    }
+  }*/
   ;
 
 TypeName
-  : PrimitiveTypeName { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }
-  /* TODO: This causes a shift/reduce conflict, e.g. some_struct[10] and some_var[10]. */
-  | Identifier { $$ = new TypeName(@1); $$->SetBaseTypeName($1); }
-  | TypeName '[' Expression ']' { $1->AddArraySize($3); }
+  : TypeSpecifier { $$ = $1; }
+  | TypeName '[' Expression ']' {
+    std::string name = state->GetGlobalLexicalScope()->GenerateName($1->GetName().c_str());
+    $$ = new ArrayTypeSpecifier(name, $1, $3);
+  }
   ;
 
 StreamDeclaration

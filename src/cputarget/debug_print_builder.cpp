@@ -1,10 +1,10 @@
 #include "cputarget/debug_print_builder.h"
-#include "core/wrapped_llvm_context.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/IR/Module.h"
 
 namespace CPUTarget
 {
-void BuildDebugPrint(WrappedLLVMContext* context, llvm::IRBuilder<>& builder, const char* msg)
+void BuildDebugPrint(Frontend::WrappedLLVMContext* context, llvm::IRBuilder<>& builder, const char* msg)
 {
   llvm::Module* mod = builder.GetInsertBlock()->getParent()->getParent();
   llvm::FunctionType* func_ty = llvm::FunctionType::get(context->GetVoidType(), {context->GetStringType()}, false);
@@ -15,7 +15,7 @@ void BuildDebugPrint(WrappedLLVMContext* context, llvm::IRBuilder<>& builder, co
   builder.CreateCall(func, {builder.CreateGlobalStringPtr(msg)});
 }
 
-void BuildDebugPrintf(WrappedLLVMContext* context, llvm::IRBuilder<>& builder, const char* fmt,
+void BuildDebugPrintf(Frontend::WrappedLLVMContext* context, llvm::IRBuilder<>& builder, const char* fmt,
                       const std::vector<llvm::Value*>& args)
 {
   llvm::Module* mod = builder.GetInsertBlock()->getParent()->getParent();

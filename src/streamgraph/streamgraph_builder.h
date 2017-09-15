@@ -6,7 +6,6 @@
 #include <vector>
 
 class ParserState;
-class WrappedLLVMContext;
 
 namespace llvm
 {
@@ -25,6 +24,11 @@ class PipelineDeclaration;
 class SplitJoinDeclaration;
 }
 
+namespace Frontend
+{
+class WrappedLLVMContext;
+}
+
 namespace StreamGraph
 {
 class FilterParameters;
@@ -37,7 +41,7 @@ namespace StreamGraph
 class Builder
 {
 public:
-  Builder(WrappedLLVMContext* context, ParserState* state);
+  Builder(Frontend::WrappedLLVMContext* context, ParserState* state);
   ~Builder();
 
   Node* GetStartNode() const { return m_start_node; }
@@ -55,7 +59,7 @@ private:
   bool CreateExecutionEngine();
   void ExecuteMain();
 
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   ParserState* m_parser_state;
   std::unique_ptr<llvm::Module> m_module;
   std::unordered_map<const AST::StreamDeclaration*, llvm::Function*> m_function_map;
@@ -70,7 +74,7 @@ private:
 class BuilderState
 {
 public:
-  BuilderState(WrappedLLVMContext* context, ParserState* state);
+  BuilderState(Frontend::WrappedLLVMContext* context, ParserState* state);
   ~BuilderState() = default;
 
   Node* GetStartNode() const { return m_start_node; }
@@ -93,7 +97,7 @@ private:
 
   void ExtractParameters(FilterParameters* out_params, const AST::StreamDeclaration* stream_decl, va_list ap);
 
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   ParserState* m_parser_state;
   bool m_error_state = false;
 

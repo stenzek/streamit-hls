@@ -5,8 +5,6 @@
 #include "llvm/IR/IRBuilder.h"
 #include "parser/ast_visitor.h"
 
-class WrappedLLVMContext;
-
 namespace AST
 {
 class VariableDeclaration;
@@ -14,6 +12,8 @@ class VariableDeclaration;
 
 namespace Frontend
 {
+class WrappedLLVMContext;
+
 /// Creates LLVM global variables for each filter state variable
 /// Also creates initializers where they are constant
 class StateVariablesBuilder : public AST::Visitor

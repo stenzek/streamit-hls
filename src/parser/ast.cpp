@@ -1,6 +1,5 @@
 #include "parser/ast.h"
 #include <cassert>
-#include "core/type.h"
 #include "parser/ast_visitor.h"
 
 namespace AST
@@ -57,8 +56,53 @@ void NodeList::PrependNode(Node* node)
   m_nodes.insert(m_nodes.begin(), node);
 }
 
-Declaration::Declaration(const SourceLocation& sloc, const std::string& name, bool constant)
-  : m_sloc(sloc), m_name(name), m_constant(constant)
+TypeSpecifier::TypeSpecifier(TypeId tid, const std::string& name, TypeSpecifier* base_type, unsigned num_bits)
+  : m_type_id(tid), m_name(name), m_base_type(base_type), m_num_bits(num_bits)
+{
+}
+
+TypeSpecifier* TypeSpecifier::Clone() const
+{
+  return new TypeSpecifier(m_type_id, m_name, m_base_type, m_num_bits);
+}
+
+bool TypeSpecifier::operator==(const TypeSpecifier& rhs) const
+{
+  if ((m_base_type != nullptr) != (rhs.m_base_type != nullptr))
+    return false;
+
+  if (m_base_type)
+    return *m_base_type == *rhs.m_base_type;
+
+  return (m_type_id == rhs.m_type_id);
+}
+
+bool TypeSpecifier::operator!=(const TypeSpecifier& rhs) const
+{
+  return !operator==(rhs);
+}
+
+ArrayTypeSpecifier::ArrayTypeSpecifier(const std::string& name, TypeSpecifier* base_type, Expression* dimensions)
+  : TypeSpecifier(TypeSpecifier::TypeId::Array, name, base_type, 0), m_array_dimensions(dimensions)
+{
+}
+
+TypeSpecifier* ArrayTypeSpecifier::Clone() const
+{
+  return new ArrayTypeSpecifier(m_name, m_base_type->Clone(), m_array_dimensions);
+}
+
+bool ArrayTypeSpecifier::operator==(const TypeSpecifier& rhs) const
+{
+  if (!rhs.IsArrayType())
+    return false;
+
+  // The expressions may result in the same value.. so just return true for all arrays
+  return (*m_base_type == *static_cast<const ArrayTypeSpecifier&>(rhs).m_base_type);
+}
+
+Declaration::Declaration(const SourceLocation& sloc, TypeSpecifier* type, const std::string& name, bool constant)
+  : m_sloc(sloc), m_type(type), m_name(name), m_constant(constant)
 {
 }
 
@@ -90,79 +134,30 @@ float Expression::GetConstantFloat() const
   return 0.0f;
 }
 
-const Type* Expression::GetType() const
+const TypeSpecifier* Expression::GetType() const
 {
   return m_type;
 }
 
-TypeReference::TypeReference(const std::string& name, const Type* type) : m_name(name), m_type(type)
-{
-}
-
-TypeName::TypeName(const SourceLocation& sloc) : m_sloc(sloc)
-{
-}
-
-TypeName::TypeName(const Type* from_type) : m_sloc{}
-{
-  if (from_type->IsPrimitiveType())
-  {
-    m_base_type_name = from_type->GetName();
-    return;
-  }
-
-  if (from_type->IsArrayType())
-  {
-    m_base_type_name = from_type->GetBaseType()->GetName();
-    for (int size : static_cast<const ArrayType*>(from_type)->GetArraySizes())
-      m_array_sizes.push_back(new IntegerLiteralExpression({}, size));
-  }
-}
-
-void TypeName::Merge(ParserState* state, TypeName* rhs)
-{
-  if (m_base_type_name.empty() && !rhs->m_base_type_name.empty())
-    m_base_type_name = rhs->m_base_type_name;
-
-  if (!rhs->m_array_sizes.empty())
-    m_array_sizes.insert(m_array_sizes.end(), rhs->m_array_sizes.begin(), rhs->m_array_sizes.end());
-}
-
-StructSpecifier::StructSpecifier(const SourceLocation& sloc, const char* name) : m_sloc(sloc), m_name(name)
-{
-}
-
-const std::string& StructSpecifier::GetName() const
-{
-  return m_name;
-}
-
-const std::vector<std::pair<std::string, TypeName*>>& StructSpecifier::GetFields() const
-{
-  return m_fields;
-}
-
-void StructSpecifier::AddField(const char* name, TypeName* specifier)
-{
-  m_fields.emplace_back(name, specifier);
-}
-
-ParameterDeclaration::ParameterDeclaration(const SourceLocation& sloc, TypeName* type_specifier,
+ParameterDeclaration::ParameterDeclaration(const SourceLocation& sloc, TypeSpecifier* type_specifier,
                                            const std::string& name)
-  : Declaration(sloc, name, true), m_type_specifier(type_specifier)
+  : Declaration(sloc, type_specifier, name, true)
+{
+  m_type = type_specifier;
+}
+
+StreamDeclaration::StreamDeclaration(const SourceLocation& sloc, TypeSpecifier* input_type_specifier,
+                                     TypeSpecifier* output_type_specifier, const char* name,
+                                     ParameterDeclarationList* params)
+  : m_sloc(sloc), m_input_type(input_type_specifier), m_output_type(output_type_specifier), m_name(name),
+    m_parameters(params)
 {
 }
 
-StreamDeclaration::StreamDeclaration(const SourceLocation& sloc, const char* name, ParameterDeclarationList* params)
-  : m_sloc(sloc), m_name(name), m_parameters(params)
-{
-}
-
-PipelineDeclaration::PipelineDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
-                                         TypeName* output_type_specifier, const char* name,
+PipelineDeclaration::PipelineDeclaration(const SourceLocation& sloc, TypeSpecifier* input_type_specifier,
+                                         TypeSpecifier* output_type_specifier, const char* name,
                                          ParameterDeclarationList* params, NodeList* statements)
-  : StreamDeclaration(sloc, name, params), m_input_type_specifier(input_type_specifier),
-    m_output_type_specifier(output_type_specifier), m_statements(statements)
+  : StreamDeclaration(sloc, input_type_specifier, output_type_specifier, name, params), m_statements(statements)
 {
 }
 
@@ -170,11 +165,10 @@ PipelineDeclaration::~PipelineDeclaration()
 {
 }
 
-SplitJoinDeclaration::SplitJoinDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
-                                           TypeName* output_type_specifier, const char* name,
+SplitJoinDeclaration::SplitJoinDeclaration(const SourceLocation& sloc, TypeSpecifier* input_type_specifier,
+                                           TypeSpecifier* output_type_specifier, const char* name,
                                            ParameterDeclarationList* params, NodeList* statements)
-  : StreamDeclaration(sloc, name, params), m_input_type_specifier(input_type_specifier),
-    m_output_type_specifier(output_type_specifier), m_statements(statements)
+  : StreamDeclaration(sloc, input_type_specifier, output_type_specifier, name, params), m_statements(statements)
 {
 }
 
@@ -182,11 +176,11 @@ SplitJoinDeclaration::~SplitJoinDeclaration()
 {
 }
 
-FunctionDeclaration::FunctionDeclaration(const SourceLocation& sloc, const char* name, TypeName* return_type,
-                                         NodeList* params, NodeList* body)
-  : Declaration(sloc, name, true), m_return_type_specifier(return_type), m_params(params), m_body(body)
-{
-}
+// FunctionDeclaration::FunctionDeclaration(const SourceLocation& sloc, const char* name, TypeSpecifier* return_type,
+//                                          NodeList* params, NodeList* body)
+//   : Declaration(sloc, name, true), m_return_type_specifier(return_type), m_params(params), m_body(body)
+// {
+// }
 
 AddStatement::AddStatement(const SourceLocation& sloc, const char* filter_name, NodeList* parameters)
   : Statement(sloc), m_stream_name(filter_name), m_stream_parameters(parameters)
@@ -285,6 +279,9 @@ int BinaryExpression::GetConstantInt() const
 
   case RightShift:
     return m_lhs->GetConstantInt() >> m_rhs->GetConstantInt();
+
+  default:
+    return 0;
   }
 }
 
@@ -318,7 +315,7 @@ Expression* RelationalExpression::GetRHSExpression() const
   return m_rhs;
 }
 
-const Type* RelationalExpression::GetIntermediateType() const
+const TypeSpecifier* RelationalExpression::GetIntermediateType() const
 {
   return m_intermediate_type;
 }
@@ -406,8 +403,8 @@ CallExpression::CallExpression(const SourceLocation& sloc, const char* function_
 {
 }
 
-CastExpression::CastExpression(const SourceLocation& sloc, TypeName* to_type, Expression* expr)
-  : Expression(sloc), m_to_type_name(to_type), m_expr(expr)
+CastExpression::CastExpression(const SourceLocation& sloc, TypeSpecifier* to_type, Expression* expr)
+  : Expression(sloc), m_to_type(to_type), m_expr(expr)
 {
 }
 
@@ -451,36 +448,33 @@ size_t InitializerListExpression::GetListSize() const
   return m_expressions.size();
 }
 
-VariableDeclaration::VariableDeclaration(const SourceLocation& sloc, TypeName* type_specifier, const char* name,
+VariableDeclaration::VariableDeclaration(const SourceLocation& sloc, TypeSpecifier* type_specifier, const char* name,
                                          Expression* initializer)
-  : Declaration(sloc, name, false), m_type_specifier(type_specifier), m_initializer(initializer)
+  : Declaration(sloc, type_specifier, name, false), m_initializer(initializer)
 {
   // TODO: Default initialize ints to 0?
   // if (!m_initializer)
 }
 
-Node* VariableDeclaration::CreateDeclarations(TypeName* type_specifier, const InitDeclaratorList* declarator_list)
+Node* VariableDeclaration::CreateDeclarations(TypeSpecifier* type_specifier, const InitDeclaratorList* declarator_list)
 {
   // Optimization for single declaration case
   if (declarator_list->size() == 1)
     return new VariableDeclaration(declarator_list->front().sloc, type_specifier, declarator_list->front().name,
                                    declarator_list->front().initializer);
 
-  // We need to clone the type specifier for each declaration, otherwise we'll call SemanticAnalysis etc multiple times
-  // on the same specifier
   NodeList* decl_list = new NodeList();
   for (const InitDeclarator& decl : *declarator_list)
-    decl_list->AddNode(new VariableDeclaration(decl.sloc, new TypeName(*type_specifier), decl.name, decl.initializer));
+    decl_list->AddNode(new VariableDeclaration(decl.sloc, type_specifier, decl.name, decl.initializer));
   return decl_list;
 }
 
-FilterDeclaration::FilterDeclaration(const SourceLocation& sloc, TypeName* input_type_specifier,
-                                     TypeName* output_type_specifier, const char* name,
+FilterDeclaration::FilterDeclaration(const SourceLocation& sloc, TypeSpecifier* input_type_specifier,
+                                     TypeSpecifier* output_type_specifier, const char* name,
                                      ParameterDeclarationList* params, NodeList* vars, FilterWorkBlock* init,
                                      FilterWorkBlock* prework, FilterWorkBlock* work, bool stateful)
-  : StreamDeclaration(sloc, name, params), m_input_type_specifier(input_type_specifier),
-    m_output_type_specifier(output_type_specifier), m_vars(vars), m_init(init), m_prework(prework), m_work(work),
-    m_stateful(stateful)
+  : StreamDeclaration(sloc, input_type_specifier, output_type_specifier, name, params), m_vars(vars), m_init(init),
+    m_prework(prework), m_work(work), m_stateful(stateful)
 {
 }
 

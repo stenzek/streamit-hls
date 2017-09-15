@@ -4,7 +4,7 @@ set(SRCS
 
 add_executable(streamit-cpu-compiler ${SRCS})
 target_include_directories(streamit-cpu-compiler PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(streamit-cpu-compiler common core parser frontend streamgraph cputarget)
+target_link_libraries(streamit-cpu-compiler common parser frontend streamgraph cputarget)
 
 if(LLVM_FOUND)
     llvm_map_components_to_libnames(llvm_libs support core executionengine mcjit native bitwriter)

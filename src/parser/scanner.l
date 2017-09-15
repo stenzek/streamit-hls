@@ -79,7 +79,7 @@ roundrobin { return TK_ROUNDROBIN; }
 ">>=" { return TK_RSHIFT_ASSIGN; }
 
  /* Arbitrary precision data types */
-apint[1-9][0-9]* { yylval.apint_num_bits = ScannerHelpers::ParseIntegerLiteral(yytext + 3, 10); return TK_APINT; }
+apint[1-9][0-9]* { yylval.apint_num_bits = ScannerHelpers::ParseIntegerLiteral(yytext + 5, 10); return TK_APINT; }
 
  /* Boolean literal */
 true { yylval.boolean_literal = true; return TK_BOOLEAN_LITERAL; }
@@ -103,7 +103,6 @@ false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
 ">" { return '>'; }
 "=" { return '='; }
 "!" { return '!'; }
-"," { return ','; }
 "?" { return '?'; }
 ":" { return ':'; }
 "+" { return '+'; }

@@ -6,7 +6,7 @@ namespace StreamGraph
 class StreamGraphFunctionBuilder : public Frontend::FunctionBuilder
 {
 public:
-  StreamGraphFunctionBuilder(WrappedLLVMContext* ctx, llvm::Module* mod, llvm::Function* func);
+  StreamGraphFunctionBuilder(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, llvm::Function* func);
   ~StreamGraphFunctionBuilder();
 
   bool Visit(AST::FilterDeclaration* node) override;

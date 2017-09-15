@@ -3,11 +3,10 @@
 #include "llvm/IR/IRBuilder.h"
 #include "parser/ast_visitor.h"
 
-class WrappedLLVMContext;
-
 namespace Frontend
 {
 class FunctionBuilder;
+class WrappedLLVMContext;
 
 class ExpressionBuilder : public AST::Visitor
 {

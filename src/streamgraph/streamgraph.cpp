@@ -31,12 +31,12 @@ StreamGraph::FilterInstanceList StreamGraph::GetFilterInstanceList() const
   return {};
 }
 
-const Type* StreamGraph::GetProgramInputType() const
+llvm::Type* StreamGraph::GetProgramInputType() const
 {
   return m_root_node->GetInputType();
 }
 
-const Type* StreamGraph::GetProgramOutputType() const
+llvm::Type* StreamGraph::GetProgramOutputType() const
 {
   return m_root_node->GetOutputType();
 }
@@ -45,7 +45,6 @@ void FilterParameters::AddParameter(const AST::ParameterDeclaration* decl, const
                                     llvm::Constant* value)
 {
   Parameter p;
-  p.type = decl->GetType();
   p.decl = decl;
   p.data_offset = m_data.size();
   p.data_length = data_len;
@@ -71,14 +70,15 @@ bool FilterParameters::operator!=(const FilterParameters& rhs) const
 }
 
 FilterPermutation::FilterPermutation(const AST::FilterDeclaration* filter_decl, const FilterParameters& filter_params,
-                                     int peek_rate, int pop_rate, int push_rate)
+                                     llvm::Type* input_type, llvm::Type* output_type, int peek_rate, int pop_rate,
+                                     int push_rate)
   : m_name(filter_decl->GetName()), m_filter_decl(filter_decl), m_filter_params(filter_params),
-    m_input_type(filter_decl->GetInputType()), m_output_type(filter_decl->GetOutputType()), m_peek_rate(peek_rate),
-    m_pop_rate(pop_rate), m_push_rate(push_rate)
+    m_input_type(input_type), m_output_type(output_type), m_peek_rate(peek_rate), m_pop_rate(pop_rate),
+    m_push_rate(push_rate)
 {
 }
 
-Node::Node(const std::string& name, const Type* input_type, const Type* output_type)
+Node::Node(const std::string& name, llvm::Type* input_type, llvm::Type* output_type)
   : m_name(name), m_input_type(input_type), m_output_type(output_type)
 {
 }
@@ -543,7 +543,7 @@ void Split::AddMultiplicity(u32 count)
   m_multiplicity *= count;
 }
 
-void Split::SetDataType(const Type* type)
+void Split::SetDataType(llvm::Type* type)
 {
   m_input_type = type;
   m_output_type = type;
@@ -604,7 +604,7 @@ void Join::AddIncomingStream()
   m_push_rate++;
 }
 
-void Join::SetDataType(const Type* type)
+void Join::SetDataType(llvm::Type* type)
 {
   m_input_type = type;
   m_output_type = type;

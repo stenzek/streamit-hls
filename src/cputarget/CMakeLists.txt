@@ -10,7 +10,7 @@ add_library(cputarget
             )
 
 target_include_directories(cputarget PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(cputarget core frontend streamgraph parser)
+target_link_libraries(cputarget frontend streamgraph parser)
 
 if(LLVM_FOUND)
     llvm_map_components_to_libnames(llvm_libs support core passes transformutils scalaropts target ipo)

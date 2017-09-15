@@ -2,7 +2,6 @@
 #include <cassert>
 #include <sstream>
 #include "common/log.h"
-#include "core/type.h"
 #include "parser/ast.h"
 #include "parser/parser_state.h"
 #include "parser/symbol_table.h"
@@ -18,99 +17,75 @@ bool NodeList::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
   return result;
 }
 
-bool TypeName::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+bool TypeSpecifier::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
-  Node* node_ptr = symbol_table->GetName(m_base_type_name);
-  TypeReference* type_ref_ptr = dynamic_cast<TypeReference*>(node_ptr);
-  if (!type_ref_ptr || !type_ref_ptr->GetType()->IsValid())
+  if (IsErrorType())
+    return false;
+
+  return true;
+}
+
+bool ArrayTypeSpecifier::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  if (!m_base_type->SemanticAnalysis(state, symbol_table))
+    return false;
+
+  // Test the expression too
+  if (!m_array_dimensions->SemanticAnalysis(state, symbol_table))
+    return false;
+
+  if (!m_array_dimensions->GetType()->IsInt() && !m_array_dimensions->GetType()->IsAPInt())
   {
-    state->LogError(m_sloc, "Unknown type '%s'", m_base_type_name.c_str());
-    m_final_type = state->GetErrorType();
+    // TODO: Sloc here
+    state->LogError("Array size for type '%s' is not integer", m_name.c_str());
     return false;
   }
 
-  if (m_array_sizes.empty())
-  {
-    // Non-array types can just be forwarded through
-    m_final_type = type_ref_ptr->GetType();
-  }
-  else
-  {
-    // Array types have to have the array sizes annotated
-    std::vector<int> array_sizes;
-    for (Expression* expr : m_array_sizes)
-    {
-      if (!expr->SemanticAnalysis(state, symbol_table))
-      {
-        m_final_type = state->GetErrorType();
-        return false;
-      }
-      
-      if (!expr->IsConstant())
-      {
-        state->LogError(m_sloc, "Array size is not constant");
-        return false;
-      }
-
-      int size = expr->GetConstantInt();
-      if (size <= 0)
-      {
-        state->LogError(m_sloc, "Array size must be non-zero and positive");
-        return false;
-      }
-
-      array_sizes.push_back(size);
-    }
-    m_final_type = state->GetArrayType(type_ref_ptr->GetType(), array_sizes);
-  }
-
-  return m_final_type->IsValid();
+  return true;
 }
 
-bool StructSpecifier::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
-{
-  bool result = true;
-
-  // Check all the field types
-  for (auto& it : m_fields)
-    result &= it.second->SemanticAnalysis(state, symbol_table);
-
-  // Check if the name already exists
-  if (symbol_table->HasName(m_name))
-  {
-    state->LogError(m_sloc, "Structure '%s' already defined", m_name.c_str());
-    result = false;
-  }
-
-  // Check for duplicate field names
-  for (const auto& field1 : m_fields)
-  {
-    if (std::any_of(m_fields.begin(), m_fields.end(),
-                    [&field1](const auto& field2) { return field1.first == field2.first; }))
-    {
-      state->LogError(m_sloc, "Duplicate field name '%s'", field1.first.c_str());
-      result = false;
-    }
-  }
-
-  if (!result)
-  {
-    m_final_type = state->GetErrorType();
-    return false;
-  }
-
-  // TODO: Calculate final type
-  m_final_type = state->GetErrorType();
-
-  // Insert into symbol table
-  return symbol_table->AddName(m_name, new TypeReference(m_name, m_final_type));
-}
+// bool StructSpecifier::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+// {
+//   bool result = true;
+//
+//   // Check all the field types
+//   for (auto& it : m_fields)
+//     result &= it.second->SemanticAnalysis(state, symbol_table);
+//
+//   // Check if the name already exists
+//   if (symbol_table->HasName(m_name))
+//   {
+//     state->LogError(m_sloc, "Structure '%s' already defined", m_name.c_str());
+//     result = false;
+//   }
+//
+//   // Check for duplicate field names
+//   for (const auto& field1 : m_fields)
+//   {
+//     if (std::any_of(m_fields.begin(), m_fields.end(),
+//                     [&field1](const auto& field2) { return field1.first == field2.first; }))
+//     {
+//       state->LogError(m_sloc, "Duplicate field name '%s'", field1.first.c_str());
+//       result = false;
+//     }
+//   }
+//
+//   if (!result)
+//   {
+//     m_final_type = state->GetErrorType();
+//     return false;
+//   }
+//
+//   // TODO: Calculate final type
+//   m_final_type = state->GetErrorType();
+//
+//   // Insert into symbol table
+//   return symbol_table->AddName(m_name, new TypeReference(m_name, m_final_type));
+// }
 
 bool ParameterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
-  bool result = m_type_specifier->SemanticAnalysis(state, symbol_table);
-  m_type = m_type_specifier->GetFinalType();
-
+  bool result = m_type->SemanticAnalysis(state, symbol_table);
   if (!symbol_table->AddName(m_name, this))
   {
     state->LogError(m_sloc, "Variable '%s' already defined", m_name.c_str());
@@ -130,12 +105,10 @@ bool PipelineDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
   state->current_stream = this;
   state->current_stream_scope = &pipeline_scope;
 
-  if (m_input_type_specifier && m_output_type_specifier)
+  if (m_input_type && m_output_type)
   {
-    result &= m_input_type_specifier->SemanticAnalysis(state, &pipeline_scope);
-    m_input_type = m_input_type_specifier->GetFinalType();
-    result &= m_output_type_specifier->SemanticAnalysis(state, &pipeline_scope);
-    m_output_type = m_output_type_specifier->GetFinalType();
+    result &= m_input_type->SemanticAnalysis(state, &pipeline_scope);
+    result &= m_output_type->SemanticAnalysis(state, &pipeline_scope);
   }
   else
   {
@@ -170,12 +143,10 @@ bool SplitJoinDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sy
   state->current_stream = this;
   state->current_stream_scope = &splitjoin_scope;
 
-  if (m_input_type_specifier && m_output_type_specifier)
+  if (m_input_type && m_output_type)
   {
-    result &= m_input_type_specifier->SemanticAnalysis(state, &splitjoin_scope);
-    m_input_type = m_input_type_specifier->GetFinalType();
-    result &= m_output_type_specifier->SemanticAnalysis(state, &splitjoin_scope);
-    m_output_type = m_output_type_specifier->GetFinalType();
+    result &= m_input_type->SemanticAnalysis(state, &splitjoin_scope);
+    result &= m_output_type->SemanticAnalysis(state, &splitjoin_scope);
   }
   else
   {
@@ -235,7 +206,7 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
 
           // Add parameter to stream.
           ParameterDeclaration* param_decl =
-            new ParameterDeclaration(decl->GetSourceLocation(), new TypeName(decl->GetType()), decl->GetName());
+            new ParameterDeclaration(decl->GetSourceLocation(), decl->GetType()->Clone(), decl->GetName());
           m_stream_declaration->GetParameters()->push_back(param_decl);
 
           // Add reference to add parameters.
@@ -258,12 +229,6 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
     return false;
 
   return true;
-}
-
-bool FunctionDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
-{
-  // TODO
-  return false;
 }
 
 bool SplitStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
@@ -325,10 +290,8 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   state->current_stream = this;
   state->current_stream_scope = &filter_symbol_table;
 
-  result &= m_input_type_specifier->SemanticAnalysis(state, &filter_symbol_table);
-  m_input_type = m_input_type_specifier->GetFinalType();
-  result &= m_output_type_specifier->SemanticAnalysis(state, &filter_symbol_table);
-  m_output_type = m_output_type_specifier->GetFinalType();
+  result &= m_input_type->SemanticAnalysis(state, &filter_symbol_table);
+  result &= m_output_type->SemanticAnalysis(state, &filter_symbol_table);
 
   if (m_parameters)
   {
@@ -454,7 +417,7 @@ bool IndexExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
     return false;
   }
 
-  m_type = state->GetArrayElementType(static_cast<const ArrayType*>(m_array_expression->GetType()));
+  m_type = m_array_expression->GetType()->GetBaseType();
   return result && m_type->IsValid();
 }
 
@@ -555,7 +518,7 @@ bool AssignmentExpression::SemanticAnalysis(ParserState* state, LexicalScope* sy
   result &= m_lhs->SemanticAnalysis(state, symbol_table);
   result &= m_rhs->SemanticAnalysis(state, symbol_table);
 
-  if (result && !m_rhs->GetType()->CanImplicitlyConvertTo(m_lhs->GetType()))
+  if (result && !state->CanImplicitlyConvertTo(m_rhs->GetType(), m_rhs->GetType()))
   {
     state->LogError(m_sloc, "Cannot implicitly convert from '%s' to '%s'", m_rhs->GetType()->GetName().c_str(),
                     m_lhs->GetType()->GetName().c_str());
@@ -617,7 +580,7 @@ bool CallExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_t
   }
 
   std::string function_symbol_name = ss.str();
-  m_function_ref = dynamic_cast<FunctionReference*>(symbol_table->GetName(function_symbol_name));
+  m_function_ref = dynamic_cast<FunctionDeclaration*>(symbol_table->GetName(function_symbol_name));
   if (!m_function_ref)
   {
     state->LogError("Can't find function '%s' with symbol name '%s'", m_function_name.c_str(),
@@ -632,50 +595,60 @@ bool CallExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_t
 bool CastExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   // Resolve type name
-  bool result = m_to_type_name->SemanticAnalysis(state, symbol_table);
+  bool result = m_to_type->SemanticAnalysis(state, symbol_table);
   result &= m_expr->SemanticAnalysis(state, symbol_table);
-  m_type = m_to_type_name->GetFinalType();
-  
+
   if (result)
   {
     // Check it is a valid conversion, int->apint, or apint->int for now
     if (!(m_expr->GetType()->IsInt() || m_expr->GetType()->IsAPInt()) || !(m_type->IsInt() || m_type->IsAPInt()))
     {
-      state->LogError(m_sloc, "Cannot cast from %s to %s", m_expr->GetType()->GetName().c_str(), m_type->GetName().c_str());
+      state->LogError(m_sloc, "Cannot cast from %s to %s", m_expr->GetType()->GetName().c_str(),
+                      m_type->GetName().c_str());
       result = false;
     }
   }
 
+  m_type = result ? m_to_type : state->GetErrorType();
   return result;
 }
 
-FunctionReference::FunctionReference(const std::string& name, const Type* return_type,
-                                     const std::vector<const Type*>& param_types, bool builtin)
-  : m_name(name), m_function_type(FunctionType::Create(return_type, param_types)), m_return_type(return_type),
-    m_param_types(param_types), m_builtin(builtin)
+FunctionDeclaration::FunctionDeclaration(const std::string& name, TypeSpecifier* return_type,
+                                         const std::vector<TypeSpecifier*>& param_types)
+  : Declaration({}, nullptr, name, true), m_return_type(return_type), m_param_types(param_types), m_params(nullptr),
+    m_body(nullptr)
 {
   // Generate symbol name
   std::stringstream ss;
   ss << m_name;
-  for (const Type* param_ty : m_param_types)
+  for (const AST::TypeSpecifier* param_ty : m_param_types)
     ss << "___" << param_ty->GetName();
   m_symbol_name = ss.str();
 }
 
-std::string FunctionReference::GetExecutableSymbolName() const
+std::string FunctionDeclaration::GetExecutableSymbolName() const
 {
-  if (!m_builtin)
+  if (!IsBuiltin())
     return m_symbol_name;
 
   return StringFromFormat("streamit_%s", m_symbol_name.c_str());
+}
+
+bool FunctionDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  if (IsBuiltin())
+    return true;
+
+  // TODO
+  return false;
 }
 
 bool PushStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = m_expr->SemanticAnalysis(state, symbol_table);
 
-  const Type* filter_output_type = state->current_stream->GetOutputType();
-  if (!m_expr->GetType()->CanImplicitlyConvertTo(filter_output_type))
+  const TypeSpecifier* filter_output_type = state->current_stream->GetOutputType();
+  if (!state->CanImplicitlyConvertTo(m_expr->GetType(), filter_output_type))
   {
     state->LogError(m_sloc, "Cannot implicitly convert between '%s' and '%s'", m_expr->GetType()->GetName().c_str(),
                     filter_output_type->GetName().c_str());
@@ -696,7 +669,7 @@ bool InitializerListExpression::SemanticAnalysis(ParserState* state, LexicalScop
     result &= m_expressions[i]->SemanticAnalysis(state, symbol_table);
 
     // All elements must be the same type
-    if (i != 0 && m_expressions[i]->GetType() != m_expressions[0]->GetType())
+    if (i != 0 && *m_expressions[i]->GetType() != *m_expressions[0]->GetType())
     {
       state->LogError(m_sloc, "Initializer %d does not match the type of the list", static_cast<int>(i));
       result = false;
@@ -710,15 +683,17 @@ bool InitializerListExpression::SemanticAnalysis(ParserState* state, LexicalScop
   }
 
   // Result is an array of the specified length.
-  m_type = state->GetArrayType(m_expressions[0]->GetType(), {static_cast<int>(m_expressions.size())});
+  Expression* array_len_expr = new IntegerLiteralExpression({}, static_cast<int>(m_expressions.size()));
+  array_len_expr->SemanticAnalysis(state, symbol_table);
+  m_type = new ArrayTypeSpecifier(symbol_table->GenerateName(m_expressions[0]->GetType()->GetName().c_str()),
+                                  m_expressions[0]->GetType()->Clone(), array_len_expr);
   return m_type->IsValid();
 }
 
 bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   bool result = true;
-  result &= m_type_specifier->SemanticAnalysis(state, symbol_table);
-  m_type = m_type_specifier->GetFinalType();
+  result &= m_type->SemanticAnalysis(state, symbol_table);
 
   if (symbol_table->HasNameInLocalScope(m_name))
   {
@@ -731,7 +706,7 @@ bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
     if (!m_initializer->SemanticAnalysis(state, symbol_table))
       result = false;
 
-    if (!m_initializer->GetType()->CanImplicitlyConvertTo(m_type))
+    if (!state->CanImplicitlyConvertTo(m_initializer->GetType(), m_type))
     {
       state->LogError(m_sloc, "Cannot implicitly convert from '%s' to '%s'",
                       m_initializer->GetType()->GetName().c_str(), m_type->GetName().c_str());
