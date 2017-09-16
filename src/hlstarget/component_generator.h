@@ -63,6 +63,7 @@ private:
   llvm::raw_fd_ostream& m_os;
   std::stringstream m_signals;
   std::stringstream m_body;
+  bool m_use_srl_fifos = true;
 };
 
 } // namespace HLSTarget

@@ -161,24 +161,48 @@ void ComponentGenerator::WriteFIFO(const std::string& name, u32 data_width, u32 
   m_signals << "signal " << name << "_dout : std_logic_vector(" << (data_width - 1) << " downto 0);\n";
   m_signals << "signal " << name << "_din : std_logic_vector(" << (data_width - 1) << " downto 0);\n";
 
-  m_body << "-- FIFO with depth " << depth << "\n";
-  // m_body << name << " : " << FIFO_COMPONENT_NAME << "\n";
-  m_body << name << " : entity work." << VHDLHelpers::FIFO_COMPONENT_NAME << "(behav)\n";
-  m_body << "  generic map (\n";
-  m_body << "    DATA_WIDTH => " << data_width << ",\n";
-  m_body << "    SIZE => " << depth << "\n";
-  m_body << "  )\n";
-  m_body << "  port map (\n";
-  m_body << "    clk => clk,\n";
-  m_body << "    rst_n => rst_n,\n";
-  m_body << "    read => " << name << "_read,\n";
-  m_body << "    write => " << name << "_write,\n";
-  m_body << "    empty_n => " << name << "_empty_n,\n";
-  m_body << "    full_n => " << name << "_full_n,\n";
-  m_body << "    dout => " << name << "_dout,\n";
-  m_body << "    din => " << name << "_din\n";
-  m_body << "  );\n";
-  m_body << "\n";
+  if (m_use_srl_fifos)
+  {
+    bool srl32 = (depth > 16);
+    m_body << "-- SRL" << (srl32 ? 32 : 16) << " FIFO\n";
+    m_body << name << " : entity work."
+           << (srl32 ? VHDLHelpers::FIFO_SRL32_COMPONENT_NAME : VHDLHelpers::FIFO_SRL16_COMPONENT_NAME) << "(behav)\n";
+    m_body << "  generic map (\n";
+    m_body << "    DATA_WIDTH => " << data_width << ",\n";
+    m_body << "  )\n";
+    m_body << "  port map (\n";
+    m_body << "    clk => clk,\n";
+    m_body << "    rst_n => rst_n,\n";
+    m_body << "    read => " << name << "_read,\n";
+    m_body << "    write => " << name << "_write,\n";
+    m_body << "    empty_n => " << name << "_empty_n,\n";
+    m_body << "    full_n => " << name << "_full_n,\n";
+    m_body << "    dout => " << name << "_dout,\n";
+    m_body << "    din => " << name << "_din\n";
+    m_body << "  );\n";
+    m_body << "\n";
+  }
+  else
+  {
+    m_body << "-- FIFO with depth " << depth << "\n";
+    // m_body << name << " : " << FIFO_COMPONENT_NAME << "\n";
+    m_body << name << " : entity work." << VHDLHelpers::FIFO_COMPONENT_NAME << "(behav)\n";
+    m_body << "  generic map (\n";
+    m_body << "    DATA_WIDTH => " << data_width << ",\n";
+    m_body << "    SIZE => " << depth << "\n";
+    m_body << "  )\n";
+    m_body << "  port map (\n";
+    m_body << "    clk => clk,\n";
+    m_body << "    rst_n => rst_n,\n";
+    m_body << "    read => " << name << "_read,\n";
+    m_body << "    write => " << name << "_write,\n";
+    m_body << "    empty_n => " << name << "_empty_n,\n";
+    m_body << "    full_n => " << name << "_full_n,\n";
+    m_body << "    dout => " << name << "_dout,\n";
+    m_body << "    din => " << name << "_din\n";
+    m_body << "  );\n";
+    m_body << "\n";
+  }
 }
 
 void ComponentGenerator::WriteFilterInstance(StreamGraph::Filter* node)
