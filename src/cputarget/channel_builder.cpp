@@ -12,10 +12,11 @@
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
 #include "streamgraph/streamgraph.h"
+Log_SetChannel(CPUTarget::ChannelBuilder);
 
 namespace CPUTarget
 {
-constexpr unsigned int FIFO_QUEUE_SIZE = 64;
+static u32 FIFO_QUEUE_SIZE_MULTIPLIER = 16;
 
 ChannelBuilder::ChannelBuilder(Frontend::WrappedLLVMContext* context, llvm::Module* mod)
   : m_context(context), m_module(mod)
@@ -32,6 +33,11 @@ bool ChannelBuilder::GenerateCode(StreamGraph::Filter* filter)
   if (filter->GetInputType()->isVoidTy())
     return true;
 
+  // Base the fifo queue size off the filter's multiplicity.
+  m_input_buffer_size = filter->GetNetPop() * FIFO_QUEUE_SIZE_MULTIPLIER;
+  Log_InfoPrintf("Filter instance %s is using a buffer size of %u elements", filter->GetName().c_str(),
+                 m_input_buffer_size);
+
   return (GenerateFilterGlobals(filter) && GenerateFilterPeekFunction(filter) && GenerateFilterPopFunction(filter) &&
           GenerateFilterPushFunction(filter));
 }
@@ -44,6 +50,9 @@ bool ChannelBuilder::GenerateCode(StreamGraph::Split* split, int mode)
 
 bool ChannelBuilder::GenerateCode(StreamGraph::Join* join)
 {
+  m_input_buffer_size = join->GetNetPop() * FIFO_QUEUE_SIZE_MULTIPLIER;
+  Log_InfoPrintf("Join %s is using a buffer size of %u elements", join->GetName().c_str(), m_input_buffer_size);
+
   m_instance_name = join->GetName();
   return (GenerateJoinGlobals(join) && GenerateJoinSyncFunction(join) && GenerateJoinPushFunction(join));
 }
@@ -57,7 +66,7 @@ bool ChannelBuilder::GenerateFilterGlobals(StreamGraph::Filter* filter)
   // int tail
   // int size
   //
-  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(filter->GetInputType(), FIFO_QUEUE_SIZE);
+  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(filter->GetInputType(), m_input_buffer_size);
   m_input_buffer_type =
     llvm::StructType::create(StringFromFormat("%s_buf_type", m_instance_name.c_str()), data_array_ty,
                              m_context->GetIntType(), m_context->GetIntType(), m_context->GetIntType(), nullptr);
@@ -99,9 +108,9 @@ bool ChannelBuilder::GenerateFilterPeekFunction(StreamGraph::Filter* filter)
                                                     {builder.getInt32(0), builder.getInt32(2)}, "tail_ptr");
   llvm::Value* pos_1 = builder.CreateLoad(tail_ptr, "pos_1");
 
-  // pos = (pos_1 + index) % FIFO_QUEUE_SIZE
+  // pos = (pos_1 + index) % m_input_buffer_size
   llvm::Value* pos_2 = builder.CreateAdd(pos_1, index, "pos_2");
-  llvm::Value* pos = builder.CreateURem(pos_2, builder.getInt32(FIFO_QUEUE_SIZE), "tail");
+  llvm::Value* pos = builder.CreateURem(pos_2, builder.getInt32(m_input_buffer_size), "tail");
 
   // value_ptr = &buf.data[pos]
   // value = *value_ptr
@@ -144,7 +153,7 @@ bool ChannelBuilder::GenerateFilterPopFunction(StreamGraph::Filter* filter)
 
   // new_tail = (tail + 1) % FIFO_QUEUE_SIZE
   llvm::Value* new_tail_1 = builder.CreateAdd(tail, builder.getInt32(1), "new_tail_1");
-  llvm::Value* new_tail = builder.CreateURem(new_tail_1, builder.getInt32(FIFO_QUEUE_SIZE), "new_tail");
+  llvm::Value* new_tail = builder.CreateURem(new_tail_1, builder.getInt32(m_input_buffer_size), "new_tail");
 
   // *tail_ptr = new_tail
   builder.CreateStore(new_tail, tail_ptr);
@@ -201,7 +210,7 @@ bool ChannelBuilder::GenerateFilterPushFunction(StreamGraph::Filter* filter)
   // new_head = (head + 1) % FIFO_QUEUE_SIZE
   // *head_ptr = new_head
   llvm::Value* new_head_1 = builder.CreateAdd(head, builder.getInt32(1), "new_head_1");
-  llvm::Value* new_head = builder.CreateURem(new_head_1, builder.getInt32(FIFO_QUEUE_SIZE), "new_head");
+  llvm::Value* new_head = builder.CreateURem(new_head_1, builder.getInt32(m_input_buffer_size), "new_head");
   builder.CreateStore(new_head, head_ptr);
 
   // size_ptr = &buf.size
@@ -308,7 +317,7 @@ bool ChannelBuilder::GenerateJoinGlobals(StreamGraph::Join* join)
   //    data_type buf[num_inputs][FIFO_QUEUE_SIZE]
 
   assert(join->GetInputType() == join->GetInputType());
-  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(join->GetInputType(), FIFO_QUEUE_SIZE);
+  llvm::ArrayType* data_array_ty = llvm::ArrayType::get(join->GetInputType(), m_input_buffer_size);
   llvm::ArrayType* buf_array_ty = llvm::ArrayType::get(data_array_ty, num_inputs);
   llvm::ArrayType* int_array_ty = llvm::ArrayType::get(m_context->GetIntType(), num_inputs);
   m_input_buffer_type =
@@ -394,7 +403,7 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
 
   // tail = (tail + 1) % FIFO_QUEUE_SIZE
   tail = builder.CreateAdd(tail, builder.getInt32(1), "tail");
-  tail = builder.CreateURem(tail, builder.getInt32(FIFO_QUEUE_SIZE), "tail");
+  tail = builder.CreateURem(tail, builder.getInt32(m_input_buffer_size), "tail");
   builder.CreateStore(tail, tail_ptr);
 
   // size = size - 1
@@ -469,7 +478,7 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
     // new_head = (head + 1) % FIFO_QUEUE_SIZE
     // *head_ptr = new_head
     llvm::Value* new_head_1 = builder.CreateAdd(head, builder.getInt32(1), "new_head_1");
-    llvm::Value* new_head = builder.CreateURem(new_head_1, builder.getInt32(FIFO_QUEUE_SIZE), "new_head");
+    llvm::Value* new_head = builder.CreateURem(new_head_1, builder.getInt32(m_input_buffer_size), "new_head");
     builder.CreateStore(new_head, head_ptr);
 
     // size_ptr = &buf.size

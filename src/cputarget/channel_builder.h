@@ -1,5 +1,6 @@
 #pragma once
 #include <unordered_map>
+#include "common/types.h"
 
 namespace llvm
 {
@@ -54,7 +55,7 @@ private:
   llvm::Module* m_module;
   std::string m_instance_name;
 
-  llvm::Type* m_input_buffer_element_type = nullptr;
+  u32 m_input_buffer_size = 0;
   llvm::Type* m_input_buffer_type = nullptr;
   llvm::GlobalVariable* m_input_buffer_var = nullptr;
   llvm::GlobalVariable* m_last_index_var = nullptr;
