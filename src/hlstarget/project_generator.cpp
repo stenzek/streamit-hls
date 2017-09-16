@@ -318,19 +318,23 @@ bool ProjectGenerator::WriteHLSScript()
     // Disable handshake signals on block, we don't need them, since use the fifo for control
     os << "set_directive_interface -mode ap_ctrl_none \"" << function_name << "\"\n";
 
-    // Make input pointer a fifo
-    if (!filter_perm->GetInputType()->isVoidTy())
+    // For non-combinational filters
+    if (!filter_perm->IsCombinational())
     {
-      u32 depth = std::max(filter_perm->GetPeekRate(), filter_perm->GetPopRate());
-      os << "set_directive_interface -mode ap_fifo -depth " << depth << " \"" << function_name
-         << "\" llvm_cbe_in_ptr\n";
-    }
+      // Make input pointer a fifo
+      if (!filter_perm->GetInputType()->isVoidTy())
+      {
+        u32 depth = std::max(filter_perm->GetPeekRate(), filter_perm->GetPopRate());
+        os << "set_directive_interface -mode ap_fifo -depth " << depth << " \"" << function_name
+           << "\" llvm_cbe_in_ptr\n";
+      }
 
-    // Make output pointer a fifo
-    if (!filter_perm->GetOutputType()->isVoidTy())
-    {
-      os << "set_directive_interface -mode ap_fifo -depth " << filter_perm->GetPushRate() << " \"" << function_name
-         << "\" llvm_cbe_out_ptr\n";
+      // Make output pointer a fifo
+      if (!filter_perm->GetOutputType()->isVoidTy())
+      {
+        os << "set_directive_interface -mode ap_fifo -depth " << filter_perm->GetPushRate() << " \"" << function_name
+           << "\" llvm_cbe_out_ptr\n";
+      }
     }
 
     os << "\n";
