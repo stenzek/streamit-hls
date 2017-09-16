@@ -36,6 +36,7 @@ public:
   bool Visit(AST::PeekExpression* node) override;
   bool Visit(AST::PopExpression* node) override;
   bool Visit(AST::CallExpression* node) override;
+  bool Visit(AST::CastExpression* node) override;
 
 private:
   FunctionBuilder* m_func_builder;

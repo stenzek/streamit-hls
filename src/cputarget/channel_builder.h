@@ -54,6 +54,7 @@ private:
   llvm::Module* m_module;
   std::string m_instance_name;
 
+  llvm::Type* m_input_buffer_element_type = nullptr;
   llvm::Type* m_input_buffer_type = nullptr;
   llvm::GlobalVariable* m_input_buffer_var = nullptr;
   llvm::GlobalVariable* m_last_index_var = nullptr;

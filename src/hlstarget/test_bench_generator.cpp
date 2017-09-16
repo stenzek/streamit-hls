@@ -114,22 +114,35 @@ namespace
 class FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
 public:
-  FragmentBuilder(Frontend::WrappedLLVMContext* context, llvm::GlobalVariable* input_buffer_var,
-                  llvm::GlobalVariable* input_buffer_pos_var, llvm::GlobalVariable* output_buffer_var,
-                  llvm::GlobalVariable* output_buffer_pos_var)
-    : m_context(context), m_input_buffer_var(input_buffer_var), m_input_buffer_pos_var(input_buffer_pos_var),
-      m_output_buffer_var(output_buffer_var), m_output_buffer_pos_var(output_buffer_pos_var)
+  FragmentBuilder(Frontend::WrappedLLVMContext* context, llvm::Type* input_type, llvm::GlobalVariable* input_buffer_var,
+                  llvm::GlobalVariable* input_buffer_pos_var, llvm::Type* output_type,
+                  llvm::GlobalVariable* output_buffer_var, llvm::GlobalVariable* output_buffer_pos_var)
+    : m_context(context), m_input_type(input_type), m_input_buffer_var(input_buffer_var),
+      m_input_buffer_pos_var(input_buffer_pos_var), m_output_type(output_type), m_output_buffer_var(output_buffer_var),
+      m_output_buffer_pos_var(output_buffer_pos_var)
   {
   }
 
   void CreateTemporaries(llvm::IRBuilder<>& builder)
   {
     // TODO: Fix this type
-    m_temp = builder.CreateAlloca(m_context->GetIntType(), nullptr, "bitcast_temp");
+    if (!m_input_type->isVoidTy())
+      m_input_temp = builder.CreateAlloca(m_input_type, nullptr, "bitcast_input_temp");
+    if (!m_output_type->isVoidTy())
+      m_output_temp = builder.CreateAlloca(m_output_type, nullptr, "bitcast_output_temp");
   }
 
-  // TODO: Fix this type
-  u32 GetSizeOfElement() const { return sizeof(u32); }
+  u32 GetSizeOfInputElement() const
+  {
+    // Round up to nearest byte size.
+    return (m_input_type->getPrimitiveSizeInBits() + 7) / 8;
+  }
+
+  u32 GetSizeOfOutputElement() const
+  {
+    // Round up to nearest byte size.
+    return (m_output_type->getPrimitiveSizeInBits() + 7) / 8;
+  }
 
   llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final
   {
@@ -137,7 +150,7 @@ public:
     llvm::Value* peek_val = BuildPeek(builder, builder.getInt32(0));
     // new_pos <- input_buffer_pos + sizeof(elem)
     llvm::Value* new_pos = builder.CreateAdd(builder.CreateLoad(m_input_buffer_pos_var, "input_buffer_pos"),
-                                             builder.getInt32(GetSizeOfElement()));
+                                             builder.getInt32(GetSizeOfInputElement()));
     // input_buffer_pos <- new_pos
     builder.CreateStore(new_pos, m_input_buffer_pos_var);
     return peek_val;
@@ -152,11 +165,11 @@ public:
     llvm::Value* input_buffer_ptr =
       builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), input_buffer_pos}, "input_buffer_ptr");
     // bitcast_temp_ptr <- (i8*)&bitcast_temp
-    llvm::Value* raw_ptr = builder.CreateBitCast(m_temp, byte_ptr_type, "bitcast_temp_ptr");
+    llvm::Value* raw_ptr = builder.CreateBitCast(m_input_temp, byte_ptr_type, "bitcast_temp_ptr");
     // memcpy(bitcast_temp_ptr, input_buffer_ptr, sizeof(elem))
-    builder.CreateMemCpy(raw_ptr, input_buffer_ptr, GetSizeOfElement(), GetSizeOfElement());
+    builder.CreateMemCpy(raw_ptr, input_buffer_ptr, GetSizeOfInputElement(), GetSizeOfInputElement());
     // peek_val <- bitcast_temp
-    return builder.CreateLoad(m_temp, "peek_val");
+    return builder.CreateLoad(m_input_temp, "peek_val");
   }
 
   bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
@@ -168,14 +181,14 @@ public:
     llvm::Value* input_buffer_ptr =
       builder.CreateInBoundsGEP(m_output_buffer_var, {builder.getInt32(0), input_buffer_pos}, "input_buffer_ptr");
     // bitcast_temp <- value
-    builder.CreateStore(value, m_temp);
+    builder.CreateStore(value, m_output_temp);
     // bitcast_temp_ptr <- (i8*)&value
-    llvm::Value* raw_ptr = builder.CreateBitCast(m_temp, byte_ptr_type, "value_raw_ptr");
+    llvm::Value* raw_ptr = builder.CreateBitCast(m_output_temp, byte_ptr_type, "value_raw_ptr");
     // memcpy(bitcast_temp_ptr, input_buffer_ptr, sizeof(elem))
-    builder.CreateMemCpy(input_buffer_ptr, raw_ptr, GetSizeOfElement(), GetSizeOfElement());
+    builder.CreateMemCpy(input_buffer_ptr, raw_ptr, GetSizeOfOutputElement(), GetSizeOfOutputElement());
     // new_pos <- input_buffer_pos + sizeof(elem)
     llvm::Value* new_pos = builder.CreateAdd(builder.CreateLoad(m_output_buffer_pos_var, "input_buffer_pos"),
-                                             builder.getInt32(GetSizeOfElement()));
+                                             builder.getInt32(GetSizeOfOutputElement()));
     // input_buffer_pos <- new_pos
     builder.CreateStore(new_pos, m_output_buffer_pos_var);
     return true;
@@ -183,9 +196,12 @@ public:
 
 private:
   Frontend::WrappedLLVMContext* m_context;
-  llvm::AllocaInst* m_temp;
+  llvm::AllocaInst* m_input_temp = nullptr;
+  llvm::AllocaInst* m_output_temp = nullptr;
+  llvm::Type* m_input_type;
   llvm::GlobalVariable* m_input_buffer_var;
   llvm::GlobalVariable* m_input_buffer_pos_var;
+  llvm::Type* m_output_type;
   llvm::GlobalVariable* m_output_buffer_var;
   llvm::GlobalVariable* m_output_buffer_pos_var;
 };
@@ -203,7 +219,8 @@ llvm::Function* TestBenchGenerator::GenerateFilterFunction(const StreamGraph::Fi
     return nullptr;
   }
 
-  FragmentBuilder fragment_builder(m_context, m_input_buffer_global, m_input_buffer_pos_global, m_output_buffer_global,
+  FragmentBuilder fragment_builder(m_context, filter_perm->GetInputType(), m_input_buffer_global,
+                                   m_input_buffer_pos_global, filter_perm->GetOutputType(), m_output_buffer_global,
                                    m_output_buffer_pos_global);
   Frontend::FunctionBuilder function_builder(m_context, m_module, &fragment_builder, func);
   fragment_builder.CreateTemporaries(function_builder.GetCurrentIRBuilder());
@@ -374,17 +391,61 @@ void TestBenchGenerator::ExecuteFilters()
   m_stream_graph->GetRootNode()->Accept(&visitor);
 }
 
+static std::string GetTestBenchTypeName(const llvm::Type* ty)
+{
+  if (ty->isIntegerTy())
+  {
+    const llvm::IntegerType* int_ty = llvm::cast<const llvm::IntegerType>(ty);
+    if (int_ty->getBitWidth() == 1)
+      return "bool";
+    else if (int_ty->getBitWidth() == 8)
+      return "char";
+    else if (int_ty->getBitWidth() == 16)
+      return "short";
+    else if (int_ty->getBitWidth() == 32)
+      return "int";
+    else
+      return StringFromFormat("int%u", int_ty->getBitWidth());
+  }
+  else if (ty->isFloatTy())
+  {
+    return "float";
+  }
+  else if (ty->isDoubleTy())
+  {
+    return "double";
+  }
+  else if (ty->isVoidTy())
+  {
+    return "void";
+  }
+  else
+  {
+    assert(0 && "unknown type");
+    return "";
+  }
+}
+
+static u32 GetTestBenchTypeSize(const llvm::Type* ty)
+{
+  // Round up to nearest byte.
+  if (ty->isVoidTy())
+    return 0;
+
+  return (ty->getPrimitiveSizeInBits() + 7) / 8;
+}
+
 static void WriteTestBenchFor(const StreamGraph::FilterPermutation* filter_perm,
                               const TestBenchGenerator::FilterDataVector* input_data,
                               const TestBenchGenerator::FilterDataVector* output_data, llvm::raw_ostream& os)
 {
   // TODO: Fix this for types...
-  const char* in_type = "uint32_t";
-  u32 in_element_size = sizeof(u32);
+  const std::string in_type = GetTestBenchTypeName(filter_perm->GetInputType());
+  u32 in_element_size = GetTestBenchTypeSize(filter_perm->GetInputType());
   u32 input_count = input_data ? (input_data->size() / in_element_size) : 0;
   u32 inputs_per_iteration = 0;
-  const char* out_type = "uint32_t";
-  u32 out_element_size = sizeof(u32);
+  const std::string out_type = GetTestBenchTypeName(filter_perm->GetOutputType());
+  u32 out_element_size = GetTestBenchTypeSize(filter_perm->GetOutputType());
   u32 output_count = output_data ? (output_data->size() / out_element_size) : 0;
   u32 outputs_per_iteration = 0;
 
@@ -435,28 +496,33 @@ static void WriteTestBenchFor(const StreamGraph::FilterPermutation* filter_perm,
   // Sometimes it doesn't compile in C99 mode...
   os << "  int i;\n";
 
-  auto WriteData = [&](const char* array_name, const char* element_type, u32 element_size, u32 element_count,
-                       const TestBenchGenerator::FilterDataVector* data) {
+  auto WriteData = [&](const char* array_name, const llvm::Type* element_type, const std::string& element_type_name,
+                       u32 element_size, u32 element_count, const TestBenchGenerator::FilterDataVector* data) {
     const byte* current_in_ptr = data->data();
-    os << "  " << in_type << " " << array_name << "[" << element_count << "] = {\n";
+    os << "  " << element_type_name << " " << array_name << "[" << element_count << "] = {\n";
     for (u32 i = 0; i < element_count; i++)
     {
-      u32 value;
-      std::memcpy(&value, current_in_ptr, sizeof(value));
+      // This will only work on little-endian..
+      u32 value = 0;
+      std::memcpy(&value, current_in_ptr, element_size);
       current_in_ptr += element_size;
-      os << "    " << llvm::format_hex(value, 10, true) << ",\n";
+      os << "    " << llvm::format_hex(value, 10, true);
+      if (element_type->isIntegerTy())
+        os << " & " << llvm::cast<const llvm::IntegerType>(element_type)->getBitMask();
+      os << ",\n";
     }
     os << "  };\n";
   };
 
   // Write input data
   if (input_data)
-    WriteData("INPUT_DATA", in_type, in_element_size, input_count, input_data);
+    WriteData("INPUT_DATA", filter_perm->GetInputType(), in_type, in_element_size, input_count, input_data);
 
   // Write expected output data
   if (output_data)
   {
-    WriteData("REFERENCE_OUTPUT_DATA", out_type, out_element_size, output_count, output_data);
+    WriteData("REFERENCE_OUTPUT_DATA", filter_perm->GetOutputType(), out_type, out_element_size, output_count,
+              output_data);
     os << "  " << out_type << " OUTPUT_DATA[" << output_count << "];\n";
   }
 
@@ -546,6 +612,7 @@ bool TestBenchGenerator::GenerateTestBenchCCode()
   os << "#include <stdint.h>\n";
   os << "#include <stdio.h>\n";
   os << "#include <string.h>\n";
+  os << "#ifndef __cplusplus\ntypedef unsigned char bool;\n#endif\n";
   os << "\n";
 
   // Write test functions

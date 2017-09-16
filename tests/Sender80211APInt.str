@@ -1,4 +1,4 @@
-void->void pipeline Sender80211APIntCPU
+void->void pipeline Sender80211APInt
 {
     add input;
 	//add FileReader<int>();
@@ -6,7 +6,6 @@ void->void pipeline Sender80211APIntCPU
 	add diff_encode;
 	add chunk2symbol;
 	add fir_filter;
-	add output;
 	//add FileWriter<int>("output.stream");
 }
 
@@ -23,15 +22,6 @@ void -> apint8 stateful filter input
             push((apint8)0xaa);
         last_out = last_out ^ (apint8)1;
     }
-}
-
-int -> void filter output
-{
-	work pop 1
-	{
-		println(pop());
-        //pop();
-	}
 }
 
 apint8 -> bit stateful filter scramble

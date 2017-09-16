@@ -17,9 +17,6 @@ bool StateVariablesBuilder::Visit(AST::VariableDeclaration* node)
   llvm::Constant* initializer = nullptr;
   if (node->HasInitializer())
   {
-    // The complex initializers should have already been moved to init()
-    assert(node->GetInitializer()->IsConstant());
-
     // The types should be the same..
     assert(*node->GetInitializer()->GetType() == *node->GetType());
 

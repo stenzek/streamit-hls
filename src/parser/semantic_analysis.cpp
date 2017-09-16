@@ -299,10 +299,6 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
       result &= param->SemanticAnalysis(state, &filter_symbol_table);
   }
 
-  // For LLVM codegen at least, it's easier to have all the initialization happen in init.
-  if (result)
-    MoveStateAssignmentsToInit();
-
   if (m_vars)
     result &= m_vars->SemanticAnalysis(state, &filter_symbol_table);
 
@@ -326,41 +322,6 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   state->current_stream = old_stream;
   state->current_stream_scope = old_stream_scope;
   return result;
-}
-
-void FilterDeclaration::MoveStateAssignmentsToInit()
-{
-  if (!m_vars || !m_vars->HasChildren())
-    return;
-
-  std::unique_ptr<NodeList> assign_exprs = std::make_unique<NodeList>();
-  for (Node* node : m_vars->GetNodeList())
-  {
-    VariableDeclaration* var_decl = dynamic_cast<VariableDeclaration*>(node);
-    if (!var_decl || !var_decl->HasInitializer() || var_decl->GetInitializer()->IsConstant())
-      continue;
-
-    assign_exprs->AddNode(
-      new ExpressionStatement(var_decl->GetSourceLocation(),
-                              new AssignmentExpression(var_decl->GetSourceLocation(),
-                                                       new AST::IdentifierExpression(var_decl->GetSourceLocation(),
-                                                                                     var_decl->GetName().c_str()),
-                                                       AssignmentExpression::Assign, var_decl->GetInitializer())));
-    var_decl->RemoveInitializer();
-  }
-
-  if (!assign_exprs->HasChildren())
-    return;
-
-  if (!m_init)
-  {
-    m_init = new FilterWorkBlock({});
-    m_init->SetStatements(assign_exprs.release());
-  }
-  else
-  {
-    m_init->GetStatements()->PrependNode(assign_exprs.get());
-  }
 }
 
 bool FilterWorkBlock::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
@@ -601,10 +562,11 @@ bool CastExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_t
   if (result)
   {
     // Check it is a valid conversion, int->apint, or apint->int for now
-    if (!(m_expr->GetType()->IsInt() || m_expr->GetType()->IsAPInt()) || !(m_type->IsInt() || m_type->IsAPInt()))
+    auto IsIntType = [](const AST::TypeSpecifier* type) { return (type->IsInt() || type->IsBit() || type->IsAPInt()); };
+    if (!IsIntType(m_expr->GetType()) || !IsIntType(m_to_type))
     {
       state->LogError(m_sloc, "Cannot cast from %s to %s", m_expr->GetType()->GetName().c_str(),
-                      m_type->GetName().c_str());
+                      m_to_type->GetName().c_str());
       result = false;
     }
   }
@@ -706,7 +668,9 @@ bool VariableDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* sym
     if (!m_initializer->SemanticAnalysis(state, symbol_table))
       result = false;
 
-    if (!state->CanImplicitlyConvertTo(m_initializer->GetType(), m_type))
+    // TODO: Fix me
+    // if (!state->CanImplicitlyConvertTo(m_initializer->GetType(), m_type))
+    if (*m_initializer->GetType() != *m_type)
     {
       state->LogError(m_sloc, "Cannot implicitly convert from '%s' to '%s'",
                       m_initializer->GetType()->GetName().c_str(), m_type->GetName().c_str());

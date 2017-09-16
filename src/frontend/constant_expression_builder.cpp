@@ -3,6 +3,7 @@
 #include "frontend/wrapped_llvm_context.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Constants.h"
+#include "llvm/IR/DerivedTypes.h"
 #include "parser/ast.h"
 
 namespace Frontend
@@ -139,5 +140,39 @@ bool ConstantExpressionBuilder::Visit(AST::BinaryExpression* node)
   }
 
   return IsValid();
+}
+
+bool ConstantExpressionBuilder::Visit(AST::CastExpression* node)
+{
+  // Evaluate the expression first.
+  ConstantExpressionBuilder expr_ceb(m_context);
+  if (!node->GetExpression()->Accept(&expr_ceb) || !expr_ceb.IsValid())
+    return false;
+
+  // Work out types.
+  llvm::Type* to_type = m_context->GetLLVMType(node->GetToType());
+  llvm::Type* expr_type = expr_ceb.GetResultValue()->getType();
+  llvm::Constant* expr_value = expr_ceb.GetResultValue();
+
+  // Same type/redundant cast?
+  if (expr_type == to_type)
+  {
+    m_result_value = expr_value;
+    return IsValid();
+  }
+
+  // Integer types?
+  if (expr_type->isIntegerTy() && to_type->isIntegerTy())
+  {
+    // Smaller bit width -> larger bit width?
+    // Sign extend. Except for bit/apint1, zero-extend.
+    // Otherwise, truncate.
+    bool is_bit_type = (static_cast<llvm::IntegerType*>(expr_type)->getBitWidth() == 1);
+    m_result_value = llvm::ConstantExpr::getIntegerCast(expr_value, to_type, !is_bit_type);
+    return IsValid();
+  }
+
+  assert(0 && "Unhandled cast");
+  return false;
 }
 }

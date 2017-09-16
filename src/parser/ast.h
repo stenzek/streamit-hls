@@ -350,9 +350,6 @@ public:
   bool Accept(Visitor* visitor) override;
 
 private:
-  // Moves non-constant state initializers to the init function
-  void MoveStateAssignmentsToInit();
-
   NodeList* m_vars;
   FilterWorkBlock* m_init;
   FilterWorkBlock* m_prework;
@@ -742,8 +739,8 @@ public:
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
 
-  const TypeSpecifier* GetToType() const { return m_to_type; }
-  const Expression* GetExpression() const { return m_expr; }
+  TypeSpecifier* GetToType() const { return m_to_type; }
+  Expression* GetExpression() const { return m_expr; }
 
 private:
   TypeSpecifier* m_to_type;

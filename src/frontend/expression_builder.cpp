@@ -414,4 +414,38 @@ bool ExpressionBuilder::Visit(AST::CallExpression* node)
   m_result_value = GetIRBuilder().CreateCall(func, func_params);
   return IsValid();
 }
+
+bool ExpressionBuilder::Visit(AST::CastExpression* node)
+{
+  // Evaluate the expression first.
+  ExpressionBuilder expr_builder(m_func_builder);
+  if (!node->GetExpression()->Accept(&expr_builder) || !expr_builder.IsValid())
+    return false;
+
+  // Work out types.
+  llvm::Type* to_type = GetContext()->GetLLVMType(node->GetToType());
+  llvm::Type* expr_type = expr_builder.GetResultValue()->getType();
+  llvm::Value* expr_value = expr_builder.GetResultValue();
+
+  // Same type/redundant cast?
+  if (expr_type == to_type)
+  {
+    m_result_value = expr_value;
+    return IsValid();
+  }
+
+  // Integer types?
+  if (expr_type->isIntegerTy() && to_type->isIntegerTy())
+  {
+    // Smaller bit width -> larger bit width?
+    // Sign extend. Except for bit/apint1, zero-extend.
+    // Otherwise, truncate.
+    bool is_bit_type = (static_cast<llvm::IntegerType*>(expr_type)->getBitWidth() == 1);
+    m_result_value = GetIRBuilder().CreateIntCast(expr_value, to_type, !is_bit_type);
+    return IsValid();
+  }
+
+  assert(0 && "Unhandled cast");
+  return false;
+}
 }

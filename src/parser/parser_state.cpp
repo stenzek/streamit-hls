@@ -207,7 +207,7 @@ AST::TypeSpecifier* ParserState::GetBooleanType() const
 AST::TypeSpecifier* ParserState::GetBitType() const
 {
   // return m_bit_type;
-  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Float, "bit", nullptr, 1);
+  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Bit, "bit", nullptr, 1);
 }
 
 AST::TypeSpecifier* ParserState::GetIntType() const
@@ -220,6 +220,13 @@ AST::TypeSpecifier* ParserState::GetFloatType() const
 {
   // return m_float_type;
   return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::Float, "float", nullptr, 32);
+}
+
+AST::TypeSpecifier* ParserState::GetAPIntType(unsigned num_bits) const
+{
+  assert(num_bits >= 1);
+  return new AST::TypeSpecifier(AST::TypeSpecifier::TypeId::APInt, StringFromFormat("apint%u", num_bits), nullptr,
+                                num_bits);
 }
 
 // const AST::TypeSpecifier* ParserState::GetArrayType(const AST::TypeSpecifier* base_type, const

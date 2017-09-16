@@ -73,7 +73,6 @@ using namespace AST;
   int integer_literal;
   double float_literal;
   const char* string_literal;
-  int apint_num_bits;
 }
 
 %type <stream_decl> StreamDeclaration
@@ -131,6 +130,7 @@ using namespace AST;
 %type <identifier> Identifier TK_IDENTIFIER
 %type <integer_literal> IntegerLiteral TK_INTEGER_LITERAL
 %type <boolean_literal> BooleanLiteral TK_BOOLEAN_LITERAL
+%type <integer_literal> TK_APINT
 %type <type_specifier> TypeSpecifier
 %type <type_specifier> TypeName
 
@@ -161,6 +161,7 @@ TypeSpecifier
   | TK_INT { $$ = state->GetIntType(); }
   | TK_FLOAT { $$ = state->GetFloatType(); }
   | TK_VOID { $$ = state->GetVoidType(); }
+  | TK_APINT { $$ = state->GetAPIntType($1); }
   /*| Identifier {
     $$ = state->GetType($1);
     if (!$$) {
@@ -423,7 +424,7 @@ UnaryExpression
 
 CastExpression
   : UnaryExpression { $$ = $1; }
-  /*| '(' Type ')' CastExpression*/
+  | '(' TypeName ')' CastExpression { $$ = new CastExpression(@1, $2, $4); }
   ;
 
 MultiplicativeExpression

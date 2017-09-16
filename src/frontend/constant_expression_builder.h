@@ -23,6 +23,7 @@ public:
   bool Visit(AST::InitializerListExpression* node) override;
   bool Visit(AST::UnaryExpression* node) override;
   bool Visit(AST::BinaryExpression* node) override;
+  bool Visit(AST::CastExpression* node) override;
 
 private:
   WrappedLLVMContext* m_context;
