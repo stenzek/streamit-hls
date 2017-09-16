@@ -397,15 +397,15 @@ static std::string GetTestBenchTypeName(const llvm::Type* ty)
   {
     const llvm::IntegerType* int_ty = llvm::cast<const llvm::IntegerType>(ty);
     if (int_ty->getBitWidth() == 1)
-      return "bool";
+      return "uint1";
     else if (int_ty->getBitWidth() == 8)
-      return "char";
+      return "uint8_t";
     else if (int_ty->getBitWidth() == 16)
-      return "short";
+      return "uint16_t";
     else if (int_ty->getBitWidth() == 32)
-      return "int";
+      return "uint32_t";
     else
-      return StringFromFormat("int%u", int_ty->getBitWidth());
+      return StringFromFormat("uint%u", int_ty->getBitWidth());
   }
   else if (ty->isFloatTy())
   {
@@ -612,7 +612,7 @@ bool TestBenchGenerator::GenerateTestBenchCCode()
   os << "#include <stdint.h>\n";
   os << "#include <stdio.h>\n";
   os << "#include <string.h>\n";
-  os << "#ifndef __cplusplus\ntypedef unsigned char bool;\n#endif\n";
+  os << "#include <ap_cint.h>\n";
   os << "\n";
 
   // Write test functions

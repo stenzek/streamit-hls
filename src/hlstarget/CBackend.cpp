@@ -215,16 +215,7 @@ raw_ostream& CWriter::printTypeString(raw_ostream& Out, Type* Ty, bool isSigned)
   case Type::VoidTyID:
     return Out << "void";
   case Type::IntegerTyID:
-  {
-    unsigned NumBits = cast<IntegerType>(Ty)->getBitWidth();
-    if (NumBits == 1)
-      return Out << "bool";
-    else
-    {
-      assert(NumBits <= 128 && "Bit widths > 128 not implemented yet");
-      return Out << (isSigned ? "i" : "u") << NumBits;
-    }
-  }
+    return Out << (isSigned ? "i" : "u") << cast<IntegerType>(Ty)->getBitWidth();
   case Type::FloatTyID:
     return Out << "f32";
   case Type::DoubleTyID:
@@ -352,19 +343,16 @@ raw_ostream& CWriter::printSimpleType(raw_ostream& Out, Type* Ty, bool isSigned)
   case Type::IntegerTyID:
   {
     unsigned NumBits = cast<IntegerType>(Ty)->getBitWidth();
-    if (NumBits == 1)
-      return Out << "bool";
-    else if (NumBits <= 8)
+    if (NumBits == 8)
       return Out << (isSigned ? "int8_t" : "uint8_t");
-    else if (NumBits <= 16)
+    else if (NumBits == 16)
       return Out << (isSigned ? "int16_t" : "uint16_t");
-    else if (NumBits <= 32)
+    else if (NumBits == 32)
       return Out << (isSigned ? "int32_t" : "uint32_t");
-    else
-    {
-      assert(NumBits <= 64 && "Bit widths > 64 not implemented yet");
+    else if (NumBits == 64)
       return Out << (isSigned ? "int64_t" : "uint64_t");
-    }
+    else
+      return Out << (isSigned ? "int" : "uint") << NumBits;
   }
   case Type::FloatTyID:
     return Out << "float";
@@ -1770,11 +1758,7 @@ void CWriter::generateHeader(Module& M)
   Out << "#include <limits.h>\n"; // With overflow intrinsics support.
   Out << "#include <stdint.h>\n"; // Sized integer support
   Out << "#include <math.h>\n";   // definitions for some math functions and numeric constants
-  // Out << "#ifndef __SYNTHESIS__\n";
-  // Out << "  #include \"ap_cin.h\"\n";
-  // Out << "#endif\n";
-  // Provide a definition for `bool' if not compiling with a C++ compiler.
-  Out << "#ifndef __cplusplus\ntypedef unsigned char bool;\n#endif\n";
+  Out << "#include <ap_cint.h>\n";
   Out << "\n";
 
   generateCompilerSpecificCode(Out, TD);
