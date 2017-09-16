@@ -4,7 +4,7 @@
 #include <iostream>
 #include <memory>
 #include "common/log.h"
-#include "core/wrapped_llvm_context.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "hlstarget/project_generator.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
@@ -17,17 +17,19 @@
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static std::unique_ptr<ParserState> ParseFile(WrappedLLVMContext* ctx, const char* filename, std::FILE* fp, bool debug);
+static std::unique_ptr<ParserState> ParseFile(Frontend::WrappedLLVMContext* ctx, const char* filename, std::FILE* fp,
+                                              bool debug);
 static void DumpAST(ParserState* parser);
 
-static std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(WrappedLLVMContext* ctx, ParserState* parser);
+static std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(Frontend::WrappedLLVMContext* ctx,
+                                                                     ParserState* parser);
 static void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph);
 
-static std::unique_ptr<HLSTarget::ProjectGenerator> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
+static std::unique_ptr<HLSTarget::ProjectGenerator> GenerateCode(Frontend::WrappedLLVMContext* ctx, ParserState* parser,
                                                                  StreamGraph::StreamGraph* streamgraph,
                                                                  const std::string& dirname);
-static void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod);
-static bool GenerateProject(WrappedLLVMContext* ctx, HLSTarget::ProjectGenerator* generator);
+static void DumpModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod);
+static bool GenerateProject(Frontend::WrappedLLVMContext* ctx, HLSTarget::ProjectGenerator* generator);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -112,7 +114,7 @@ int main(int argc, char* argv[])
     }
   }
 
-  std::unique_ptr<WrappedLLVMContext> llvm_context = WrappedLLVMContext::Create();
+  std::unique_ptr<Frontend::WrappedLLVMContext> llvm_context = Frontend::WrappedLLVMContext::Create();
   std::unique_ptr<ParserState> parser = ParseFile(llvm_context.get(), filename, fp, debug_parser);
   std::fclose(fp);
   if (!parser)
@@ -147,7 +149,8 @@ int main(int argc, char* argv[])
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<ParserState> ParseFile(WrappedLLVMContext* ctx, const char* filename, std::FILE* fp, bool debug)
+std::unique_ptr<ParserState> ParseFile(Frontend::WrappedLLVMContext* ctx, const char* filename, std::FILE* fp,
+                                       bool debug)
 {
   Log::Info("HLSCompiler", "Parsing %s...", filename);
 
@@ -169,7 +172,7 @@ void DumpAST(ParserState* parser)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(WrappedLLVMContext* ctx, ParserState* parser)
+std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(Frontend::WrappedLLVMContext* ctx, ParserState* parser)
 {
   Log::Info("HLSCompiler", "Generating stream graph...");
 
@@ -191,7 +194,7 @@ void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph)
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<HLSTarget::ProjectGenerator> GenerateCode(WrappedLLVMContext* ctx, ParserState* parser,
+std::unique_ptr<HLSTarget::ProjectGenerator> GenerateCode(Frontend::WrappedLLVMContext* ctx, ParserState* parser,
                                                           StreamGraph::StreamGraph* streamgraph,
                                                           const std::string& dirname)
 {
@@ -214,13 +217,13 @@ std::unique_ptr<HLSTarget::ProjectGenerator> GenerateCode(WrappedLLVMContext* ct
   return std::move(builder);
 }
 
-void DumpModule(WrappedLLVMContext* ctx, llvm::Module* mod)
+void DumpModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod)
 {
   Log::Info("HLSCompiler", "Dumping LLVM IR...");
   ctx->DumpModule(mod);
 }
 
-bool GenerateProject(WrappedLLVMContext* ctx, HLSTarget::ProjectGenerator* generator)
+bool GenerateProject(Frontend::WrappedLLVMContext* ctx, HLSTarget::ProjectGenerator* generator)
 {
   Log::Info("HLSCompiler", "Writing project to %s...", generator->GetOutputDirectoryName().c_str());
   if (generator->GetOutputDirectoryName().length() <= 1)

@@ -3,8 +3,6 @@
 #include <sstream>
 #include "streamgraph/streamgraph.h"
 
-class WrappedLLVMContext;
-
 namespace llvm
 {
 class raw_fd_ostream;
@@ -19,17 +17,22 @@ namespace AST
 class FilterDeclaration;
 }
 
+namespace Frontend
+{
+class WrappedLLVMContext;
+}
+
 namespace HLSTarget
 {
 
 class ComponentGenerator : private StreamGraph::Visitor
 {
 public:
-  ComponentGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph, const std::string& module_name,
-                     llvm::raw_fd_ostream& os);
+  ComponentGenerator(Frontend::WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
+                     const std::string& module_name, llvm::raw_fd_ostream& os);
   ~ComponentGenerator();
 
-  WrappedLLVMContext* GetContext() const { return m_context; }
+  Frontend::WrappedLLVMContext* GetContext() const { return m_context; }
   const std::string& GetModuleName() const { return m_module_name; }
 
   // Generates the whole module.
@@ -54,7 +57,7 @@ private:
   bool Visit(StreamGraph::Split* node) override;
   bool Visit(StreamGraph::Join* node) override;
 
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   StreamGraph::StreamGraph* m_streamgraph;
   std::string m_module_name;
   llvm::raw_fd_ostream& m_os;

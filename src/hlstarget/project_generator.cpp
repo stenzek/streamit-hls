@@ -5,8 +5,7 @@
 #include <vector>
 #include "common/log.h"
 #include "common/string_helpers.h"
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "hlstarget/combinational_filter_builder.h"
 #include "hlstarget/component_generator.h"
 #include "hlstarget/component_test_bench_generator.h"
@@ -19,6 +18,7 @@
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/LegacyPassManager.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
 #include "llvm/Support/FileSystem.h"
 #include "llvm/Support/Signals.h"
 #include "llvm/Support/raw_ostream.h"
@@ -32,7 +32,7 @@ extern void addCBackendPasses(llvm::legacy::PassManagerBase& PM, llvm::raw_pwrit
 
 namespace HLSTarget
 {
-ProjectGenerator::ProjectGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
+ProjectGenerator::ProjectGenerator(Frontend::WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
                                    const std::string& module_name, const std::string& output_dir)
   : m_context(context), m_streamgraph(streamgraph), m_module_name(module_name), m_output_dir(output_dir)
 {
@@ -319,7 +319,7 @@ bool ProjectGenerator::WriteHLSScript()
     os << "set_directive_interface -mode ap_ctrl_none \"" << function_name << "\"\n";
 
     // Make input pointer a fifo
-    if (!filter_perm->GetInputType()->IsVoid())
+    if (!filter_perm->GetInputType()->isVoidTy())
     {
       u32 depth = std::max(filter_perm->GetPeekRate(), filter_perm->GetPopRate());
       os << "set_directive_interface -mode ap_fifo -depth " << depth << " \"" << function_name
@@ -327,7 +327,7 @@ bool ProjectGenerator::WriteHLSScript()
     }
 
     // Make output pointer a fifo
-    if (!filter_perm->GetOutputType()->IsVoid())
+    if (!filter_perm->GetOutputType()->isVoidTy())
     {
       os << "set_directive_interface -mode ap_fifo -depth " << filter_perm->GetPushRate() << " \"" << function_name
          << "\" llvm_cbe_out_ptr\n";

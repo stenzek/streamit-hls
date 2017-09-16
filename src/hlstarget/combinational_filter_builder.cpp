@@ -4,11 +4,10 @@
 #include "common/log.h"
 #include "common/string_helpers.h"
 #include "common/types.h"
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
 #include "frontend/constant_expression_builder.h"
 #include "frontend/function_builder.h"
 #include "frontend/state_variables_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
@@ -27,7 +26,7 @@ struct CombinationalFragmentBuilder : public Frontend::FunctionBuilder::TargetFr
 
   llvm::AllocaInst* GetOutputValue() const { return m_out_value; }
 
-  void CreateDeclarations(WrappedLLVMContext* context, llvm::IRBuilder<>& builder, llvm::Type* output_type)
+  void CreateDeclarations(Frontend::WrappedLLVMContext* context, llvm::IRBuilder<>& builder, llvm::Type* output_type)
   {
     if (!output_type->isVoidTy())
       m_out_value = builder.CreateAlloca(output_type, nullptr, "out_value");
@@ -48,7 +47,7 @@ private:
   llvm::AllocaInst* m_out_value = nullptr;
 };
 
-CombinationalFilterBuilder::CombinationalFilterBuilder(WrappedLLVMContext* context, llvm::Module* mod,
+CombinationalFilterBuilder::CombinationalFilterBuilder(Frontend::WrappedLLVMContext* context, llvm::Module* mod,
                                                        const StreamGraph::FilterPermutation* filter_perm)
   : m_context(context), m_module(mod), m_filter_permutation(filter_perm),
     m_filter_decl(filter_perm->GetFilterDeclaration())
@@ -83,14 +82,10 @@ llvm::Function* CombinationalFilterBuilder::GenerateFunction(AST::FilterWorkBloc
 {
   assert(m_module->getFunction(name.c_str()) == nullptr);
 
-  llvm::Type* ret_type;
+  llvm::Type* ret_type = m_filter_permutation->GetOutputType();
   llvm::SmallVector<llvm::Type*, 1> params;
-  if (!m_filter_permutation->GetInputType()->IsVoid())
-    params.push_back(m_context->GetLLVMType(m_filter_permutation->GetInputType()));
-  if (!m_filter_permutation->GetOutputType()->IsVoid())
-    ret_type = m_context->GetLLVMType(m_filter_permutation->GetOutputType());
-  else
-    ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
+  if (!m_filter_permutation->GetInputType()->isVoidTy())
+    params.push_back(m_filter_permutation->GetInputType());
 
   llvm::FunctionType* func_type = llvm::FunctionType::get(ret_type, params, false);
   llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), func_type);
@@ -99,7 +94,7 @@ llvm::Function* CombinationalFilterBuilder::GenerateFunction(AST::FilterWorkBloc
     return nullptr;
 
   llvm::Value* in_ptr = nullptr;
-  if (!m_filter_permutation->GetInputType()->IsVoid())
+  if (!m_filter_permutation->GetInputType()->isVoidTy())
   {
     in_ptr = &(*func->arg_begin());
     in_ptr->setName("in_value");
@@ -121,7 +116,7 @@ llvm::Function* CombinationalFilterBuilder::GenerateFunction(AST::FilterWorkBloc
     return nullptr;
 
   // Final return instruction.
-  if (!m_filter_permutation->GetOutputType()->IsVoid())
+  if (!m_filter_permutation->GetOutputType()->isVoidTy())
     function_builder.GetCurrentIRBuilder().CreateRet(
       function_builder.GetCurrentIRBuilder().CreateLoad(fragment_builder.GetOutputValue()));
   else

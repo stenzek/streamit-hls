@@ -5,15 +5,15 @@
 #include <vector>
 #include "common/log.h"
 #include "common/string_helpers.h"
-#include "core/type.h"
 #include "hlstarget/vhdl_helpers.h"
+#include "llvm/IR/Type.h"
 #include "llvm/Support/raw_ostream.h"
 #include "parser/ast.h"
 Log_SetChannel(HLSTarget::ComponentGenerator);
 
 namespace HLSTarget
 {
-ComponentGenerator::ComponentGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
+ComponentGenerator::ComponentGenerator(Frontend::WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
                                        const std::string& module_name, llvm::raw_fd_ostream& os)
   : m_context(context), m_streamgraph(streamgraph), m_module_name(module_name), m_os(os)
 {
@@ -64,15 +64,15 @@ void ComponentGenerator::WriteHeader()
   m_os << "entity " << m_module_name << " is\n";
   m_os << "  port (\n";
 
-  const Type* program_input_type = m_streamgraph->GetProgramInputType();
-  const Type* program_output_type = m_streamgraph->GetProgramOutputType();
-  if (!program_input_type->IsVoid())
+  const llvm::Type* program_input_type = m_streamgraph->GetProgramInputType();
+  const llvm::Type* program_output_type = m_streamgraph->GetProgramOutputType();
+  if (!program_input_type->isVoidTy())
   {
     m_os << "    prog_input_dout : in " << VHDLHelpers::GetVHDLBitVectorType(program_input_type) << ";\n";
     m_os << "    prog_input_empty_n : in std_logic;\n";
     m_os << "    prog_input_read : out std_logic;\n";
   }
-  if (!program_output_type->IsVoid())
+  if (!program_output_type->isVoidTy())
   {
     m_os << "    prog_output_din : out " << VHDLHelpers::GetVHDLBitVectorType(program_output_type) << ";\n";
     m_os << "    prog_output_full_n : in std_logic;\n";
@@ -128,7 +128,7 @@ void ComponentGenerator::WriteFilterPermutation(const StreamGraph::FilterPermuta
   m_os << "  port (\n";
   m_os << "    ap_clk : in std_logic;\n";
   m_os << "    ap_rst_n : in std_logic";
-  if (!filter->GetInputType()->IsVoid())
+  if (!filter->GetInputType()->isVoidTy())
   {
     m_os << ";\n";
     m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_dout : in "
@@ -137,7 +137,7 @@ void ComponentGenerator::WriteFilterPermutation(const StreamGraph::FilterPermuta
     m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_read : out std_logic";
   }
 
-  if (!filter->GetOutputType()->IsVoid())
+  if (!filter->GetOutputType()->isVoidTy())
   {
     m_os << ";\n";
     m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_dout : out "
@@ -186,7 +186,7 @@ void ComponentGenerator::WriteFilterInstance(StreamGraph::Filter* node)
   const std::string& name = node->GetName();
 
   // Input FIFO queue
-  if (!node->GetInputType()->IsVoid())
+  if (!node->GetInputType()->isVoidTy())
   {
     u32 fifo_depth = std::max(node->GetNetPeek(), node->GetNetPop()) * VHDLHelpers::FIFO_SIZE_MULTIPLIER;
     WriteFIFO(StringFromFormat("%s_fifo", name.c_str()), VHDLHelpers::GetBitWidthForType(node->GetInputType()),
@@ -198,14 +198,14 @@ void ComponentGenerator::WriteFilterInstance(StreamGraph::Filter* node)
   m_body << "  port map (\n";
   m_body << "    ap_clk => clk,\n";
   m_body << "    ap_rst_n => rst_n";
-  if (!node->GetInputType()->IsVoid())
+  if (!node->GetInputType()->isVoidTy())
   {
     m_body << ",\n";
     m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_dout => " << name << "_fifo_dout,\n";
     m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_read => " << name << "_fifo_read,\n";
     m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_empty_n => " << name << "_fifo_empty_n";
   }
-  if (!node->GetOutputType()->IsVoid())
+  if (!node->GetOutputType()->isVoidTy())
   {
     const std::string& output_name = node->GetOutputChannelName();
     if (!output_name.empty())
@@ -234,7 +234,7 @@ void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* n
   const std::string& name = node->GetName();
 
   // Combinational filter
-  if (!node->GetInputType()->IsVoid())
+  if (!node->GetInputType()->isVoidTy())
   {
     m_signals << "signal " << name << "_fifo_write : std_logic;\n";
     m_signals << "signal " << name << "_fifo_full_n : std_logic;\n";
@@ -244,15 +244,15 @@ void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* n
 
   m_body << name << " : entity work.filter_" << node->GetFilterPermutation()->GetName() << "(behav)\n";
   m_body << "  port map (\n";
-  if (!node->GetInputType()->IsVoid())
+  if (!node->GetInputType()->isVoidTy())
   {
     m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_value => " << name << "_fifo_din";
-    if (!node->GetOutputType()->IsVoid())
+    if (!node->GetOutputType()->isVoidTy())
       m_body << ",\n";
     else
       m_body << "\n";
   }
-  if (!node->GetOutputType()->IsVoid())
+  if (!node->GetOutputType()->isVoidTy())
   {
     if (!node->GetOutputChannelName().empty())
       m_body << "    ap_return => " << node->GetOutputChannelName() << "_fifo_din\n";
@@ -262,7 +262,7 @@ void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* n
   m_body << "  );\n";
 
   // Tie write/full signals to the next filter in the chain
-  if (!node->GetInputType()->IsVoid() && !node->GetOutputType()->IsVoid())
+  if (!node->GetInputType()->isVoidTy() && !node->GetOutputType()->isVoidTy())
   {
     const std::string& output_name = node->GetOutputChannelName();
     if (!output_name.empty())
@@ -276,7 +276,7 @@ void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* n
       m_body << name << "_full_n <= " << output_name << "prog_output_full_n;\n";
     }
   }
-  else if (!node->GetInputType()->IsVoid())
+  else if (!node->GetInputType()->isVoidTy())
   {
     // If there is an input type, tie it to always push.
     m_body << name << "_full_n <= '0';\n";

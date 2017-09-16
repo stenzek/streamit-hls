@@ -6,10 +6,9 @@
 #include "common/log.h"
 #include "common/string_helpers.h"
 #include "common/types.h"
-#include "core/type.h"
-#include "core/wrapped_llvm_context.h"
 #include "frontend/function_builder.h"
 #include "frontend/state_variables_builder.h"
+#include "frontend/wrapped_llvm_context.h"
 #include "llvm/ExecutionEngine/ExecutionEngine.h"
 #include "llvm/ExecutionEngine/GenericValue.h"
 #include "llvm/ExecutionEngine/MCJIT.h"
@@ -20,6 +19,7 @@
 #include "llvm/IR/GlobalValue.h"
 #include "llvm/IR/IRBuilder.h"
 #include "llvm/IR/Module.h"
+#include "llvm/IR/Type.h"
 #include "llvm/Support/Format.h"
 #include "llvm/Support/TargetSelect.h"
 #include "parser/ast.h"
@@ -41,7 +41,7 @@ EXPORT u32 test_bench_gen_output_buffer_pos;
 
 namespace HLSTarget
 {
-TestBenchGenerator::TestBenchGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
+TestBenchGenerator::TestBenchGenerator(Frontend::WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
                                        const std::string& module_name, const std::string& out_dir)
   : m_context(context), m_stream_graph(streamgraph), m_module_name(module_name), m_output_directory(out_dir)
 {
@@ -114,7 +114,7 @@ namespace
 class FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
 public:
-  FragmentBuilder(WrappedLLVMContext* context, llvm::GlobalVariable* input_buffer_var,
+  FragmentBuilder(Frontend::WrappedLLVMContext* context, llvm::GlobalVariable* input_buffer_var,
                   llvm::GlobalVariable* input_buffer_pos_var, llvm::GlobalVariable* output_buffer_var,
                   llvm::GlobalVariable* output_buffer_pos_var)
     : m_context(context), m_input_buffer_var(input_buffer_var), m_input_buffer_pos_var(input_buffer_pos_var),
@@ -182,7 +182,7 @@ public:
   }
 
 private:
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   llvm::AllocaInst* m_temp;
   llvm::GlobalVariable* m_input_buffer_var;
   llvm::GlobalVariable* m_input_buffer_pos_var;
@@ -256,7 +256,7 @@ namespace
 class FilterExecutorVisitor : public StreamGraph::Visitor
 {
 public:
-  FilterExecutorVisitor(WrappedLLVMContext* context, llvm::ExecutionEngine* execution_engine,
+  FilterExecutorVisitor(Frontend::WrappedLLVMContext* context, llvm::ExecutionEngine* execution_engine,
                         TestBenchGenerator::FilterDataMap& filter_input_data,
                         TestBenchGenerator::FilterDataMap& filter_output_data)
     : m_context(context), m_execution_engine(execution_engine), m_filter_input_data(filter_input_data),
@@ -271,7 +271,7 @@ public:
   virtual bool Visit(StreamGraph::Join* node) override;
 
 private:
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   llvm::ExecutionEngine* m_execution_engine;
   TestBenchGenerator::FilterDataMap& m_filter_input_data;
   TestBenchGenerator::FilterDataMap& m_filter_output_data;
@@ -283,7 +283,7 @@ bool FilterExecutorVisitor::Visit(StreamGraph::Filter* node)
 
   // Copy the last filter execution's output to this execution's input.
   test_bench_gen_input_buffer_pos = 0;
-  if (!filter_perm->GetInputType()->IsVoid())
+  if (!filter_perm->GetInputType()->isVoidTy())
   {
     u32 input_data_size = test_bench_gen_output_buffer_pos;
     if (input_data_size > 0)
@@ -318,7 +318,7 @@ bool FilterExecutorVisitor::Visit(StreamGraph::Filter* node)
   Log_DevPrintf("Exec result %u %u", test_bench_gen_input_buffer_pos, test_bench_gen_output_buffer_pos);
 
   // Do we have output data?
-  if (!filter_perm->GetOutputType()->IsVoid())
+  if (!filter_perm->GetOutputType()->isVoidTy())
   {
     std::string hexdump = HexDumpString(test_bench_gen_output_buffer, test_bench_gen_output_buffer_pos);
     Log_DevPrintf("Output data\n%s", hexdump.c_str());
@@ -561,12 +561,12 @@ bool TestBenchGenerator::GenerateTestBenchCCode()
     if (iter != m_filter_output_data.end())
       output_data = &iter->second;
 
-    if (!filter_perm->GetInputType()->IsVoid() && !input_data)
+    if (!filter_perm->GetInputType()->isVoidTy() && !input_data)
     {
       Log_ErrorPrintf("Missing input data for '%s'", filter_perm->GetName().c_str());
       continue;
     }
-    if (!filter_perm->GetOutputType()->IsVoid() && !output_data)
+    if (!filter_perm->GetOutputType()->isVoidTy() && !output_data)
     {
       Log_ErrorPrintf("Missing output data for '%s'", filter_perm->GetName().c_str());
       continue;

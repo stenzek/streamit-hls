@@ -3,8 +3,6 @@
 #include <map>
 #include <memory>
 
-class WrappedLLVMContext;
-
 namespace llvm
 {
 class BasicBlock;
@@ -16,6 +14,11 @@ class Module;
 namespace AST
 {
 class FilterDeclaration;
+}
+
+namespace Frontend
+{
+class WrappedLLVMContext;
 }
 
 namespace StreamGraph
@@ -30,11 +33,11 @@ namespace HLSTarget
 class ProjectGenerator
 {
 public:
-  ProjectGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph, const std::string& module_name,
-                   const std::string& output_dir);
+  ProjectGenerator(Frontend::WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
+                   const std::string& module_name, const std::string& output_dir);
   ~ProjectGenerator();
 
-  WrappedLLVMContext* GetContext() const { return m_context; }
+  Frontend::WrappedLLVMContext* GetContext() const { return m_context; }
   const std::string& GetModuleName() const { return m_module_name; }
   const std::string& GetOutputDirectoryName() const { return m_output_dir; }
   llvm::Module* GetModule() const { return m_module; }
@@ -59,7 +62,7 @@ private:
   bool WriteHLSScript();
   bool WriteVivadoScript();
 
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   StreamGraph::StreamGraph* m_streamgraph;
   std::string m_module_name;
   std::string m_output_dir;

@@ -14,7 +14,7 @@ add_library(hlstarget
             )
 
 target_include_directories(hlstarget PRIVATE "${CMAKE_CURRENT_SOURCE_DIR}/..")
-target_link_libraries(hlstarget core frontend streamgraph parser)
+target_link_libraries(hlstarget frontend streamgraph parser)
 
 set_source_files_properties(CBackend.cpp PROPERTIES COMPILE_FLAGS -fno-rtti)
 

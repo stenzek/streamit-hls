@@ -4,8 +4,6 @@
 #include <memory>
 #include <vector>
 
-class WrappedLLVMContext;
-
 namespace llvm
 {
 class BasicBlock;
@@ -19,6 +17,11 @@ class Module;
 namespace AST
 {
 class FilterDeclaration;
+}
+
+namespace Frontend
+{
+class WrappedLLVMContext;
 }
 
 namespace StreamGraph
@@ -37,11 +40,11 @@ public:
   using FilterDataVector = std::vector<unsigned char>;
   using FilterDataMap = std::map<const StreamGraph::FilterPermutation*, FilterDataVector>;
 
-  TestBenchGenerator(WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph, const std::string& module_name,
-                     const std::string& out_dir);
+  TestBenchGenerator(Frontend::WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
+                     const std::string& module_name, const std::string& out_dir);
   ~TestBenchGenerator();
 
-  WrappedLLVMContext* GetContext() const { return m_context; }
+  Frontend::WrappedLLVMContext* GetContext() const { return m_context; }
   const std::string& GetModuleName() const { return m_module_name; }
   llvm::Module* GetModule() const { return m_module; }
 
@@ -55,7 +58,7 @@ private:
   void ExecuteFilters();
   bool GenerateTestBenchCCode();
 
-  WrappedLLVMContext* m_context;
+  Frontend::WrappedLLVMContext* m_context;
   StreamGraph::StreamGraph* m_stream_graph;
   std::string m_module_name;
   std::string m_output_directory;

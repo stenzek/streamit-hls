@@ -5,15 +5,15 @@
 #include <vector>
 #include "common/log.h"
 #include "common/string_helpers.h"
-#include "core/type.h"
 #include "hlstarget/vhdl_helpers.h"
+#include "llvm/IR/Type.h"
 #include "llvm/Support/raw_ostream.h"
 #include "parser/ast.h"
 Log_SetChannel(HLSTarget::ComponentTestBenchGenerator);
 
 namespace HLSTarget
 {
-ComponentTestBenchGenerator::ComponentTestBenchGenerator(WrappedLLVMContext* context,
+ComponentTestBenchGenerator::ComponentTestBenchGenerator(Frontend::WrappedLLVMContext* context,
                                                          StreamGraph::StreamGraph* streamgraph,
                                                          const std::string& module_name, llvm::raw_fd_ostream& os)
   : m_context(context), m_streamgraph(streamgraph), m_module_name(module_name), m_os(os)
@@ -79,14 +79,14 @@ void ComponentTestBenchGenerator::WriteWrapperComponent()
   m_body << "  port map (\n";
   m_body << "    clk => clk,\n";
   m_body << "    rst_n => rst_n";
-  if (!m_streamgraph->GetProgramInputType()->IsVoid())
+  if (!m_streamgraph->GetProgramInputType()->isVoidTy())
   {
     m_body << ",\n";
     m_body << "    prog_input_dout => input_fifo_dout,\n";
     m_body << "    prog_input_read => input_fifo_read,\n";
     m_body << "    prog_input_empty_n => input_fifo_empty_n";
   }
-  if (!m_streamgraph->GetProgramOutputType()->IsVoid())
+  if (!m_streamgraph->GetProgramOutputType()->isVoidTy())
   {
     m_body << ",\n";
     m_body << "    prog_output_din => output_fifo_din,\n";
@@ -100,8 +100,8 @@ void ComponentTestBenchGenerator::WriteWrapperComponent()
 
 void ComponentTestBenchGenerator::WriteInputGenerator()
 {
-  const Type* program_input_type = m_streamgraph->GetProgramInputType();
-  if (program_input_type->IsVoid())
+  const llvm::Type* program_input_type = m_streamgraph->GetProgramInputType();
+  if (program_input_type->isVoidTy())
     return;
 
   m_signals << "-- Input FIFO queue\n";
@@ -136,8 +136,8 @@ void ComponentTestBenchGenerator::WriteInputGenerator()
 
 void ComponentTestBenchGenerator::WriteOutputConsumer()
 {
-  const Type* program_output_type = m_streamgraph->GetProgramOutputType();
-  if (program_output_type->IsVoid())
+  const llvm::Type* program_output_type = m_streamgraph->GetProgramOutputType();
+  if (program_output_type->isVoidTy())
     return;
 
   // output FIFO queue
