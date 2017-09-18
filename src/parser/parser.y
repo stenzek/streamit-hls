@@ -133,6 +133,7 @@ using namespace AST;
 %type <integer_literal> TK_APINT
 %type <type_specifier> TypeSpecifier
 %type <type_specifier> TypeName
+%type <node_list> TypeNameList
 
 /* Tie the else branch of an if to the outer-most if */
 %nonassoc IF_THEN
@@ -177,6 +178,11 @@ TypeName
     std::string name = state->GetGlobalLexicalScope()->GenerateName($1->GetName().c_str());
     $$ = new ArrayTypeSpecifier(name, $1, $3);
   }
+  ;
+
+TypeNameList
+  : TypeName { $$ = new NodeList(); $$->AddNode($1); }
+  | TypeNameList TypeName { $1->AddNode($2); $$ = $1; }
   ;
 
 StreamDeclaration
@@ -357,11 +363,14 @@ StreamStatement
   ;
 
 AddStatement
-  : TK_ADD Identifier ';' { $$ = new AddStatement(@1, $2, new NodeList()); }
-  | TK_ADD Identifier '(' ')' ';' { $$ = new AddStatement(@1, $2, new NodeList()); }
-  | TK_ADD Identifier '(' ArgumentExpressionList ')' ';' { $$ = new AddStatement(@1, $2, $4); }
-  | TK_ADD AnonymousFilterDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), nullptr); }
-  | TK_ADD AnonymousStreamDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), nullptr); }
+  : TK_ADD Identifier ';' { $$ = new AddStatement(@1, $2, new NodeList(), new NodeList()); }
+  | TK_ADD Identifier '(' ')' ';' { $$ = new AddStatement(@1, $2, new NodeList(), new NodeList()); }
+  | TK_ADD Identifier '(' ArgumentExpressionList ')' ';' { $$ = new AddStatement(@1, $2, new NodeList(), $4); }
+  | TK_ADD Identifier '<' TypeNameList '>' ';' { $$ = new AddStatement(@1, $2, $4, new NodeList()); }
+  | TK_ADD Identifier '<' TypeNameList '>' '(' ')' ';' { $$ = new AddStatement(@1, $2, $4, new NodeList()); }
+  | TK_ADD Identifier '<' TypeNameList '>' '(' ArgumentExpressionList ')' ';' { $$ = new AddStatement(@1, $2, $4, $7); }
+  | TK_ADD AnonymousFilterDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList(), new NodeList()); }
+  | TK_ADD AnonymousStreamDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList(), new NodeList()); }
   ;
 
 SplitStatement

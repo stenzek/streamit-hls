@@ -1,0 +1,28 @@
+int->int pipeline simple6 {
+    add counter();
+    add stuff();
+    add sink();
+}
+
+void->int filter counter {
+    int last = 1;
+    work push 1 {
+        push(last);
+        last = last + 1;
+    }
+}
+
+int->int splitjoin stuff {
+    split duplicate;
+    add Identity<int>();
+    add Identity<int>();
+    join roundrobin;
+}
+
+int->void filter sink {
+    work pop 1 {
+        int x = pop();
+    }
+}
+
+

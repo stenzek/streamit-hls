@@ -56,6 +56,34 @@ void NodeList::PrependNode(Node* node)
   m_nodes.insert(m_nodes.begin(), node);
 }
 
+const AST::Node* NodeList::GetChild(size_t index) const
+{
+  size_t current_index = 0;
+  for (const Node* node : m_nodes)
+  {
+    if (index == current_index)
+      return node;
+
+    current_index++;
+  }
+
+  return nullptr;
+}
+
+AST::Node* NodeList::GetChild(size_t index)
+{
+  size_t current_index = 0;
+  for (Node* node : m_nodes)
+  {
+    if (index == current_index)
+      return node;
+
+    current_index++;
+  }
+
+  return nullptr;
+}
+
 TypeSpecifier::TypeSpecifier(TypeId tid, const std::string& name, TypeSpecifier* base_type, unsigned num_bits)
   : m_type_id(tid), m_name(name), m_base_type(base_type), m_num_bits(num_bits)
 {
@@ -182,8 +210,9 @@ SplitJoinDeclaration::~SplitJoinDeclaration()
 // {
 // }
 
-AddStatement::AddStatement(const SourceLocation& sloc, const char* filter_name, NodeList* parameters)
-  : Statement(sloc), m_stream_name(filter_name), m_stream_parameters(parameters)
+AddStatement::AddStatement(const SourceLocation& sloc, const char* filter_name, NodeList* type_parameters,
+                           NodeList* parameters)
+  : Statement(sloc), m_stream_name(filter_name), m_type_parameters(type_parameters), m_stream_parameters(parameters)
 {
 }
 
@@ -474,8 +503,21 @@ FilterDeclaration::FilterDeclaration(const SourceLocation& sloc, TypeSpecifier* 
                                      ParameterDeclarationList* params, NodeList* vars, FilterWorkBlock* init,
                                      FilterWorkBlock* prework, FilterWorkBlock* work, bool stateful)
   : StreamDeclaration(sloc, input_type_specifier, output_type_specifier, name, params), m_vars(vars), m_init(init),
-    m_prework(prework), m_work(work), m_stateful(stateful)
+    m_prework(prework), m_work(work), m_stateful(stateful), m_builtin(false)
 {
+}
+
+FilterDeclaration::FilterDeclaration(TypeSpecifier* input_type_specifier, TypeSpecifier* output_type_specifier,
+                                     const char* name, ParameterDeclarationList* params, bool stateful, int peek_rate,
+                                     int pop_rate, int push_rate)
+  : StreamDeclaration({}, input_type_specifier, output_type_specifier, name, params), m_vars(nullptr), m_init(nullptr),
+    m_prework(nullptr), m_work(nullptr), m_stateful(stateful), m_builtin(true)
+{
+  m_work = new FilterWorkBlock({});
+  m_work->SetPeekRateExpression(new IntegerLiteralExpression({}, peek_rate));
+  m_work->SetPopRateExpression(new IntegerLiteralExpression({}, pop_rate));
+  m_work->SetPushRateExpression(new IntegerLiteralExpression({}, push_rate));
+  m_work->SetStatements(new NodeList());
 }
 
 ExpressionStatement::ExpressionStatement(const SourceLocation& sloc, Expression* expr) : Statement(sloc), m_expr(expr)

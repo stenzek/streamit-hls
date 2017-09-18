@@ -92,6 +92,8 @@ public:
 
   const ListType& GetNodeList() const { return m_nodes; }
   const size_t GetNumChildren() const { return m_nodes.size(); }
+  const Node* GetChild(size_t index) const;
+  Node* GetChild(size_t index);
 
   bool HasChildren() const;
   const Node* GetFirst() const;
@@ -329,6 +331,8 @@ public:
                     TypeSpecifier* output_type_specifier, const char* name, ParameterDeclarationList* params,
                     NodeList* vars, FilterWorkBlock* init, FilterWorkBlock* prework, FilterWorkBlock* work,
                     bool stateful);
+  FilterDeclaration(TypeSpecifier* input_type_specifier, TypeSpecifier* output_type_specifier, const char* name,
+                    ParameterDeclarationList* params, bool stateful, int peek_rate, int pop_rate, int push_rate);
   ~FilterDeclaration() = default;
 
   // TODO: Const here, but this is a larger change (e.g. visitor impact)
@@ -344,10 +348,16 @@ public:
   bool HasPreworkBlock() const { return (m_prework != nullptr); }
   bool HasWorkBlock() const { return (m_work != nullptr); }
   bool HasStateVariables() const { return (m_vars != nullptr); }
+  bool IsBuiltin() const { return m_builtin; }
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
   bool Accept(Visitor* visitor) override;
+
+  // Test for a builtin filter
+  static FilterDeclaration* GetBuiltinFilter(ParserState* state, const std::string& name, NodeList* type_params,
+                                             NodeList* params);
+  static bool IsBuiltinFilter(const std::string& name);
 
 private:
   NodeList* m_vars;
@@ -355,6 +365,7 @@ private:
   FilterWorkBlock* m_prework;
   FilterWorkBlock* m_work;
   bool m_stateful;
+  bool m_builtin;
 };
 
 struct FilterWorkParts
@@ -766,7 +777,7 @@ private:
 class AddStatement : public Statement
 {
 public:
-  AddStatement(const SourceLocation& sloc, const char* filter_name, NodeList* parameters);
+  AddStatement(const SourceLocation& sloc, const char* filter_name, NodeList* type_parameters, NodeList* parameters);
   ~AddStatement();
 
   void Dump(ASTPrinter* printer) const override;
@@ -779,6 +790,7 @@ public:
 
 private:
   std::string m_stream_name;
+  NodeList* m_type_parameters;
   NodeList* m_stream_parameters;
   StreamDeclaration* m_stream_declaration = nullptr;
 };

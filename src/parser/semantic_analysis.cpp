@@ -176,11 +176,29 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
   // TODO: Create variable declarations for parameters - we can manipulate these when generating code..
   // TODO: Check parameter counts and stuff..
   // TODO: Check return types
-  m_stream_declaration = dynamic_cast<StreamDeclaration*>(symbol_table->GetName(m_stream_name));
-  if (!m_stream_declaration)
-  {
-    state->LogError(m_sloc, "Referencing undefined filter/pipeline '%s'", m_stream_name.c_str());
+
+  if (!m_type_parameters->SemanticAnalysis(state, symbol_table))
     return false;
+
+  if (!m_stream_parameters->SemanticAnalysis(state, symbol_table))
+    return false;
+
+  if (FilterDeclaration::IsBuiltinFilter(m_stream_name))
+  {
+    m_stream_declaration =
+      FilterDeclaration::GetBuiltinFilter(state, m_stream_name, m_type_parameters, m_stream_parameters);
+    if (!m_stream_declaration)
+      return false;
+    m_stream_name = m_stream_declaration->GetName();
+  }
+  else
+  {
+    m_stream_declaration = dynamic_cast<StreamDeclaration*>(symbol_table->GetName(m_stream_name));
+    if (!m_stream_declaration)
+    {
+      state->LogError(m_sloc, "Referencing undefined filter/pipeline '%s'", m_stream_name.c_str());
+      return false;
+    }
   }
 
   if (!state->HasActiveStream(m_stream_declaration))
@@ -224,9 +242,6 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
     if (!m_stream_declaration->SemanticAnalysis(state, symbol_table))
       return false;
   }
-
-  if (!m_stream_parameters->SemanticAnalysis(state, symbol_table))
-    return false;
 
   return true;
 }
@@ -321,7 +336,121 @@ bool FilterDeclaration::SemanticAnalysis(ParserState* state, LexicalScope* symbo
   assert(state->current_stream == this);
   state->current_stream = old_stream;
   state->current_stream_scope = old_stream_scope;
+
+  if (!m_builtin && IsBuiltinFilter(m_name))
+  {
+    state->LogError(m_sloc, "Filter '%s' conflicts with built-in filter", m_name.c_str());
+    return false;
+  }
+
+  if (!m_builtin && m_work == nullptr)
+  {
+    state->LogError(m_sloc, "Filter '%s' is missing work block", m_name.c_str());
+    return false;
+  }
+
   return result;
+}
+
+struct BuiltinFilterTemplate
+{
+  const char* name;
+  const char* create_name;
+  unsigned num_type_params;
+  unsigned num_params;
+};
+
+static const BuiltinFilterTemplate builtin_filters[] = {{"Identity", "Identity", 1, 0},
+                                                        {"InputReader", "InputReader", 1, 0},
+                                                        {"FileReader", "InputReader", 1, 0},
+                                                        {"OutputWriter", "OutputWriter", 1, 0},
+                                                        {"FileWriter", "OutputWriter", 1, 0}};
+
+bool FilterDeclaration::IsBuiltinFilter(const std::string& name)
+{
+  for (size_t i = 0; i < sizeof(builtin_filters) / sizeof(builtin_filters[0]); i++)
+  {
+    if (name.compare(builtin_filters[i].name) == 0)
+      return true;
+  }
+
+  return false;
+}
+FilterDeclaration* FilterDeclaration::GetBuiltinFilter(ParserState* state, const std::string& name,
+                                                       NodeList* type_params, NodeList* params)
+{
+  const BuiltinFilterTemplate* tmpl = nullptr;
+  for (size_t i = 0; i < sizeof(builtin_filters) / sizeof(builtin_filters[0]); i++)
+  {
+    if (name.compare(builtin_filters[i].name) == 0)
+    {
+      tmpl = &builtin_filters[i];
+      break;
+    }
+  }
+  if (!tmpl)
+    return nullptr;
+
+  if ((tmpl->num_type_params != 0 && !type_params) || type_params->GetNumChildren() != tmpl->num_type_params)
+  {
+    state->LogError("Incorrect number of type parameters for builtin filter '%s', expected %u, got %u", name.c_str(),
+                    tmpl->num_type_params, unsigned(type_params->GetNumChildren()));
+    return nullptr;
+  }
+
+  if ((tmpl->num_params != 0 && !params) || params->GetNumChildren() != tmpl->num_params)
+  {
+    state->LogError("Incorrect number parameters for builtin filter '%s', expected %u, got %u", name.c_str(),
+                    tmpl->num_params, unsigned(params->GetNumChildren()));
+    return nullptr;
+  }
+
+  std::string mangled_filter_name = tmpl->create_name;
+  std::vector<TypeSpecifier*> types;
+  for (Node* node : *type_params)
+  {
+    TypeSpecifier* type = dynamic_cast<TypeSpecifier*>(node);
+    assert(type != nullptr);
+    types.push_back(type);
+    mangled_filter_name += "__";
+    mangled_filter_name += type->GetName();
+  }
+
+  Node* existing = state->GetGlobalLexicalScope()->GetName(mangled_filter_name);
+  if (existing)
+    return dynamic_cast<FilterDeclaration*>(existing);
+
+  // This is a giant hack, but whatever, there's only a few builtin filters.
+  FilterDeclaration* decl;
+  if (name == "Identity")
+  {
+    decl = new FilterDeclaration(types[0], types[0], mangled_filter_name.c_str(), new ParameterDeclarationList(), false,
+                                 0, 1, 1);
+  }
+  else if (name == "InputReader")
+  {
+    decl = new FilterDeclaration(state->GetVoidType(), types[0], mangled_filter_name.c_str(),
+                                 new ParameterDeclarationList(), true, 0, 0, 1);
+  }
+  else if (name == "OutputWriter")
+  {
+    decl = new FilterDeclaration(types[0], state->GetVoidType(), mangled_filter_name.c_str(),
+                                 new ParameterDeclarationList(), true, 0, 1, 0);
+  }
+  else
+  {
+    assert(0 && "unknown builtin filter");
+    return nullptr;
+  }
+
+  state->LogInfo("Creating builtin filter '%s'", decl->GetName().c_str());
+  state->GetGlobalLexicalScope()->AddName(decl->GetName(), decl);
+
+  // This is quite rude, but whatever, the whole thing is a hack anyway
+  // Didn't feel like reworking the parser to properly support templates when the language doesn't support it..
+  decl->SemanticAnalysis(state, state->GetGlobalLexicalScope());
+  state->AddFilter(decl);
+  return decl;
 }
 
 bool FilterWorkBlock::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)

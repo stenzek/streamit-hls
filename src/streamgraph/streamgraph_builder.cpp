@@ -277,8 +277,9 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
   else
   {
     // Create new permutation
-    filter_perm =
-      new FilterPermutation(decl, filter_params, filter_input_type, filter_output_type, peek_rate, pop_rate, push_rate);
+    std::string name = StringFromFormat("%s_%u", decl->GetName().c_str(), unsigned(m_filter_permutations.size() + 1));
+    filter_perm = new FilterPermutation(name, decl, filter_params, filter_input_type, filter_output_type, peek_rate,
+                                        pop_rate, push_rate);
     m_filter_permutations.push_back(filter_perm);
   }
 

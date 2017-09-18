@@ -106,8 +106,9 @@ private:
 class FilterPermutation
 {
 public:
-  FilterPermutation(const AST::FilterDeclaration* filter_decl, const FilterParameters& filter_params,
-                    llvm::Type* input_type, llvm::Type* output_type, int peek_rate, int pop_rate, int push_rate);
+  FilterPermutation(const std::string& name, const AST::FilterDeclaration* filter_decl,
+                    const FilterParameters& filter_params, llvm::Type* input_type, llvm::Type* output_type,
+                    int peek_rate, int pop_rate, int push_rate);
   ~FilterPermutation() = default;
 
   const std::string& GetName() const { return m_name; }
@@ -119,6 +120,7 @@ public:
   int GetPopRate() const { return m_pop_rate; }
   int GetPushRate() const { return m_push_rate; }
 
+  bool IsBuiltin() const;
   bool IsCombinational() const { return m_combinational; }
   void SetCombinational() { m_combinational = true; }
 

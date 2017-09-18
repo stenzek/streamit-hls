@@ -69,13 +69,17 @@ bool FilterParameters::operator!=(const FilterParameters& rhs) const
   return (m_data != rhs.m_data);
 }
 
-FilterPermutation::FilterPermutation(const AST::FilterDeclaration* filter_decl, const FilterParameters& filter_params,
-                                     llvm::Type* input_type, llvm::Type* output_type, int peek_rate, int pop_rate,
-                                     int push_rate)
-  : m_name(filter_decl->GetName()), m_filter_decl(filter_decl), m_filter_params(filter_params),
-    m_input_type(input_type), m_output_type(output_type), m_peek_rate(peek_rate), m_pop_rate(pop_rate),
-    m_push_rate(push_rate)
+FilterPermutation::FilterPermutation(const std::string& name, const AST::FilterDeclaration* filter_decl,
+                                     const FilterParameters& filter_params, llvm::Type* input_type,
+                                     llvm::Type* output_type, int peek_rate, int pop_rate, int push_rate)
+  : m_name(name), m_filter_decl(filter_decl), m_filter_params(filter_params), m_input_type(input_type),
+    m_output_type(output_type), m_peek_rate(peek_rate), m_pop_rate(pop_rate), m_push_rate(push_rate)
 {
+}
+
+bool FilterPermutation::IsBuiltin() const
+{
+  return m_filter_decl->IsBuiltin();
 }
 
 Node::Node(const std::string& name, llvm::Type* input_type, llvm::Type* output_type)
