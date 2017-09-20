@@ -643,7 +643,7 @@ void Join::AddIncomingStream()
 {
   m_incoming_streams++;
   // m_pop_rate++;
-  //m_push_rate++;
+  // m_push_rate++;
 }
 
 void Join::SetDataType(llvm::Type* type)

@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <getopt.h>
 #include <iostream>
 #include <memory>
@@ -212,6 +213,11 @@ void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph)
 {
   Log_InfoPrintf("Dumping stream graph...");
   std::cout << streamgraph->Dump() << std::endl;
+
+  std::ofstream ofs;
+  ofs.open("streamgraph.dot", std::ios::out | std::ios::trunc);
+  if (ofs.is_open() && ofs.good())
+    ofs << streamgraph->Dump() << std::endl;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////

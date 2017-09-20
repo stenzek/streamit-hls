@@ -324,7 +324,7 @@ bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split)
     }
 
     llvm::Value* last_index = builder.CreateLoad(m_last_index_var, "last_index");
-    //BuildDebugPrintf(m_context, builder, "val=%u,last_index=%u", {value, last_index});
+    // BuildDebugPrintf(m_context, builder, "val=%u,last_index=%u", {value, last_index});
     llvm::SwitchInst* sw = builder.CreateSwitch(last_index, bbs.at(0), num_outputs);
     for (size_t i = 0; i < bbs.size(); i++)
       sw->addCase(builder.getInt32(u32(i)), bbs[i]);
@@ -484,7 +484,7 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
   builder.CreateStore(size, size_ptr);
 
   // call output_stream_name_push(value)
-  //BuildDebugPrintf(m_context, builder, "join write val=%u,next_input=%u", {value, next_input});
+  // BuildDebugPrintf(m_context, builder, "join write val=%u,next_input=%u", {value, next_input});
   builder.CreateCall(output_func, {value});
 
   // written_ptr = &buf.written[next_input]

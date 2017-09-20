@@ -73,10 +73,13 @@ void StreamGraphDumpVisitor::WriteEdge(const Node* src, const Node* dst)
 
 bool StreamGraphDumpVisitor::Visit(Filter* node)
 {
-  WriteLine("%s [shape=ellipse];", node->GetName().c_str());
   WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
             node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
             node->GetMultiplicity());
+  WriteLine("%s [shape=ellipse];", node->GetName().c_str());
+  WriteLine("%s [label=\"%s\\npeek %u(%u) pop %u(%u) push %u(%u)\\nmultiplicity %u\"];", node->GetName().c_str(),
+            node->GetName().c_str(), node->GetPeekRate(), node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(),
+            node->GetPushRate(), node->GetNetPush(), node->GetMultiplicity());
 
   if (node->HasOutputConnection())
     WriteEdge(node, node->GetOutputConnection());
@@ -90,10 +93,12 @@ bool StreamGraphDumpVisitor::Visit(Pipeline* node)
     WriteLine("subgraph cluster_%s {", node->GetName().c_str());
   Indent();
 
-  WriteLine("label = \"%s\";\n", node->GetName().c_str());
   WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
             node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
             node->GetMultiplicity());
+  WriteLine("label = \"%s\\npeek %u(%u) pop %u(%u) push %u(%u)\\nmultiplicity %u\";", node->GetName().c_str(),
+            node->GetPeekRate(), node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(),
+            node->GetNetPush(), node->GetMultiplicity());
 
   for (Node* child : node->GetChildren())
     child->Accept(this);
@@ -111,10 +116,12 @@ bool StreamGraphDumpVisitor::Visit(SplitJoin* node)
   WriteLine("subgraph cluster_%s {", node->GetName().c_str());
   Indent();
 
-  WriteLine("label = \"%s\";\n", node->GetName().c_str());
   WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
             node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
             node->GetMultiplicity());
+  WriteLine("label = \"%s\\npeek %u(%u) pop %u(%u) push %u(%u)\\nmultiplicity %u\";", node->GetName().c_str(),
+            node->GetPeekRate(), node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(),
+            node->GetNetPush(), node->GetMultiplicity());
 
   node->GetSplitNode()->Accept(this);
   node->GetJoinNode()->Accept(this);
@@ -130,15 +137,18 @@ bool StreamGraphDumpVisitor::Visit(SplitJoin* node)
 
 bool StreamGraphDumpVisitor::Visit(Split* node)
 {
-  WriteLine("%s [shape=triangle];", node->GetName().c_str());
   WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
             node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
             node->GetMultiplicity());
 
-  Write("# %s", (node->GetMode() == Split::Mode::Duplicate) ? "duplicate" : "roundrobin");
+  std::stringstream distribution_str;
   for (int dist : node->GetDistribution())
-    Write(", %d", dist);
-  WriteLine("");
+    distribution_str << ((distribution_str.tellp() > 0) ? ", " : "") << dist;
+
+  WriteLine("%s [shape=triangle];", node->GetName().c_str());
+  WriteLine("%s [label=\"%s\\nmode: %s\\ndistribution: (%s)\\nmultiplicity: %u\"];", node->GetName().c_str(),
+            node->GetName().c_str(), (node->GetMode() == Split::Mode::Duplicate) ? "duplicate" : "roundrobin",
+            distribution_str.str().c_str(), node->GetMultiplicity());
 
   for (const Node* out_node : node->GetOutputs())
     WriteEdge(node, out_node);
@@ -148,15 +158,17 @@ bool StreamGraphDumpVisitor::Visit(Split* node)
 
 bool StreamGraphDumpVisitor::Visit(Join* node)
 {
-  WriteLine("%s [shape=invtriangle];", node->GetName().c_str());
   WriteLine("# %s peek %u(%u) pop %u(%u) push %u(%u) mult %u", node->GetName().c_str(), node->GetPeekRate(),
             node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
             node->GetMultiplicity());
 
-  Write("# ");
+  std::stringstream distribution_str;
   for (int dist : node->GetDistribution())
-    Write(", %d", dist);
-  WriteLine("");
+    distribution_str << ((distribution_str.tellp() > 0) ? ", " : "") << dist;
+
+  WriteLine("%s [shape=invtriangle];", node->GetName().c_str());
+  WriteLine("%s [label=\"%s\\ndistribution: (%s)\\nmultiplicity: %u\"];", node->GetName().c_str(),
+            node->GetName().c_str(), distribution_str.str().c_str(), node->GetMultiplicity());
 
   if (node->HasOutputConnection())
     WriteEdge(node, node->GetOutputConnection());
