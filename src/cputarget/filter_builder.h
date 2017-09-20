@@ -52,6 +52,10 @@ private:
   llvm::Function* GenerateFunction(AST::FilterWorkBlock* block, const std::string& name);
   bool GenerateGlobals();
   bool GenerateChannelPrototypes();
+  bool GenerateBuiltinFilter();
+  bool GenerateBuiltinFilter_Identity();
+  bool GenerateBuiltinFilter_InputReader();
+  bool GenerateBuiltinFilter_OutputWriter();
 
   Frontend::WrappedLLVMContext* m_context;
   llvm::Module* m_module;

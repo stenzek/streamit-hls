@@ -1,5 +1,6 @@
 #include "cputarget/filter_builder.h"
 #include <cassert>
+#include "common/log.h"
 #include "common/string_helpers.h"
 #include "cputarget/debug_print_builder.h"
 #include "frontend/constant_expression_builder.h"
@@ -13,6 +14,7 @@
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
 #include "streamgraph/streamgraph.h"
+Log_SetChannel(CPUTarget::FilterBuilder);
 
 namespace CPUTarget
 {
@@ -87,6 +89,14 @@ bool FilterBuilder::GenerateCode(const StreamGraph::Filter* filter)
 
   if (!GenerateGlobals() || !GenerateChannelPrototypes())
     return false;
+
+  if (m_filter_permutation->IsBuiltin())
+  {
+    if (!GenerateBuiltinFilter())
+      return false;
+
+    return true;
+  }
 
   if (m_filter_decl->HasInitBlock())
   {
@@ -206,6 +216,55 @@ bool FilterBuilder::GenerateChannelPrototypes()
   }
 
   return true;
+}
+
+bool FilterBuilder::GenerateBuiltinFilter()
+{
+  if (m_filter_decl->GetName().compare(0, 8, "Identity", 8) == 0)
+    return GenerateBuiltinFilter_Identity();
+
+  if (m_filter_decl->GetName().compare(0, 12, "OutputWriter", 12) == 0)
+    return GenerateBuiltinFilter_OutputWriter();
+
+  if (m_filter_decl->GetName().compare(0, 11, "InputReader", 11) == 0)
+    return GenerateBuiltinFilter_OutputWriter();
+
+  Log_ErrorPrintf("Unknown builtin filter '%s'", m_filter_decl->GetName().c_str());
+  return false;
+}
+
+bool FilterBuilder::GenerateBuiltinFilter_Identity()
+{
+  std::string function_name = StringFromFormat("%s_work", m_instance_name.c_str());
+  m_work_function =
+    llvm::cast<llvm::Function>(m_module->getOrInsertFunction(function_name, m_context->GetVoidType(), nullptr));
+  if (!m_work_function)
+    return false;
+
+  m_work_function->setLinkage(llvm::GlobalValue::PrivateLinkage);
+
+  FragmentBuilder fragment_builder(m_context, m_instance_name, m_peek_function, m_pop_function, m_push_function);
+  Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, m_work_function);
+  llvm::IRBuilder<>& builder = entry_bb_builder.GetCurrentIRBuilder();
+  llvm::Value* pop = fragment_builder.BuildPop(builder);
+  fragment_builder.BuildPush(builder, pop);
+  builder.CreateRetVoid();
+  return true;
+}
+
+bool FilterBuilder::GenerateBuiltinFilter_InputReader()
+{
+  return false;
+}
+
+bool FilterBuilder::GenerateBuiltinFilter_OutputWriter()
+{
+  //   std::string function_name = StringFromFormat("%s_work", m_instance_name.c_str());
+  //   m_init_function = llvm::cast<llvm::Function>(m_module->getOrInsertFunction(function_name,
+  //   m_context->GetVoidType(), nullptr));
+  //   if (!m_work_function)
+  //     return false;
+  return false;
 }
 
 } // namespace CPUTarget

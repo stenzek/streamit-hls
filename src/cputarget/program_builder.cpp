@@ -394,6 +394,19 @@ bool ProgramBuilder::GenerateMainFunction()
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
   BuildDebugPrint(m_context, builder, "Entering main");
+
+  // Generate calls to filter init functions
+  FilterListVisitor lv;
+  for (auto ip : lv.GetFilterList())
+  {
+    std::string function_name = StringFromFormat("%s_init", ip.second->GetName().c_str());
+    llvm::Function* func = m_module->getFunction(function_name);
+    if (!func)
+      continue;
+
+    builder.CreateCall(func);
+  }
+
   builder.CreateCall(prime_pump_func);
   builder.CreateCall(steady_state_func);
   builder.CreateRet(builder.getInt32(0));
