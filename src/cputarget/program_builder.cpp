@@ -267,6 +267,17 @@ bool ProgramBuilder::GeneratePrimePumpFunction(StreamGraph::StreamGraph* streamg
   llvm::AllocaInst* iteration_var = builder.CreateAlloca(m_context->GetIntType(), nullptr, "iteration");
   builder.CreateStore(builder.getInt32(0), iteration_var);
 
+  // Generate calls to filter init functions
+  for (auto ip : lv.GetFilterList())
+  {
+    std::string function_name = StringFromFormat("%s_init", ip.second->GetName().c_str());
+    llvm::Function* init_func = m_module->getFunction(function_name);
+    if (!init_func)
+      continue;
+
+    builder.CreateCall(init_func);
+  }
+
   llvm::BasicBlock* start_loop_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
   llvm::BasicBlock* main_loop_bb = start_loop_bb;
   builder.CreateBr(main_loop_bb);
@@ -394,19 +405,6 @@ bool ProgramBuilder::GenerateMainFunction()
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry", func);
   llvm::IRBuilder<> builder(entry_bb);
   BuildDebugPrint(m_context, builder, "Entering main");
-
-  // Generate calls to filter init functions
-  FilterListVisitor lv;
-  for (auto ip : lv.GetFilterList())
-  {
-    std::string function_name = StringFromFormat("%s_init", ip.second->GetName().c_str());
-    llvm::Function* func = m_module->getFunction(function_name);
-    if (!func)
-      continue;
-
-    builder.CreateCall(func);
-  }
-
   builder.CreateCall(prime_pump_func);
   builder.CreateCall(steady_state_func);
   builder.CreateRet(builder.getInt32(0));

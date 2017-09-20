@@ -362,9 +362,9 @@ struct BuiltinFilterTemplate
 
 static const BuiltinFilterTemplate builtin_filters[] = {{"Identity", "Identity", 1, 0},
                                                         {"InputReader", "InputReader", 1, 0},
-                                                        {"FileReader", "InputReader", 1, 0},
+                                                        {"FileReader", "InputReader", 1, 1},
                                                         {"OutputWriter", "OutputWriter", 1, 0},
-                                                        {"FileWriter", "OutputWriter", 1, 0}};
+                                                        {"FileWriter", "OutputWriter", 1, 1}};
 
 bool FilterDeclaration::IsBuiltinFilter(const std::string& name)
 {

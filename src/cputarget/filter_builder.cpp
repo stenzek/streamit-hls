@@ -58,7 +58,7 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       return false;
     }
 
-    BuildDebugPrintf(m_context, builder, StringFromFormat("%s push %%d", m_filter_name.c_str()).c_str(), {value});
+    // BuildDebugPrintf(m_context, builder, StringFromFormat("%s push %%d", m_filter_name.c_str()).c_str(), {value});
     builder.CreateCall(m_push_function, {value});
     return true;
   }
@@ -223,10 +223,10 @@ bool FilterBuilder::GenerateBuiltinFilter()
   if (m_filter_decl->GetName().compare(0, 8, "Identity", 8) == 0)
     return GenerateBuiltinFilter_Identity();
 
-  if (m_filter_decl->GetName().compare(0, 12, "OutputWriter", 12) == 0)
-    return GenerateBuiltinFilter_OutputWriter();
-
   if (m_filter_decl->GetName().compare(0, 11, "InputReader", 11) == 0)
+    return GenerateBuiltinFilter_InputReader();
+
+  if (m_filter_decl->GetName().compare(0, 12, "OutputWriter", 12) == 0)
     return GenerateBuiltinFilter_OutputWriter();
 
   Log_ErrorPrintf("Unknown builtin filter '%s'", m_filter_decl->GetName().c_str());
@@ -254,17 +254,106 @@ bool FilterBuilder::GenerateBuiltinFilter_Identity()
 
 bool FilterBuilder::GenerateBuiltinFilter_InputReader()
 {
-  return false;
+  FragmentBuilder fragment_builder(m_context, m_instance_name, m_peek_function, m_pop_function, m_push_function);
+
+  // Build init function
+  {
+    std::string function_name = StringFromFormat("%s_init", m_instance_name.c_str());
+    m_init_function =
+      llvm::cast<llvm::Function>(m_module->getOrInsertFunction(function_name, m_context->GetVoidType(), nullptr));
+    if (!m_init_function)
+      return false;
+
+    // TODO: Parse parameters
+    Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, m_init_function);
+    llvm::IRBuilder<>& builder = entry_bb_builder.GetCurrentIRBuilder();
+    llvm::Value* filename_val = builder.CreateGlobalStringPtr("", "output_filename");
+
+    llvm::Constant* open_func = m_module->getOrInsertFunction("streamit_open_input_file", m_context->GetVoidType(),
+                                                              m_context->GetStringType(), nullptr);
+    builder.CreateCall(open_func, {filename_val});
+    builder.CreateRetVoid();
+  }
+
+  // Build work function
+  {
+    std::string function_name = StringFromFormat("%s_work", m_instance_name.c_str());
+    m_work_function =
+      llvm::cast<llvm::Function>(m_module->getOrInsertFunction(function_name, m_context->GetVoidType(), nullptr));
+    if (!m_work_function)
+      return false;
+
+    Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, m_work_function);
+    llvm::IRBuilder<>& builder = entry_bb_builder.GetCurrentIRBuilder();
+
+    // Copy and get pointer
+    llvm::AllocaInst* value_copy = builder.CreateAlloca(m_filter_permutation->GetOutputType());
+    llvm::Value* value_copy_ptr = builder.CreateGEP(value_copy, {builder.getInt32(0)});
+    llvm::Value* value_copy_ptr_type = builder.CreatePointerCast(value_copy_ptr, m_context->GetPointerType());
+    u32 value_size = (m_filter_permutation->GetOutputType()->getPrimitiveSizeInBits() + 7) / 8;
+
+    // Call write function
+    llvm::Constant* read_func =
+      m_module->getOrInsertFunction("streamit_read_input_file", m_context->GetVoidType(), m_context->GetPointerType(),
+                                    m_context->GetIntType(), m_context->GetIntType(), nullptr);
+    builder.CreateCall(read_func, {value_copy_ptr_type, builder.getInt32(value_size), builder.getInt32(1)});
+    fragment_builder.BuildPush(builder, builder.CreateLoad(value_copy));
+    builder.CreateRetVoid();
+  }
+
+  return true;
 }
 
 bool FilterBuilder::GenerateBuiltinFilter_OutputWriter()
 {
-  //   std::string function_name = StringFromFormat("%s_work", m_instance_name.c_str());
-  //   m_init_function = llvm::cast<llvm::Function>(m_module->getOrInsertFunction(function_name,
-  //   m_context->GetVoidType(), nullptr));
-  //   if (!m_work_function)
-  //     return false;
-  return false;
+  FragmentBuilder fragment_builder(m_context, m_instance_name, m_peek_function, m_pop_function, m_push_function);
+
+  // Build init function
+  {
+    std::string function_name = StringFromFormat("%s_init", m_instance_name.c_str());
+    m_init_function =
+      llvm::cast<llvm::Function>(m_module->getOrInsertFunction(function_name, m_context->GetVoidType(), nullptr));
+    if (!m_init_function)
+      return false;
+
+    // TODO: Parse parameters
+    Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, m_init_function);
+    llvm::IRBuilder<>& builder = entry_bb_builder.GetCurrentIRBuilder();
+    llvm::Value* filename_val = builder.CreateGlobalStringPtr("", "output_filename");
+
+    llvm::Constant* open_func = m_module->getOrInsertFunction("streamit_open_output_file", m_context->GetVoidType(),
+                                                              m_context->GetStringType(), nullptr);
+    builder.CreateCall(open_func, {filename_val});
+    builder.CreateRetVoid();
+  }
+
+  // Build work function
+  {
+    std::string function_name = StringFromFormat("%s_work", m_instance_name.c_str());
+    m_work_function =
+      llvm::cast<llvm::Function>(m_module->getOrInsertFunction(function_name, m_context->GetVoidType(), nullptr));
+    if (!m_work_function)
+      return false;
+
+    Frontend::FunctionBuilder entry_bb_builder(m_context, m_module, &fragment_builder, m_work_function);
+    llvm::IRBuilder<>& builder = entry_bb_builder.GetCurrentIRBuilder();
+
+    // Copy and get pointer
+    llvm::AllocaInst* value_copy = builder.CreateAlloca(m_filter_permutation->GetInputType());
+    builder.CreateStore(fragment_builder.BuildPop(builder), value_copy);
+    llvm::Value* value_copy_ptr = builder.CreateGEP(value_copy, {builder.getInt32(0)});
+    llvm::Value* value_copy_ptr_type = builder.CreatePointerCast(value_copy_ptr, m_context->GetPointerType());
+    u32 value_size = (m_filter_permutation->GetInputType()->getPrimitiveSizeInBits() + 7) / 8;
+
+    // Call write function
+    llvm::Constant* write_func =
+      m_module->getOrInsertFunction("streamit_write_output_file", m_context->GetVoidType(), m_context->GetPointerType(),
+                                    m_context->GetIntType(), m_context->GetIntType(), nullptr);
+    builder.CreateCall(write_func, {value_copy_ptr_type, builder.getInt32(value_size), builder.getInt32(1)});
+    builder.CreateRetVoid();
+  }
+
+  return true;
 }
 
 } // namespace CPUTarget

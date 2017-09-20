@@ -1,7 +1,9 @@
 int->int pipeline simple6 {
     add counter();
+    //add InputReader<int>();
     add stuff();
-    add sink();
+    //add sink();
+    add OutputWriter<int>();
 }
 
 void->int filter counter {
