@@ -117,7 +117,7 @@ false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
 "]" { return ']'; }
 
  /* Skip Whitespace */
-[ \t\v\n\f] { }
+[ \t\v\r\n\f] { }
 
 <<EOF>>						{ BEGIN(0); return 0; }
 
