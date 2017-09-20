@@ -2,8 +2,8 @@ int->int pipeline simple6 {
     add counter();
     //add InputReader<int>();
     add stuff();
-    //add sink();
-    add OutputWriter<int>();
+    add sink();
+    //add OutputWriter<int>();
 }
 
 void->int filter counter {
@@ -15,15 +15,17 @@ void->int filter counter {
 }
 
 int->int splitjoin stuff {
-    split duplicate;
+    //split duplicate;
+    split roundrobin;
     add Identity<int>();
     add Identity<int>();
-    join roundrobin;
+    join roundrobin(4);
 }
 
 int->void filter sink {
     work pop 1 {
         int x = pop();
+        println(x);
     }
 }
 

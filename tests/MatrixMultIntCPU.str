@@ -1,4 +1,5 @@
 void->void pipeline MatrixMultIntCPU {
+    add InputReader<int>();
     add MatrixMultiply(8, 8, 8, 8);
     add intPrinter();
 }

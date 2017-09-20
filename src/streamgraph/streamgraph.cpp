@@ -2,9 +2,11 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include "common/log.h"
 #include "common/string_helpers.h"
 #include "parser/ast.h"
 #include "streamgraph/streamgraph_builder.h"
+Log_SetChannel(StreamGraph);
 
 namespace StreamGraph
 {
@@ -300,7 +302,7 @@ void SplitJoin::SteadySchedule()
   for (size_t i = 0; i < m_children.size(); i++)
   {
     Node* next = m_children[i];
-    u32 prev_send = m_split_node->GetNetPush();
+    u32 prev_send = m_split_node->GetNetPush() * u32(m_split_node->GetDistribution().at(i));
     u32 next_recv = next->GetNetPop();
     if (prev_send != next_recv)
     {
@@ -316,9 +318,11 @@ void SplitJoin::SteadySchedule()
     }
   }
 
+  // the join one is the one that determines how many times it needs to run, really...
+  // TODO: Matching against the first will break with variable distributions...
   Node* first_child = m_children.front();
   u32 prev_send = first_child->GetNetPush();
-  u32 next_recv = m_join_node->GetNetPop();
+  u32 next_recv = m_join_node->GetNetPop() * u32(m_join_node->GetDistribution().at(0));
   if (prev_send != next_recv)
   {
     u32 gcd1 = gcd(prev_send, next_recv);
@@ -433,14 +437,35 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
         if (m_split_node->GetDistribution().size() == 1)
         {
           // Set distribution of all to the first
+          m_split_node->m_pop_rate += m_split_node->GetDistribution()[0];
           for (size_t i = 1; i < m_children.size(); i++)
+          {
             m_split_node->GetDistribution().push_back(m_split_node->GetDistribution()[0]);
+            m_split_node->m_pop_rate += m_split_node->GetDistribution()[0];
+          }
         }
         else if (m_split_node->GetDistribution().size() == 0)
         {
           // Set distribution for all to one
           for (size_t i = 0; i < m_children.size(); i++)
+          {
             m_split_node->GetDistribution().push_back(1);
+            m_split_node->m_pop_rate++;
+          }
+        }
+        else
+        {
+          for (size_t i = 0; i < m_children.size(); i++)
+            m_split_node->m_pop_rate += m_split_node->GetDistribution()[i];
+        }
+      }
+      else
+      {
+        // Set distribution for all to one for duplicate
+        for (size_t i = 0; i < m_children.size(); i++)
+        {
+          m_split_node->GetDistribution().push_back(1);
+          m_split_node->m_pop_rate++;
         }
       }
 
@@ -448,14 +473,26 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
       if (m_join_node->GetDistribution().size() == 1)
       {
         // Set distribution of all to the first
+        m_join_node->m_push_rate += m_join_node->GetDistribution()[0];
         for (size_t i = 1; i < m_children.size(); i++)
+        {
           m_join_node->GetDistribution().push_back(m_join_node->GetDistribution()[0]);
+          m_join_node->m_push_rate += m_join_node->GetDistribution()[0];
+        }
       }
       else if (m_join_node->GetDistribution().size() == 0)
       {
         // Set distribution for all to one
         for (size_t i = 0; i < m_children.size(); i++)
+        {
           m_join_node->GetDistribution().push_back(1);
+          m_join_node->m_push_rate++;
+        }
+      }
+      else
+      {
+        for (size_t i = 0; i < m_children.size(); i++)
+          m_join_node->m_push_rate += m_join_node->GetDistribution()[i];
       }
 
       return true;
@@ -509,9 +546,10 @@ bool SplitJoin::Validate(BuilderState* state)
 Split::Split(const std::string& name, Mode mode, const std::vector<int>& distribution)
   : Node(name, nullptr, nullptr), m_mode(mode), m_distribution(distribution)
 {
+  // pushing one to every filter, popping one if roundrobin, otherwise ndests
   m_peek_rate = 0;
-  m_pop_rate = 1;
   m_push_rate = 1;
+  m_pop_rate = 0;
 }
 
 bool Split::AddChild(BuilderState* state, Node* node)
@@ -605,7 +643,7 @@ void Join::AddIncomingStream()
 {
   m_incoming_streams++;
   // m_pop_rate++;
-  m_push_rate++;
+  //m_push_rate++;
 }
 
 void Join::SetDataType(llvm::Type* type)

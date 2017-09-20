@@ -35,7 +35,7 @@ public:
 
   // TODO: Enum for mode, 0=roundrobin, 1=duplicate
   bool GenerateCode(StreamGraph::Filter* filter);
-  bool GenerateCode(StreamGraph::Split* split, int mode);
+  bool GenerateCode(StreamGraph::Split* split);
   bool GenerateCode(StreamGraph::Join* join);
 
 private:
@@ -44,8 +44,8 @@ private:
   bool GenerateFilterPopFunction(StreamGraph::Filter* filter);
   bool GenerateFilterPushFunction(StreamGraph::Filter* filter);
 
-  bool GenerateSplitGlobals(StreamGraph::Split* split, int mode);
-  bool GenerateSplitPushFunction(StreamGraph::Split* split, int mode);
+  bool GenerateSplitGlobals(StreamGraph::Split* split);
+  bool GenerateSplitPushFunction(StreamGraph::Split* split);
 
   bool GenerateJoinGlobals(StreamGraph::Join* join);
   bool GenerateJoinSyncFunction(StreamGraph::Join* join);
@@ -59,6 +59,8 @@ private:
   llvm::Type* m_input_buffer_type = nullptr;
   llvm::GlobalVariable* m_input_buffer_var = nullptr;
   llvm::GlobalVariable* m_last_index_var = nullptr;
+  llvm::GlobalVariable* m_written_var = nullptr;
+  llvm::GlobalVariable* m_distribution_var = nullptr;
 };
 
 } // namespace CPUTarget

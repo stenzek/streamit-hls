@@ -156,7 +156,7 @@ bool CodeGeneratorVisitor::Visit(StreamGraph::SplitJoin* node)
 bool CodeGeneratorVisitor::Visit(StreamGraph::Split* node)
 {
   ChannelBuilder cb(m_context, m_module);
-  return cb.GenerateCode(node, 1);
+  return cb.GenerateCode(node);
 }
 
 bool CodeGeneratorVisitor::Visit(StreamGraph::Join* node)

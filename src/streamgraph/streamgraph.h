@@ -262,6 +262,7 @@ protected:
 class Split : public Node
 {
 public:
+  friend SplitJoin;
   enum class Mode
   {
     Duplicate,
@@ -273,6 +274,7 @@ public:
 
   const NodeList& GetOutputs() const { return m_outputs; }
   const StringList& GetOutputChannelNames() const { return m_output_channel_names; }
+  const u32 GetNumOutputChannels() const { return u32(m_outputs.size()); }
   const Mode GetMode() const { return m_mode; }
   const std::vector<int>& GetDistribution() const { return m_distribution; }
   std::vector<int>& GetDistribution() { return m_distribution; }
@@ -299,6 +301,7 @@ private:
 class Join : public Node
 {
 public:
+  friend SplitJoin;
   Join(const std::string& name, const std::vector<int>& distribution);
   ~Join() = default;
 

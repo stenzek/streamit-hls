@@ -3,6 +3,7 @@
 #include <vector>
 #include "common/log.h"
 #include "common/string_helpers.h"
+#include "cputarget/debug_print_builder.h"
 #include "frontend/wrapped_llvm_context.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
@@ -42,10 +43,10 @@ bool ChannelBuilder::GenerateCode(StreamGraph::Filter* filter)
           GenerateFilterPushFunction(filter));
 }
 
-bool ChannelBuilder::GenerateCode(StreamGraph::Split* split, int mode)
+bool ChannelBuilder::GenerateCode(StreamGraph::Split* split)
 {
   m_instance_name = split->GetName();
-  return (GenerateSplitGlobals(split, mode) && GenerateSplitPushFunction(split, mode));
+  return (GenerateSplitGlobals(split) && GenerateSplitPushFunction(split));
 }
 
 bool ChannelBuilder::GenerateCode(StreamGraph::Join* join)
@@ -226,22 +227,38 @@ bool ChannelBuilder::GenerateFilterPushFunction(StreamGraph::Filter* filter)
   return true;
 }
 
-bool ChannelBuilder::GenerateSplitGlobals(StreamGraph::Split* split, int mode)
+bool ChannelBuilder::GenerateSplitGlobals(StreamGraph::Split* split)
 {
-  if (mode == 0)
+  if (split->GetMode() == StreamGraph::Split::Mode::Roundrobin)
   {
-    // roundrobin - we need a last index variable
+    // roundrobin - we need a last index and written variable
     m_last_index_var =
       new llvm::GlobalVariable(*m_module, m_context->GetIntType(), true, llvm::GlobalValue::PrivateLinkage, nullptr,
                                StringFromFormat("%s_last_index", m_instance_name.c_str()));
     m_last_index_var->setConstant(false);
     m_last_index_var->setInitializer(llvm::ConstantInt::get(m_context->GetIntType(), 0));
+    m_written_var =
+      new llvm::GlobalVariable(*m_module, m_context->GetIntType(), true, llvm::GlobalValue::PrivateLinkage, nullptr,
+                               StringFromFormat("%s_written", m_instance_name.c_str()));
+    m_written_var->setConstant(false);
+    m_written_var->setInitializer(llvm::ConstantInt::get(m_context->GetIntType(), 0));
+
+    // distribution lookup table
+    llvm::ArrayType* int_array_ty = llvm::ArrayType::get(m_context->GetIntType(), split->GetNumOutputChannels());
+    m_distribution_var =
+      new llvm::GlobalVariable(*m_module, int_array_ty, true, llvm::GlobalValue::PrivateLinkage, nullptr,
+                               StringFromFormat("%s_distribution", m_instance_name.c_str()));
+    std::vector<llvm::Constant*> distribution_values;
+    for (int dist : split->GetDistribution())
+      distribution_values.push_back(llvm::ConstantInt::get(m_context->GetIntType(), (uint64_t)dist));
+    m_distribution_var->setConstant(true);
+    m_distribution_var->setInitializer(llvm::ConstantArray::get(int_array_ty, distribution_values));
   }
 
   return true;
 }
 
-bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split, int mode)
+bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split)
 {
   // if mode is roundrobin
   //     last_index = (last_index + 1) % num_outputs
@@ -253,7 +270,9 @@ bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split, int mo
   //       output_name_push(data)
   //
 
+  u32 num_outputs = split->GetNumOutputChannels();
   assert(split->GetInputType() == split->GetOutputType());
+  assert(num_outputs > 0);
 
   // Get output function prototypes
   std::vector<llvm::Constant*> output_functions;
@@ -288,11 +307,51 @@ bool ChannelBuilder::GenerateSplitPushFunction(StreamGraph::Split* split, int mo
   llvm::Value* value = &(*func_args_iter++);
   value->setName("value");
 
-  if (mode == 0)
+  if (split->GetMode() == StreamGraph::Split::Mode::Roundrobin)
   {
-    // TODO: roundrobin
+    // roundrobin
+    llvm::BasicBlock* check_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "check", func);
+    llvm::BasicBlock* next_input_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "next_input", func);
+    llvm::BasicBlock* exit_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "exit", func);
+    std::vector<llvm::BasicBlock*> bbs;
+    for (llvm::Constant* output_func : output_functions)
+    {
+      llvm::BasicBlock* child_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "", func);
+      llvm::IRBuilder<> child_builder(child_bb);
+      child_builder.CreateCall(output_func, {value});
+      child_builder.CreateBr(check_bb);
+      bbs.push_back(child_bb);
+    }
+
+    llvm::Value* last_index = builder.CreateLoad(m_last_index_var, "last_index");
+    //BuildDebugPrintf(m_context, builder, "val=%u,last_index=%u", {value, last_index});
+    llvm::SwitchInst* sw = builder.CreateSwitch(last_index, bbs.at(0), num_outputs);
+    for (size_t i = 0; i < bbs.size(); i++)
+      sw->addCase(builder.getInt32(u32(i)), bbs[i]);
+
+    // written = written + 1
+    // if (written == distribution[last_index])
+    builder.SetInsertPoint(check_bb);
+    llvm::Value* written = builder.CreateLoad(m_written_var, "written");
+    written = builder.CreateAdd(written, builder.getInt32(1), "written");
+    builder.CreateStore(written, m_written_var);
+    llvm::Value* distribution_ptr =
+      builder.CreateInBoundsGEP(m_distribution_var, {builder.getInt32(0), last_index}, "distribution_ptr");
+    llvm::Value* distribution = builder.CreateLoad(distribution_ptr, "distribution");
+    llvm::Value* written_comp = builder.CreateICmpUGE(written, distribution, "written_comp");
+    builder.CreateCondBr(written_comp, next_input_bb, exit_bb);
+
+    // written = 0
+    // next_input = (next_input + 1) % num_inputs
+    builder.SetInsertPoint(next_input_bb);
+    builder.CreateStore(builder.getInt32(0), m_written_var);
+    last_index = builder.CreateAdd(last_index, builder.getInt32(1), "last_index");
+    last_index = builder.CreateURem(last_index, builder.getInt32(num_outputs), "last_index");
+    builder.CreateStore(last_index, m_last_index_var);
+    builder.CreateBr(exit_bb);
+    builder.SetInsertPoint(exit_bb);
   }
-  else
+  else if (split->GetMode() == StreamGraph::Split::Mode::Duplicate)
   {
     // duplicate
     // m_context->BuildDebugPrintf(builder, "duplicate push %d", { value });
@@ -311,10 +370,14 @@ bool ChannelBuilder::GenerateJoinGlobals(StreamGraph::Join* join)
 
   // input buffer struct
   //    int next_input
+  //    int written_for_input
   //    int heads[num_inputs]
   //    int tails[num_inputs]
   //    int sizes[num_inputs]
   //    data_type buf[num_inputs][FIFO_QUEUE_SIZE]
+
+  // globals
+  //    int distribution_sizes[num_inputs]
 
   assert(join->GetInputType() == join->GetInputType());
   llvm::ArrayType* data_array_ty = llvm::ArrayType::get(join->GetInputType(), m_input_buffer_size);
@@ -322,7 +385,7 @@ bool ChannelBuilder::GenerateJoinGlobals(StreamGraph::Join* join)
   llvm::ArrayType* int_array_ty = llvm::ArrayType::get(m_context->GetIntType(), num_inputs);
   m_input_buffer_type =
     llvm::StructType::create(StringFromFormat("%s_buf_type", m_instance_name.c_str()), m_context->GetIntType(),
-                             int_array_ty, int_array_ty, int_array_ty, buf_array_ty, nullptr);
+                             m_context->GetIntType(), int_array_ty, int_array_ty, int_array_ty, buf_array_ty, nullptr);
   if (!m_input_buffer_type)
     return false;
 
@@ -334,6 +397,15 @@ bool ChannelBuilder::GenerateJoinGlobals(StreamGraph::Join* join)
   llvm::ConstantAggregateZero* buffer_initializer = llvm::ConstantAggregateZero::get(m_input_buffer_type);
   m_input_buffer_var->setConstant(false);
   m_input_buffer_var->setInitializer(buffer_initializer);
+
+  // Distribution lookup array
+  m_distribution_var = new llvm::GlobalVariable(*m_module, int_array_ty, true, llvm::GlobalValue::PrivateLinkage,
+                                                nullptr, StringFromFormat("%s_distribution", m_instance_name.c_str()));
+  std::vector<llvm::Constant*> distribution_values;
+  for (int dist : join->GetDistribution())
+    distribution_values.push_back(llvm::ConstantInt::get(m_context->GetIntType(), (uint64_t)dist));
+  m_distribution_var->setConstant(true);
+  m_distribution_var->setInitializer(llvm::ConstantArray::get(int_array_ty, distribution_values));
   return true;
 }
 
@@ -364,6 +436,7 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
   llvm::BasicBlock* entry_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "entry_bb", func);
   llvm::BasicBlock* compare_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "compare_bb", func);
   llvm::BasicBlock* loop_body_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "loop_body", func);
+  llvm::BasicBlock* next_input_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "next_input", func);
   llvm::BasicBlock* exit_bb = llvm::BasicBlock::Create(m_context->GetLLVMContext(), "exit", func);
 
   llvm::IRBuilder<> builder(entry_bb);
@@ -379,7 +452,7 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
   // size_ptr = &buf.sizes[next_input]
   // size = *size_ptr
   llvm::Value* size_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
-                                                    {builder.getInt32(0), builder.getInt32(3), next_input}, "size_ptr");
+                                                    {builder.getInt32(0), builder.getInt32(4), next_input}, "size_ptr");
   llvm::Value* size = builder.CreateLoad(size_ptr, "size");
 
   // (size == 0) ? goto exit : goto loop_body;
@@ -392,13 +465,13 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
   // tail_ptr = &buf.tails[next_input]
   // tail = *tail_ptr
   llvm::Value* tail_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
-                                                    {builder.getInt32(0), builder.getInt32(2), next_input}, "tail_ptr");
+                                                    {builder.getInt32(0), builder.getInt32(3), next_input}, "tail_ptr");
   llvm::Value* tail = builder.CreateLoad(tail_ptr, "tail");
 
   // value_ptr = &buf.data[next_input][tail]
   // value = *value_ptr
   llvm::Value* value_ptr = builder.CreateInBoundsGEP(
-    m_input_buffer_type, m_input_buffer_var, {builder.getInt32(0), builder.getInt32(4), next_input, tail}, "value_ptr");
+    m_input_buffer_type, m_input_buffer_var, {builder.getInt32(0), builder.getInt32(5), next_input, tail}, "value_ptr");
   llvm::Value* value = builder.CreateLoad(value_ptr, "value");
 
   // tail = (tail + 1) % FIFO_QUEUE_SIZE
@@ -410,13 +483,32 @@ bool ChannelBuilder::GenerateJoinSyncFunction(StreamGraph::Join* join)
   size = builder.CreateSub(size, builder.getInt32(1), "size");
   builder.CreateStore(size, size_ptr);
 
+  // call output_stream_name_push(value)
+  //BuildDebugPrintf(m_context, builder, "join write val=%u,next_input=%u", {value, next_input});
+  builder.CreateCall(output_func, {value});
+
+  // written_ptr = &buf.written[next_input]
+  llvm::Value* written_ptr = builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
+                                                       {builder.getInt32(0), builder.getInt32(1)}, "written_ptr");
+  llvm::Value* written = builder.CreateLoad(written_ptr, "written");
+  // written = written + 1
+  written = builder.CreateAdd(written, builder.getInt32(1), "written");
+  builder.CreateStore(written, written_ptr);
+  // distribution_ptr = &distribution[next_input]
+  // distribution = *distribution_ptr
+  llvm::Value* distribution_ptr =
+    builder.CreateInBoundsGEP(m_distribution_var, {builder.getInt32(0), next_input}, "distribution");
+  llvm::Value* distribution = builder.CreateLoad(distribution_ptr, "distribution");
+  // written_eq_distribution = written >= distribution
+  llvm::Value* written_eq_distribution = builder.CreateICmpUGE(written, distribution, "written_eq_distribution");
+  builder.CreateCondBr(written_eq_distribution, next_input_bb, compare_bb);
+
   // next_input = (next_input + 1) % num_inputs
+  builder.SetInsertPoint(next_input_bb);
+  builder.CreateStore(builder.getInt32(0), written_ptr);
   next_input = builder.CreateAdd(next_input, builder.getInt32(1), "next_input");
   next_input = builder.CreateURem(next_input, builder.getInt32(num_inputs), "next_input");
   builder.CreateStore(next_input, next_input_ptr);
-
-  // call output_stream_name_push(value)
-  builder.CreateCall(output_func, {value});
 
   // goto compare_bb
   builder.CreateBr(compare_bb);
@@ -465,14 +557,14 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
     // head_ptr = &buf.heads[src_stream]
     // head = *head_ptr
     llvm::Value* head_ptr = builder.CreateInBoundsGEP(
-      m_input_buffer_type, m_input_buffer_var, {builder.getInt32(0), builder.getInt32(1), src_stream}, "head_ptr");
+      m_input_buffer_type, m_input_buffer_var, {builder.getInt32(0), builder.getInt32(2), src_stream}, "head_ptr");
     llvm::Value* head = builder.CreateLoad(head_ptr, "head");
 
     // value_ptr = &buf.data[head]
     // value_ptr = *value_ptr
     llvm::Value* value_ptr =
       builder.CreateInBoundsGEP(m_input_buffer_type, m_input_buffer_var,
-                                {builder.getInt32(0), builder.getInt32(4), src_stream, head}, "value_ptr");
+                                {builder.getInt32(0), builder.getInt32(5), src_stream, head}, "value_ptr");
     builder.CreateStore(value, value_ptr);
 
     // new_head = (head + 1) % FIFO_QUEUE_SIZE
@@ -486,7 +578,7 @@ bool ChannelBuilder::GenerateJoinPushFunction(StreamGraph::Join* join)
     // size_2 = size_1 + 1
     // *size_ptr = size_2
     llvm::Value* size_ptr = builder.CreateInBoundsGEP(
-      m_input_buffer_type, m_input_buffer_var, {builder.getInt32(0), builder.getInt32(3), src_stream}, "size_ptr");
+      m_input_buffer_type, m_input_buffer_var, {builder.getInt32(0), builder.getInt32(4), src_stream}, "size_ptr");
     llvm::Value* size_1 = builder.CreateLoad(size_ptr, "size");
     llvm::Value* size_2 = builder.CreateAdd(size_1, builder.getInt32(1), "size");
     builder.CreateStore(size_2, size_ptr);
