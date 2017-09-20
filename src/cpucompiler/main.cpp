@@ -18,6 +18,7 @@
 #include "parser/parser_state.h"
 #include "parser/symbol_table.h"
 #include "streamgraph/streamgraph.h"
+Log_SetChannel(CPUCompiler);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -32,7 +33,8 @@ static void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph);
 static std::unique_ptr<llvm::Module> GenerateCode(Frontend::WrappedLLVMContext* ctx, ParserState* parser,
                                                   StreamGraph::StreamGraph* streamgraph, bool optimize);
 static void DumpModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod);
-static void WriteModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename);
+static bool WriteModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename);
+static bool WriteProgram(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, bool optimize_ir, const char* filename);
 static bool ExecuteModule(Frontend::WrappedLLVMContext* ctx, std::unique_ptr<llvm::Module> mod);
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -47,6 +49,7 @@ static void usage(const char* progname)
   fprintf(stderr, "  -i: Dump LLVM IR.\n");
   fprintf(stderr, "  -o: Optimize LLVM IR.\n");
   fprintf(stderr, "  -e: Execute program after compilation.\n");
+  fprintf(stderr, "  -O: Compile program to binary.\n");
   fprintf(stderr, "  -h: Print this help message.\n");
   fprintf(stderr, "\n");
   std::exit(EXIT_FAILURE);
@@ -65,16 +68,22 @@ int main(int argc, char* argv[])
   bool optimize_llvm_ir = false;
   bool write_llvm_ir = false;
   bool execute_program = false;
+  bool write_program = false;
 
   int c;
 
-  while ((c = getopt(argc, argv, "dasioehw:")) != -1)
+  while ((c = getopt(argc, argv, "dasioehw:O:")) != -1)
   {
     switch (c)
     {
     case 'w':
       output_filename = optarg;
       write_llvm_ir = true;
+      break;
+
+    case 'O':
+      output_filename = optarg;
+      write_program = true;
       break;
 
     case 'd':
@@ -119,7 +128,7 @@ int main(int argc, char* argv[])
     fp = std::fopen(filename, "r");
     if (!fp)
     {
-      Log::Error("CPUCompiler", "Failed to open file {}", filename);
+      Log_ErrorPrintf("Failed to open file {}", filename);
       return EXIT_FAILURE;
     }
   }
@@ -151,6 +160,9 @@ int main(int argc, char* argv[])
   if (write_llvm_ir)
     WriteModule(llvm_context.get(), module.get(), output_filename.c_str());
 
+  if (write_program)
+    WriteProgram(llvm_context.get(), module.get(), optimize_llvm_ir, output_filename.c_str());
+
   if (execute_program)
     ExecuteModule(llvm_context.get(), std::move(module));
 
@@ -162,12 +174,12 @@ int main(int argc, char* argv[])
 std::unique_ptr<ParserState> ParseFile(Frontend::WrappedLLVMContext* ctx, const char* filename, std::FILE* fp,
                                        bool debug)
 {
-  Log::Info("CPUCompiler", "Parsing %s...", filename);
+  Log_InfoPrintf("Parsing %s...", filename);
 
   auto parser = std::make_unique<ParserState>();
   if (!parser->ParseFile(filename, fp, debug))
   {
-    Log::Error("CPUCompiler", "Parse failed.");
+    Log_ErrorPrintf("Parse failed.");
     return nullptr;
   }
 
@@ -176,7 +188,7 @@ std::unique_ptr<ParserState> ParseFile(Frontend::WrappedLLVMContext* ctx, const 
 
 void DumpAST(ParserState* parser)
 {
-  Log::Info("CPUCompiler", "Dumping AST...");
+  Log_InfoPrintf("Dumping AST...");
   parser->DumpAST();
 }
 
@@ -184,12 +196,12 @@ void DumpAST(ParserState* parser)
 
 std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(Frontend::WrappedLLVMContext* ctx, ParserState* parser)
 {
-  Log::Info("CPUCompiler", "Generating stream graph...");
+  Log_InfoPrintf("Generating stream graph...");
 
   auto streamgraph = StreamGraph::BuildStreamGraph(ctx, parser);
   if (!streamgraph)
   {
-    Log::Error("CPUCompiler", "Stream graph build failed.");
+    Log_ErrorPrintf("Stream graph build failed.");
     return nullptr;
   }
 
@@ -198,7 +210,7 @@ std::unique_ptr<StreamGraph::StreamGraph> GenerateStreamGraph(Frontend::WrappedL
 
 void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph)
 {
-  Log::Info("CPUCompiler", "Dumping stream graph...");
+  Log_InfoPrintf("Dumping stream graph...");
   std::cout << streamgraph->Dump() << std::endl;
 }
 
@@ -207,19 +219,19 @@ void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph)
 std::unique_ptr<llvm::Module> GenerateCode(Frontend::WrappedLLVMContext* ctx, ParserState* parser,
                                            StreamGraph::StreamGraph* streamgraph, bool optimize)
 {
-  Log::Info("CPUCompiler", "Generating code...");
+  Log_InfoPrintf("Generating code...");
 
   CPUTarget::ProgramBuilder builder(ctx, parser->GetEntryPointName());
   if (!builder.GenerateCode(streamgraph))
   {
-    Log::Error("CPUCompiler", "Code generation failed.");
+    Log_ErrorPrintf("Code generation failed.");
     return nullptr;
   }
 
   // Verify the LLVM bitcode. Can skip this.
   if (!ctx->VerifyModule(builder.GetModule()))
   {
-    Log::Warning("CPUCompiler", "LLVM IR failed validation.");
+    Log_WarningPrintf("LLVM IR failed validation.");
     return nullptr;
   }
 
@@ -231,23 +243,74 @@ std::unique_ptr<llvm::Module> GenerateCode(Frontend::WrappedLLVMContext* ctx, Pa
 
 void DumpModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod)
 {
-  Log::Info("CPUCompiler", "Dumping LLVM IR...");
+  Log_InfoPrintf("Dumping LLVM IR...");
   ctx->DumpModule(mod);
 }
 
-void WriteModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename)
+bool WriteModule(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, const char* filename)
 {
-  Log::Info("CPUCompiler", "Writing LLVM IR to %s...", filename);
+  Log_InfoPrintf("Writing LLVM IR to %s...", filename);
 
   std::error_code ec;
   llvm::raw_fd_ostream os(filename, ec, llvm::sys::fs::F_None);
   llvm::WriteBitcodeToFile(mod, os);
   os.flush();
+  return !ec;
+}
+
+static std::string LocateRuntimeLibraryLib()
+{
+  std::string existing_path;
+
+  auto TryPath = [&existing_path](const char* path) {
+    std::FILE* f = fopen(path, "rb");
+    if (!f)
+      return false;
+
+    fclose(f);
+    existing_path = path;
+    return true;
+  };
+
+  if (!TryPath("libcpuruntimelibrary_static.a") &&
+      !TryPath("src/cputarget/runtimelibrary/libcpuruntimelibrary_static.a") &&
+      !TryPath("../src/cputarget/runtimelibrary/libcpuruntimelibrary_static.a"))
+  {
+    return {};
+  }
+
+  return existing_path;
+}
+
+bool WriteProgram(Frontend::WrappedLLVMContext* ctx, llvm::Module* mod, bool optimize_ir, const char* filename)
+{
+  std::string runtime_library_path = LocateRuntimeLibraryLib();
+  if (runtime_library_path.empty())
+  {
+    Log_ErrorPrintf("Failed to locate runtime library. Not writing program.");
+    return false;
+  }
+
+  std::string bc_filename = StringFromFormat("%s.bc", filename);
+  if (!WriteModule(ctx, mod, bc_filename.c_str()))
+    return false;
+
+  std::string cmdline = StringFromFormat("clang++ -o %s %s %s %s", filename, optimize_ir ? "-O3" : "",
+                                         bc_filename.c_str(), runtime_library_path.c_str());
+  Log_InfoPrintf("Executing: %s", cmdline.c_str());
+  int res = system(cmdline.c_str());
+  if (res != 0)
+  {
+    Log_ErrorPrintf("Clang returned error %d\n", res);
+    return false;
+  }
+
+  Log_InfoPrintf("Program written to %s", filename);
 }
 
 bool ExecuteModule(Frontend::WrappedLLVMContext* ctx, std::unique_ptr<llvm::Module> mod)
 {
-  Log::Info("CPUCompiler", "Executing program...");
+  Log_InfoPrintf("Executing program...");
 
   llvm::InitializeNativeTarget();
   llvm::InitializeNativeTargetAsmPrinter();
@@ -258,7 +321,7 @@ bool ExecuteModule(Frontend::WrappedLLVMContext* ctx, std::unique_ptr<llvm::Modu
 
   if (!execution_engine)
   {
-    Log::Error("CPUCompiler", "Failed to create LLVM execution engine: %s", error_msg.c_str());
+    Log_ErrorPrintf("Failed to create LLVM execution engine: %s", error_msg.c_str());
     return false;
   }
 
@@ -266,7 +329,7 @@ bool ExecuteModule(Frontend::WrappedLLVMContext* ctx, std::unique_ptr<llvm::Modu
 
   llvm::Function* main_func = execution_engine->FindFunctionNamed("main");
   assert(main_func && "main function exists in execution engine");
-  Log::Info("CPUCompiler", "Executing main function...");
+  Log_InfoPrintf("Executing main function...");
   execution_engine->runFunction(main_func, {});
   return true;
 }
