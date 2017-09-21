@@ -462,11 +462,9 @@ bool SplitJoin::AddChild(BuilderState* state, Node* node)
       else
       {
         // Set distribution for all to one for duplicate
+        m_split_node->m_pop_rate = 1;
         for (size_t i = 0; i < m_children.size(); i++)
-        {
           m_split_node->GetDistribution().push_back(1);
-          m_split_node->m_pop_rate++;
-        }
       }
 
       // For roundrobin joins

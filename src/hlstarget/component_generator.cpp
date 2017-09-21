@@ -360,7 +360,8 @@ void ComponentGenerator::WriteSplitDuplicate(const StreamGraph::Split* node)
   WriteFIFO(fifo_name, data_width, fifo_depth);
 
   // Split process
-  m_body << "-- split node " << name << " with " << node->GetOutputChannelNames().size() << " outgoing streams\n";
+  m_body << "-- split duplicate node " << name << " with " << node->GetOutputChannelNames().size()
+         << " outgoing streams\n";
   m_signals << "signal " << name << "_write : std_logic;\n";
 
   // Signals are wired directly, this saves creating a register between the incoming and outgoing filters.
@@ -381,6 +382,68 @@ void ComponentGenerator::WriteSplitDuplicate(const StreamGraph::Split* node)
 
 void ComponentGenerator::WriteSplitRoundrobin(const StreamGraph::Split* node)
 {
+  const std::string& name = node->GetName();
+  std::string fifo_name = StringFromFormat("%s_fifo", name.c_str());
+  u32 data_width = VHDLHelpers::GetBitWidthForType(node->GetInputType());
+  u32 fifo_depth = node->GetNetPop() * VHDLHelpers::FIFO_SIZE_MULTIPLIER;
+  WriteFIFO(fifo_name, data_width, fifo_depth);
+
+  // Splitjoin state type
+  std::string state_signal = StringFromFormat("%s_state", name.c_str());
+  m_signals << "type " << name << "_state_type is (";
+  for (u32 idx = 1; idx <= node->GetNumOutputChannels(); idx++)
+  {
+    for (u32 step = 1; step <= node->GetDistribution().at(idx - 1); step++)
+      m_signals << ((idx == 1 && step == 1) ? "" : ", ") << name << "_state_" << idx << "_step_" << step;
+  }
+
+  m_signals << ");\n";
+  m_signals << "signal " << state_signal << " : " << name << "_state_type;\n";
+
+  // Splitjoin process
+  m_body << "-- split roundrobin node " << name << " with " << node->GetNumOutputChannels() << " outgoing streams\n";
+
+  // All the din ports can be mapped to the fifo output, we adjust the write port instead.
+  for (const std::string& output_name : node->GetOutputChannelNames())
+    m_body << output_name << "_din <= " << fifo_name << "_dout;\n";
+
+  m_body << name << "_split_process : process(clk)\n";
+  m_body << "begin\n";
+  m_body << "  if (rising_edge(clk)) then\n";
+  m_body << "    if (rst_n = '0') then\n";
+  m_body << "      " << state_signal << " <= " << name << "_state_step_1;\n";
+  m_body << "    else\n";
+  m_body << "      case " << state_signal << " is\n";
+  for (u32 idx = 1; idx <= node->GetNumOutputChannels(); idx++)
+  {
+    for (u32 step = 1; step <= node->GetDistribution().at(idx - 1); step++)
+    {
+      const std::string& output_name = node->GetOutputChannelNames().at(idx - 1);
+      bool last_step = (step == node->GetDistribution().at(idx - 1));
+      u32 next_state = last_step ? ((idx % node->GetNumOutputChannels()) + 1) : idx;
+      u32 next_step = last_step ? 1 : (step + 1);
+      m_body << "        when " << name << "_state_" << idx << "_step_" << step << " =>\n";
+      m_body << "          if (" << fifo_name << "_empty_n = '1' and " << output_name << "_full_n = '1') then\n";
+      m_body << "            " << fifo_name << "_read <= '1';\n";
+      m_body << "            " << output_name << "_write <= '1';\n";
+      m_body << "            " << state_signal << " <= " << name << "_state_" << next_state << ";\n";
+      m_body << "          else\n";
+      m_body << "            " << fifo_name << "_read <= '0';\n";
+      m_body << "            " << output_name << "_write <= '0';\n";
+      m_body << "          end if;\n";
+      for (u32 other_idx = 1; other_idx <= node->GetNumOutputChannels(); other_idx++)
+      {
+        if (other_idx == idx)
+          continue;
+        m_body << "          " << node->GetOutputChannelNames().at(other_idx - 1) << "_fifo_read <= '0';\n";
+      }
+    }
+  }
+  m_body << "      end case;\n";
+  m_body << "    end if;\n";
+  m_body << "  end if;\n";
+  m_body << "end process;\n";
+  m_body << "\n";
 }
 
 bool ComponentGenerator::Visit(StreamGraph::Split* node)
@@ -415,7 +478,10 @@ bool ComponentGenerator::Visit(StreamGraph::Join* node)
   std::string state_signal = StringFromFormat("%s_state", name.c_str());
   m_signals << "type " << name << "_state_type is (";
   for (u32 idx = 1; idx <= node->GetIncomingStreams(); idx++)
-    m_signals << ((idx != 1) ? ", " : "") << name << "_state_" << idx;
+  {
+    for (u32 step = 1; step <= node->GetDistribution().at(idx - 1); step++)
+      m_signals << ((idx == 1 && step == 1) ? "" : ", ") << name << "_state_" << idx << "_step_" << step;
+  }
   m_signals << ");\n";
   m_signals << "signal " << state_signal << " : " << name << "_state_type;\n";
 
@@ -425,28 +491,34 @@ bool ComponentGenerator::Visit(StreamGraph::Join* node)
   m_body << "begin\n";
   m_body << "  if (rising_edge(clk)) then\n";
   m_body << "    if (rst_n = '0') then\n";
-  m_body << "      " << state_signal << " <= " << name << "_state_1;\n";
+  m_body << "      " << state_signal << " <= " << name << "_state_1_step_1;\n";
   m_body << "    else\n";
   m_body << "      case " << state_signal << " is\n";
   for (u32 idx = 1; idx <= node->GetIncomingStreams(); idx++)
   {
     std::string fifo_name = StringFromFormat("%s_%u_fifo", name.c_str(), idx);
-    u32 next_state = (idx % node->GetIncomingStreams()) + 1;
-    m_body << "        when " << name << "_state_" << idx << " =>\n";
-    m_body << "          " << output_name << "_din <= " << fifo_name << "_dout;\n";
-    m_body << "          if (" << fifo_name << "_empty_n = '1' and " << output_name << "_full_n = '1') then\n";
-    m_body << "            " << fifo_name << "_read <= '1';\n";
-    m_body << "            " << output_name << "_write <= '1';\n";
-    m_body << "            " << state_signal << " <= " << name << "_state_" << next_state << ";\n";
-    m_body << "          else\n";
-    m_body << "            " << fifo_name << "_read <= '0';\n";
-    m_body << "            " << output_name << "_write <= '0';\n";
-    m_body << "          end if;\n";
-    for (u32 other_idx = 1; other_idx <= node->GetIncomingStreams(); other_idx++)
+    for (u32 step = 1; step <= node->GetDistribution().at(idx - 1); step++)
     {
-      if (other_idx == idx)
-        continue;
-      m_body << "          " << name << "_" << other_idx << "_fifo_read <= '0';\n";
+      bool last_step = (step == node->GetDistribution().at(idx - 1));
+      u32 next_state = last_step ? ((idx % node->GetIncomingStreams()) + 1) : idx;
+      u32 next_step = last_step ? 1 : (step + 1);
+      m_body << "        when " << name << "_state_" << idx << "_step_" << step << " =>\n";
+      m_body << "          " << output_name << "_din <= " << fifo_name << "_dout;\n";
+      m_body << "          if (" << fifo_name << "_empty_n = '1' and " << output_name << "_full_n = '1') then\n";
+      m_body << "            " << fifo_name << "_read <= '1';\n";
+      m_body << "            " << output_name << "_write <= '1';\n";
+      m_body << "            " << state_signal << " <= " << name << "_state_" << next_state << "_step_" << next_step
+             << ";\n";
+      m_body << "          else\n";
+      m_body << "            " << fifo_name << "_read <= '0';\n";
+      m_body << "            " << output_name << "_write <= '0';\n";
+      m_body << "          end if;\n";
+      for (u32 other_idx = 1; other_idx <= node->GetIncomingStreams(); other_idx++)
+      {
+        if (other_idx == idx)
+          continue;
+        m_body << "          " << name << "_" << other_idx << "_fifo_read <= '0';\n";
+      }
     }
   }
   m_body << "      end case;\n";
