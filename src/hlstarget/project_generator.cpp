@@ -11,6 +11,7 @@
 #include "hlstarget/component_test_bench_generator.h"
 #include "hlstarget/filter_builder.h"
 #include "hlstarget/test_bench_generator.h"
+#include "hlstarget/vhdl_helpers.h"
 #include "llvm/IR/Argument.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
@@ -303,7 +304,7 @@ bool ProjectGenerator::WriteHLSScript()
     os << "# filter " << filter_name << "\n"
        << "open_solution -reset \"" << function_name << "\"\n"
        << "set_top " << function_name << "\n"
-       << "set_part {xa7a50tcsg325-2i} -tool vivado\n"
+       << "set_part {" << VHDLHelpers::TARGET_PART_ID << "} -tool vivado\n"
        << "create_clock -period 10 -name default\n"
        << "\n";
 
@@ -360,7 +361,7 @@ bool ProjectGenerator::WriteVivadoScript()
   if (ec || os.has_error())
     return false;
 
-  os << "create_project " << m_module_name << " . -part xa7a50tcsg325 -force\n";
+  os << "create_project " << m_module_name << " . -part " << VHDLHelpers::TARGET_PART_ID << " -force\n";
   os << "set_property target_language VHDL [current_project]\n";
   os << "\n";
 
