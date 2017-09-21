@@ -168,7 +168,7 @@ void ComponentGenerator::WriteFIFO(const std::string& name, u32 data_width, u32 
     m_body << name << " : entity work."
            << (srl32 ? VHDLHelpers::FIFO_SRL32_COMPONENT_NAME : VHDLHelpers::FIFO_SRL16_COMPONENT_NAME) << "(behav)\n";
     m_body << "  generic map (\n";
-    m_body << "    DATA_WIDTH => " << data_width << ",\n";
+    m_body << "    DATA_WIDTH => " << data_width << "\n";
     m_body << "  )\n";
     m_body << "  port map (\n";
     m_body << "    clk => clk,\n";
@@ -291,13 +291,13 @@ void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* n
     const std::string& output_name = node->GetOutputChannelName();
     if (!output_name.empty())
     {
-      m_body << name << "_write <= " << output_name << "_fifo_write;\n";
-      m_body << name << "_full_n <= " << output_name << "_fifo_full_n;\n";
+      m_body << output_name << "_fifo_write <= " << name << "_fifo_write;\n";
+      m_body << name << "_fifo_full_n <= " << output_name << "_fifo_full_n;\n";
     }
     else
     {
-      m_body << name << "_write <= " << output_name << "prog_output_write;\n";
-      m_body << name << "_full_n <= " << output_name << "prog_output_full_n;\n";
+      m_body << "prog_output_write <= " << name << "_fifo_write;\n";
+      m_body << name << "_fifo_full_n <= " << output_name << "prog_output_full_n;\n";
     }
   }
   else if (!node->GetInputType()->isVoidTy())
