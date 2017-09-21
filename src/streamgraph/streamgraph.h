@@ -58,6 +58,9 @@ public:
   llvm::Type* GetProgramInputType() const;
   llvm::Type* GetProgramOutputType() const;
 
+  // Widens channels where possible.
+  void WidenChannels();
+
 private:
   Node* m_root_node;
   FilterPermutationList m_filter_permutations;
@@ -168,6 +171,10 @@ public:
   virtual void SteadySchedule() = 0;
   virtual void AddMultiplicity(u32 count) = 0;
 
+  // Channel widening
+  virtual void SetInputChannelWidth(u32 width) = 0;
+  virtual void WidenChannels() = 0;
+
 protected:
   std::string m_name;
   llvm::Type* m_input_type;
@@ -188,6 +195,8 @@ public:
   bool HasOutputConnection() const { return (m_output_connection != nullptr); }
   Node* GetOutputConnection() const { return m_output_connection; }
   const std::string& GetOutputChannelName() const { return m_output_channel_name; }
+  u32 GetInputChannelWidth() const { return m_input_channel_width; }
+  u32 GetOutputChannelWidth() const { return m_output_channel_width; }
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* child) override;
@@ -200,10 +209,15 @@ public:
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
 
+  void SetInputChannelWidth(u32 width) override;
+  void WidenChannels() override;
+
 protected:
   const FilterPermutation* m_filter_permutation;
   Node* m_output_connection = nullptr;
   std::string m_output_channel_name;
+  u32 m_input_channel_width = 1;
+  u32 m_output_channel_width = 1;
 };
 
 class Pipeline : public Node
@@ -224,6 +238,9 @@ public:
 
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
+
+  void SetInputChannelWidth(u32 width) override;
+  void WidenChannels() override;
 
 protected:
   NodeList m_children;
@@ -252,6 +269,9 @@ public:
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
 
+  void SetInputChannelWidth(u32 width) override;
+  void WidenChannels() override;
+
 protected:
   NodeList m_children;
   Node* m_output_connection = nullptr;
@@ -278,6 +298,7 @@ public:
   const Mode GetMode() const { return m_mode; }
   const std::vector<int>& GetDistribution() const { return m_distribution; }
   std::vector<int>& GetDistribution() { return m_distribution; }
+  u32 GetInputChannelWidth() const { return m_input_channel_width; }
   void SetDataType(llvm::Type* type);
 
   bool Accept(Visitor* visitor) override;
@@ -291,11 +312,15 @@ public:
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
 
+  void SetInputChannelWidth(u32 width) override;
+  void WidenChannels() override;
+
 private:
   NodeList m_outputs;
   StringList m_output_channel_names;
   Mode m_mode;
   std::vector<int> m_distribution;
+  u32 m_input_channel_width = 1;
 };
 
 class Join : public Node
@@ -310,6 +335,7 @@ public:
   const std::string& GetOutputChannelName() const { return m_output_channel_name; }
   const std::vector<int>& GetDistribution() const { return m_distribution; }
   std::vector<int>& GetDistribution() { return m_distribution; }
+  u32 GetOutputChannelWidth() const { return m_output_channel_width; }
 
   u32 GetIncomingStreams() const { return m_incoming_streams; }
   void AddIncomingStream();
@@ -326,10 +352,14 @@ public:
   void SteadySchedule() override;
   void AddMultiplicity(u32 count) override;
 
+  void SetInputChannelWidth(u32 width) override;
+  void WidenChannels() override;
+
 private:
   Node* m_output_connection = nullptr;
   std::string m_output_channel_name;
   u32 m_incoming_streams = 0;
   std::vector<int> m_distribution;
+  u32 m_output_channel_width = 1;
 };
 }

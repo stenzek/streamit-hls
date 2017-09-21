@@ -77,12 +77,17 @@ bool StreamGraphDumpVisitor::Visit(Filter* node)
             node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(),
             node->GetMultiplicity());
   WriteLine("%s [shape=ellipse];", node->GetName().c_str());
-  WriteLine("%s [label=\"%s\\npeek %u(%u) pop %u(%u) push %u(%u)\\nmultiplicity %u\"];", node->GetName().c_str(),
-            node->GetName().c_str(), node->GetPeekRate(), node->GetNetPeek(), node->GetPopRate(), node->GetNetPop(),
-            node->GetPushRate(), node->GetNetPush(), node->GetMultiplicity());
+  WriteLine("%s [label=\"%s\\npeek %u(%u) pop %u(%u) push %u(%u)\\nmultiplicity %u\\ninput channel width: %u\\noutput "
+            "channel width: %u\"];",
+            node->GetName().c_str(), node->GetName().c_str(), node->GetPeekRate(), node->GetNetPeek(),
+            node->GetPopRate(), node->GetNetPop(), node->GetPushRate(), node->GetNetPush(), node->GetMultiplicity(),
+            node->GetInputChannelWidth(), node->GetOutputChannelWidth());
 
   if (node->HasOutputConnection())
-    WriteEdge(node, node->GetOutputConnection());
+  {
+    for (u32 i = 0; i < node->GetOutputChannelWidth(); i++)
+      WriteEdge(node, node->GetOutputConnection());
+  }
 
   return true;
 }
@@ -146,9 +151,10 @@ bool StreamGraphDumpVisitor::Visit(Split* node)
     distribution_str << ((distribution_str.tellp() > 0) ? ", " : "") << dist;
 
   WriteLine("%s [shape=triangle];", node->GetName().c_str());
-  WriteLine("%s [label=\"%s\\nmode: %s\\ndistribution: (%s)\\nmultiplicity: %u\"];", node->GetName().c_str(),
-            node->GetName().c_str(), (node->GetMode() == Split::Mode::Duplicate) ? "duplicate" : "roundrobin",
-            distribution_str.str().c_str(), node->GetMultiplicity());
+  WriteLine("%s [label=\"%s\\nmode: %s\\ndistribution: (%s)\\nmultiplicity: %u\\ninput channel width: %u\"];",
+            node->GetName().c_str(), node->GetName().c_str(),
+            (node->GetMode() == Split::Mode::Duplicate) ? "duplicate" : "roundrobin", distribution_str.str().c_str(),
+            node->GetMultiplicity(), node->GetInputChannelWidth());
 
   for (const Node* out_node : node->GetOutputs())
     WriteEdge(node, out_node);
@@ -167,11 +173,15 @@ bool StreamGraphDumpVisitor::Visit(Join* node)
     distribution_str << ((distribution_str.tellp() > 0) ? ", " : "") << dist;
 
   WriteLine("%s [shape=invtriangle];", node->GetName().c_str());
-  WriteLine("%s [label=\"%s\\ndistribution: (%s)\\nmultiplicity: %u\"];", node->GetName().c_str(),
-            node->GetName().c_str(), distribution_str.str().c_str(), node->GetMultiplicity());
+  WriteLine("%s [label=\"%s\\ndistribution: (%s)\\nmultiplicity: %u\\noutput channel width: %u\"];",
+            node->GetName().c_str(), node->GetName().c_str(), distribution_str.str().c_str(), node->GetMultiplicity(),
+            node->GetOutputChannelWidth());
 
   if (node->HasOutputConnection())
-    WriteEdge(node, node->GetOutputConnection());
+  {
+    for (u32 i = 0; i < node->GetOutputChannelWidth(); i++)
+      WriteEdge(node, node->GetOutputConnection());
+  }
 
   return true;
 }

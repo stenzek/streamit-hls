@@ -1,0 +1,33 @@
+void->int pipeline widen {
+    add counter();
+    //add InputReader<int>();
+    add stuff();
+    add sink();
+    //add OutputWriter<int>();
+}
+
+void->int filter counter {
+    int last = 1;
+    work push 2 {
+        push(last);
+        last = last + 1;
+        push(last);
+        last = last + 1;
+    }
+}
+
+int->int splitjoin stuff {
+    //split duplicate;
+    split roundrobin;
+    add Identity<int>();
+    add Identity<int>();
+    join roundrobin;
+}
+
+int->void filter sink {
+    work pop 2 {
+        pop();
+        pop();
+    }
+}
+

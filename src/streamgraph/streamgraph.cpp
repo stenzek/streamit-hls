@@ -43,6 +43,11 @@ llvm::Type* StreamGraph::GetProgramOutputType() const
   return m_root_node->GetOutputType();
 }
 
+void StreamGraph::WidenChannels()
+{
+  m_root_node->WidenChannels();
+}
+
 void FilterParameters::AddParameter(const AST::ParameterDeclaration* decl, const void* data, size_t data_len,
                                     llvm::Constant* value)
 {
@@ -138,6 +143,26 @@ void Filter::SteadySchedule()
 void Filter::AddMultiplicity(u32 count)
 {
   m_multiplicity *= count;
+}
+
+void Filter::SetInputChannelWidth(u32 width)
+{
+  m_input_channel_width = width;
+}
+
+void Filter::WidenChannels()
+{
+  if (!m_output_connection)
+    return;
+
+  u32 width = GetPushRate();
+  if (width <= 1 || width != m_output_connection->GetPopRate())
+    return;
+
+  Log_DevPrintf("Widening channel between %s and %s to %u", m_name.c_str(), m_output_connection->GetName().c_str(),
+                width);
+  m_output_channel_width = width;
+  m_output_connection->SetInputChannelWidth(width);
 }
 
 bool Filter::Validate(BuilderState* state)
@@ -262,6 +287,17 @@ void Pipeline::AddMultiplicity(u32 count)
   m_multiplicity *= count;
   for (Node* child : m_children)
     child->AddMultiplicity(count);
+}
+
+void Pipeline::SetInputChannelWidth(u32 width)
+{
+  assert(0 && "should not be called");
+}
+
+void Pipeline::WidenChannels()
+{
+  for (Node* child : m_children)
+    child->WidenChannels();
 }
 
 SplitJoin::SplitJoin(const std::string& name) : Node(name, nullptr, nullptr)
@@ -541,6 +577,22 @@ bool SplitJoin::Validate(BuilderState* state)
   return result;
 }
 
+void SplitJoin::SetInputChannelWidth(u32 width)
+{
+  assert(0 && "should not be called");
+}
+
+void SplitJoin::WidenChannels()
+{
+  m_split_node->WidenChannels();
+
+  // split has a push rate of 1, join has a pop rate of 1, so this shouldn't break anything.
+  for (Node* child : m_children)
+    m_split_node->WidenChannels();
+
+  m_join_node->WidenChannels();
+}
+
 Split::Split(const std::string& name, Mode mode, const std::vector<int>& distribution)
   : Node(name, nullptr, nullptr), m_mode(mode), m_distribution(distribution)
 {
@@ -598,6 +650,31 @@ bool Split::Validate(BuilderState* state)
 {
   // TODO: Work out input/output types
   return true;
+}
+
+void Split::SetInputChannelWidth(u32 width)
+{
+  m_input_channel_width = width;
+}
+
+void Split::WidenChannels()
+{
+  // We can't widen duplicate splits.
+  // In our targets we already do duplicate in a single "operation" anyway.
+  if (m_mode != Split::Mode::Roundrobin)
+    return;
+
+  // To be able to widen the channel from split to children, we have to be able
+  // to widen it for all the children.
+  for (size_t idx = 0; idx < m_outputs.size(); idx++)
+  {
+    if (m_distribution[idx] != m_outputs[idx]->GetPopRate())
+      return;
+  }
+
+  // Set input channel widths to distributions.
+  for (size_t idx = 0; idx < m_outputs.size(); idx++)
+    m_outputs[idx]->SetInputChannelWidth(m_distribution[idx]);
 }
 
 Join::Join(const std::string& name, const std::vector<int>& distribution)
@@ -669,5 +746,25 @@ void Join::SteadySchedule()
 void Join::AddMultiplicity(u32 count)
 {
   m_multiplicity *= count;
+}
+
+void Join::SetInputChannelWidth(u32 width)
+{
+  assert(0 && "should not be called");
+}
+
+void Join::WidenChannels()
+{
+  if (!m_output_connection)
+    return;
+
+  u32 width = GetPushRate();
+  if (width <= 1 || width != m_output_connection->GetPopRate())
+    return;
+
+  Log_DevPrintf("Widening channel between %s and %s to %u", m_name.c_str(), m_output_connection->GetName().c_str(),
+                width);
+  m_output_channel_width = width;
+  m_output_connection->SetInputChannelWidth(width);
 }
 }

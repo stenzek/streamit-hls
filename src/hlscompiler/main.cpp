@@ -1,5 +1,6 @@
 #include <cstdio>
 #include <cstdlib>
+#include <fstream>
 #include <getopt.h>
 #include <iostream>
 #include <memory>
@@ -127,6 +128,10 @@ int main(int argc, char* argv[])
   if (!streamgraph)
     return EXIT_FAILURE;
 
+  // TODO: Option for this
+  Log::Info("HLSCompiler", "Widening channels...");
+  streamgraph->WidenChannels();
+
   if (dump_stream_graph)
     DumpStreamGraph(streamgraph.get());
 
@@ -190,6 +195,11 @@ void DumpStreamGraph(StreamGraph::StreamGraph* streamgraph)
 {
   Log::Info("HLSCompiler", "Dumping stream graph...");
   std::cout << streamgraph->Dump() << std::endl;
+
+  std::ofstream ofs;
+  ofs.open("streamgraph.dot", std::ios::out | std::ios::trunc);
+  if (ofs.is_open() && ofs.good())
+    ofs << streamgraph->Dump() << std::endl;
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
