@@ -58,6 +58,7 @@ private:
   bool GenerateCTestBench();
   bool GenerateComponent();
   bool GenerateComponentTestBench();
+  bool GenerateAXISComponent();
   bool WriteFIFOComponent();
   bool WriteHLSScript();
   bool WriteVivadoScript();
@@ -67,6 +68,7 @@ private:
   std::string m_module_name;
   std::string m_output_dir;
   llvm::Module* m_module = nullptr;
+  bool m_has_axis_component = false;
 
   using FilterFunctionMap = std::map<const StreamGraph::FilterPermutation*, llvm::Function*>;
   FilterFunctionMap m_filter_function_map;

@@ -68,9 +68,9 @@ void ComponentGenerator::WriteHeader()
   const llvm::Type* program_output_type = m_streamgraph->GetProgramOutputType();
   if (!program_input_type->isVoidTy())
   {
-    m_os << "    prog_input_dout : in " << VHDLHelpers::GetVHDLBitVectorType(program_input_type) << ";\n";
-    m_os << "    prog_input_empty_n : in std_logic;\n";
-    m_os << "    prog_input_read : out std_logic;\n";
+    m_os << "    prog_input_din : in " << VHDLHelpers::GetVHDLBitVectorType(program_input_type) << ";\n";
+    m_os << "    prog_input_full_n : out std_logic;\n";
+    m_os << "    prog_input_write : in std_logic;\n";
   }
   if (!program_output_type->isVoidTy())
   {
@@ -310,6 +310,14 @@ void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* n
 
 bool ComponentGenerator::Visit(StreamGraph::Filter* node)
 {
+  if (m_first_filter)
+  {
+    m_body << node->GetName() << "_fifo_din <= prog_input_din;\n";
+    m_body << node->GetName() << "_fifo_write <= prog_input_write;\n";
+    m_body << "prog_input_full_n <= " << node->GetName() << "_fifo_full_n;\n";
+    m_first_filter = false;
+  }
+
   const std::string& name = node->GetName();
   m_body << "-- Filter instance " << name << " (filter " << node->GetFilterPermutation()->GetName() << ")\n";
 
@@ -336,6 +344,14 @@ bool ComponentGenerator::Visit(StreamGraph::Pipeline* node)
 
 bool ComponentGenerator::Visit(StreamGraph::SplitJoin* node)
 {
+  if (m_first_filter)
+  {
+    m_body << node->GetName() << "_fifo_din <= prog_input_din;\n";
+    m_body << node->GetName() << "_fifo_write <= prog_input_write;\n";
+    m_body << "prog_input_full_n <= " << node->GetName() << "_fifo_full_n;\n";
+    m_first_filter = false;
+  }
+
   if (!node->GetSplitNode()->Accept(this))
     return false;
 

@@ -64,6 +64,7 @@ private:
   std::stringstream m_signals;
   std::stringstream m_body;
   bool m_use_srl_fifos = true;
+  bool m_first_filter = true;
 };
 
 } // namespace HLSTarget

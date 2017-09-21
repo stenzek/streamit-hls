@@ -108,6 +108,12 @@ bool ProjectGenerator::GenerateProject()
     return false;
   }
 
+  if (!GenerateAXISComponent())
+  {
+    Log_ErrorPrintf("Failed to generate AXIS component.");
+    return false;
+  }
+
   if (!GenerateComponentTestBench())
   {
     Log_ErrorPrintf("Failed to generate component test bench.\n");
@@ -281,6 +287,67 @@ bool ProjectGenerator::GenerateComponentTestBench()
   return true;
 }
 
+bool ProjectGenerator::GenerateAXISComponent()
+{
+  if (m_streamgraph->GetProgramInputType()->isVoidTy() || m_streamgraph->GetProgramOutputType()->isVoidTy())
+  {
+    Log_WarningPrintf("Not generating AXIS component, missing input or output types.");
+    m_has_axis_component = false;
+    return true;
+  }
+
+  std::string filename = StringFromFormat("%s/_autogen_vhdl/axis_%s.vhd", m_output_dir.c_str(), m_module_name.c_str());
+  Log_InfoPrintf("Writing AXIS component to %s...", filename.c_str());
+
+  std::error_code ec;
+  llvm::raw_fd_ostream os(filename, ec, llvm::sys::fs::F_None);
+  if (ec || os.has_error())
+    return false;
+
+  u32 in_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramInputType());
+  u32 out_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramOutputType());
+
+  os << "library ieee;\n"
+     << "use ieee.std_logic_1164.all;\n"
+     << "use ieee.numeric_std.all;\n"
+     << "\n";
+
+  os << "entity axis_" << m_module_name << " is\n";
+  os << "  port (\n";
+  os << "    aclk : in std_logic;\n";
+  os << "    aresetn : in std_logic;\n";
+  os << "    -- axi4 stream slave (data input)\n";
+  os << "    s_axis_tdata : in std_logic_vector(" << in_width << "-1 downto 0);\n";
+  os << "    s_axis_tvalid : in std_logic;\n";
+  os << "    s_axis_tready : out std_logic;\n";
+  os << "    -- axi4 stream master (data output)\n";
+  os << "    m_axis_tdata : out std_logic_vector(" << out_width << "-1 downto 0);\n";
+  os << "    m_axis_tvalid : out std_logic;\n";
+  os << "    m_axis_tready : in std_logic\n";
+  os << "  );\n";
+  os << "end entity;\n";
+  os << "\n";
+
+  os << "architecture behav of axis_" << m_module_name << " is\n";
+  os << "begin\n";
+  os << m_module_name << "_comp : entity work." << m_module_name << "(behav)\n";
+  os << "  port map (\n";
+  os << "    clk => aclk,\n";
+  os << "    rst_n => aresetn,\n";
+  os << "    prog_input_din => s_axis_tdata,\n";
+  os << "    prog_input_write => s_axis_tvalid,\n";
+  os << "    prog_input_full_n => s_axis_tready,\n";
+  os << "    prog_output_din => m_axis_tdata,\n";
+  os << "    prog_output_full_n => m_axis_tready,\n";
+  os << "    prog_output_write => m_axis_tvalid\n";
+  os << "  );\n";
+  os << "end behav;\n";
+
+  os.flush();
+  m_has_axis_component = true;
+  return true;
+}
+
 bool ProjectGenerator::WriteHLSScript()
 {
   std::string script_filename = StringFromFormat("%s/_autogen_hls/script.tcl", m_output_dir.c_str());
@@ -378,13 +445,13 @@ bool ProjectGenerator::WriteVivadoScript()
   os << "\n";
 
   // Add wrapper component.
-  os << "add_files -norecurse \"./_autogen_vhdl/fifo.vhd\"\n";
-  os << "add_files -norecurse \"./_autogen_vhdl/fifo_srl16.vhd\"\n";
-  os << "add_files -norecurse \"./_autogen_vhdl/fifo_srl32.vhd\"\n";
-  os << "add_files -norecurse \"./_autogen_vhdl/" << m_module_name << ".vhd"
-     << "\"\n";
-  os << "add_files -norecurse \"./_autogen_vhdl/" << m_module_name << "_tb.vhd"
-     << "\"\n";
+  os << "add_files \"./_autogen_vhdl/fifo.vhd\"\n";
+  os << "add_files \"./_autogen_vhdl/fifo_srl16.vhd\"\n";
+  os << "add_files \"./_autogen_vhdl/fifo_srl32.vhd\"\n";
+  os << "add_files \"./_autogen_vhdl/" << m_module_name << ".vhd\"\n";
+  os << "add_files -fileset sim_1 \"./_autogen_vhdl/" << m_module_name << "_tb.vhd\"\n";
+  if (m_has_axis_component)
+    os << "add_files \"./_autogen_vhdl/axis_" << m_module_name << ".vhd\"\n";
   os << "\n";
 
   // Import into main project.

@@ -82,9 +82,9 @@ void ComponentTestBenchGenerator::WriteWrapperComponent()
   if (!m_streamgraph->GetProgramInputType()->isVoidTy())
   {
     m_body << ",\n";
-    m_body << "    prog_input_dout => input_fifo_dout,\n";
-    m_body << "    prog_input_read => input_fifo_read,\n";
-    m_body << "    prog_input_empty_n => input_fifo_empty_n";
+    m_body << "    prog_input_din => input_din,\n";
+    m_body << "    prog_input_write => input_write,\n";
+    m_body << "    prog_input_full_n => input_full_n";
   }
   if (!m_streamgraph->GetProgramOutputType()->isVoidTy())
   {
@@ -104,34 +104,40 @@ void ComponentTestBenchGenerator::WriteInputGenerator()
   if (program_input_type->isVoidTy())
     return;
 
-  m_signals << "-- Input FIFO queue\n";
-  m_signals << "signal input_fifo_read : std_logic;\n";
-  m_signals << "signal input_fifo_write : std_logic;\n";
-  m_signals << "signal input_fifo_empty_n : std_logic;\n";
-  m_signals << "signal input_fifo_full_n : std_logic;\n";
-  m_signals << "signal input_fifo_dout : " << VHDLHelpers::GetVHDLBitVectorType(program_input_type) << ";\n";
-  m_signals << "signal input_fifo_din : " << VHDLHelpers::GetVHDLBitVectorType(program_input_type) << ";\n";
+  m_signals << "-- Input signals\n";
+  m_signals << "signal input_din : " << VHDLHelpers::GetVHDLBitVectorType(program_input_type)
+            << " := (others => '0');\n";
+  m_signals << "signal input_write : std_logic := '0';\n";
+  m_signals << "signal input_full_n : std_logic;\n";
   m_signals << "\n";
 
-  m_body << "-- Input FIFO queue\n";
-  m_body << "input_fifo : entity work." << VHDLHelpers::FIFO_COMPONENT_NAME << "(behav)\n";
-  m_body << "  generic map (\n";
-  m_body << "    DATA_WIDTH => " << VHDLHelpers::GetBitWidthForType(program_input_type) << ",\n";
-  m_body << "    SIZE => 16\n";
-  m_body << "  )\n";
-  m_body << "  port map (\n";
-  m_body << "    clk => clk,\n";
-  m_body << "    rst_n => rst_n,\n";
-  m_body << "    read => input_fifo_read,\n";
-  m_body << "    write => input_fifo_write,\n";
-  m_body << "    empty_n => input_fifo_empty_n,\n";
-  m_body << "    full_n => input_fifo_full_n,\n";
-  m_body << "    dout => input_fifo_dout,\n";
-  m_body << "    din => input_fifo_din\n";
-  m_body << "  );\n";
-  m_body << "\n";
+  // data generation
+  u32 input_width = VHDLHelpers::GetBitWidthForType(program_input_type);
+  m_body << "-- Input generator process\n";
+  m_body << "input_generator : process\n";
+  m_body << "begin\n";
+  m_body << "  if (runsim = '1') then\n";
+  m_body << "    input_write <= '0';\n";
+  m_body << "    input_din <= std_logic_vector(to_unsigned(0, " << input_width << "));\n";
+  m_body << "    wait until rst_n = '1';\n";
 
-  // TODO: data generation
+  for (u32 i = 1; i <= 10; i++)
+  {
+    // wait for requires an event, or change in signal. so we wrap it in an if.
+    m_body << "    if (input_full_n = '0') then\n";
+    m_body << "      wait until input_full_n = '1';\n";
+    m_body << "    end if;\n";
+    m_body << "    input_write <= '1';\n";
+    m_body << "    input_din <= std_logic_vector(to_unsigned(" << i << ", " << input_width << "));\n";
+    m_body << "    wait for CLK_PERIOD;\n";
+    m_body << "    input_write <= '0';\n";
+  }
+
+  m_body << "  else\n";
+  m_body << "    wait;\n";
+  m_body << "  end if;\n";
+  m_body << "end process;\n";
+  m_body << "\n";
 }
 
 void ComponentTestBenchGenerator::WriteOutputConsumer()

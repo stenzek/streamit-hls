@@ -1,6 +1,6 @@
 void->void pipeline Sender80211
 {
-    add input;
+    //add input;
 	//add FileReader<int>();
 	add scramble;
 	add diff_encode;
