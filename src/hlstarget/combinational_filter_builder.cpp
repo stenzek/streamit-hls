@@ -10,6 +10,7 @@
 #include "frontend/wrapped_llvm_context.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
@@ -22,29 +23,169 @@ namespace HLSTarget
 {
 struct CombinationalFragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
-  CombinationalFragmentBuilder(llvm::Value* in_value) : m_in_value(in_value) {}
+  bool IsInputBufferingEnabled() const { return (m_input_buffer_var != nullptr); }
+  bool IsOutputBufferingEnabled() const { return (m_output_buffer_var != nullptr); }
 
-  llvm::AllocaInst* GetOutputValue() const { return m_out_value; }
-
-  void CreateDeclarations(Frontend::WrappedLLVMContext* context, llvm::IRBuilder<>& builder, llvm::Type* output_type)
+  llvm::Value* ReadFromChannel(llvm::IRBuilder<>& builder, u32 channel)
   {
-    if (!output_type->isVoidTy())
-      m_out_value = builder.CreateAlloca(output_type, nullptr, "out_value");
+    return builder.CreateLoad(m_in_ptrs[channel], "pop_value");
   }
 
-  llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final { return m_in_value; }
+  void WriteToChannel(llvm::IRBuilder<>& builder, u32 channel, llvm::Value* value)
+  {
+    builder.CreateStore(value, m_out_ptrs[channel]);
+  }
 
-  llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) override final { return nullptr; }
+  void BuildPrologue(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
+  {
+    Frontend::WrappedLLVMContext* context = func_builder->GetContext();
+    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+    llvm::Function* func = func_builder->GetFunction();
+
+    // Set the "filter" attribute on the function itself.
+    func->addFnAttr(llvm::Attribute::get(context->GetLLVMContext(), "streamit_filter"));
+
+    // Retreive arguments, set names and attributes.
+    auto args_iter = func->arg_begin();
+    if (!filter_perm->GetInputType()->isVoidTy())
+    {
+      for (u32 i = 0; i < filter_perm->GetInputChannelWidth(); i++)
+      {
+        llvm::Value* arg = &(*args_iter++);
+        arg->setName(StringFromFormat("in_ptr_%u", i));
+        m_in_ptrs.push_back(arg);
+      }
+
+      // We need to use buffering if we have a wide channel, or peeking.
+      if (!filter_perm->GetInputChannelWidth() > 0 || filter_perm->GetPeekRate() > 0)
+        BuildInputBuffer(func_builder, filter_perm);
+    }
+    if (!filter_perm->GetOutputType()->isVoidTy())
+    {
+      for (u32 i = 0; i < filter_perm->GetOutputChannelWidth(); i++)
+      {
+        llvm::Value* arg = &(*args_iter++);
+        arg->setName(StringFromFormat("out_ptr_%u", i));
+        m_out_ptrs.push_back(arg);
+      }
+
+      // We need to use buffering if we have a wide channel.
+      if (filter_perm->GetOutputChannelWidth() > 0)
+        BuildOutputBuffer(func_builder, filter_perm);
+    }
+  }
+
+  void BuildInputBuffer(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
+  {
+    Frontend::WrappedLLVMContext* context = func_builder->GetContext();
+    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+
+    m_input_buffer_size = (filter_perm->GetPeekRate() > 0) ? filter_perm->GetPeekRate() : filter_perm->GetPopRate();
+    m_peek_optimization = (filter_perm->GetPeekRate() <= filter_perm->GetPopRate());
+
+    llvm::Type* buffer_element_type = filter_perm->GetInputType();
+    llvm::Type* buffer_array_type = llvm::ArrayType::get(buffer_element_type, m_input_buffer_size);
+
+    // Non-readahead peeks. Use a local variable instead of a global, since it doesn't have to be
+    // maintained across work function iterations.
+    m_input_buffer_var = builder.CreateAlloca(buffer_array_type, nullptr, "peek_buffer");
+
+    // Fill the peek buffer.
+    for (u32 i = 0; i < m_input_buffer_size;)
+    {
+      for (u32 j = 0; j < filter_perm->GetInputChannelWidth(); j++, i++)
+      {
+        // peek_buffer[i] <- pop()
+        builder.CreateStore(ReadFromChannel(builder, j),
+                            builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
+      }
+    }
+  }
+
+  void BuildOutputBuffer(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
+  {
+    Frontend::WrappedLLVMContext* context = func_builder->GetContext();
+    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+    m_output_buffer_size = filter_perm->GetPushRate();
+
+    llvm::Type* buffer_element_type = filter_perm->GetOutputType();
+    llvm::Type* buffer_array_type = llvm::ArrayType::get(buffer_element_type, m_output_buffer_size);
+
+    m_output_buffer_var = builder.CreateAlloca(buffer_array_type, nullptr, "push_buffer");
+    m_output_buffer_pos = builder.CreateAlloca(context->GetIntType(), nullptr, "push_buffer_pos");
+    builder.CreateStore(builder.getInt32(0), m_output_buffer_pos);
+  }
+
+  void BuildEpilogue(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
+  {
+    Frontend::WrappedLLVMContext* context = func_builder->GetContext();
+    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+    if (!IsOutputBufferingEnabled())
+      return;
+
+    for (u32 i = 0; i < m_output_buffer_size;)
+    {
+      for (u32 j = 0; j < filter_perm->GetOutputChannelWidth(); j++, i++)
+      {
+        llvm::Value* output_buffer_ptr = builder.CreateInBoundsGEP(
+          m_output_buffer_var, {builder.getInt32(0), builder.getInt32(i)}, "output_buffer_ptr");
+        WriteToChannel(builder, j, builder.CreateLoad(output_buffer_ptr, "output_buffer_val"));
+      }
+    }
+  }
+
+  llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final
+  {
+    if (!IsInputBufferingEnabled())
+      return ReadFromChannel(builder, 0);
+
+    // pop_val <- peek_buffer[0]
+    llvm::Value* pop_val = builder.CreateLoad(
+      builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(0)}, "peek_buffer_ptr"),
+      "pop_val");
+
+    // peek_buffer[0] = peek_buffer[1], peek_buffer[1] = peek_buffer[2], ...
+    for (u32 i = 0; i < (m_input_buffer_size - 1); i++)
+    {
+      builder.CreateStore(builder.CreateLoad(builder.CreateInBoundsGEP(m_input_buffer_var,
+                                                                       {builder.getInt32(0), builder.getInt32(i + 1)})),
+                          builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
+    }
+
+    return pop_val;
+  }
+
+  llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) override final
+  {
+    // peek_val <- peek_buffer[idx_value]
+    llvm::Value* peek_ptr = builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), idx_value}, "peek_ptr");
+    return builder.CreateLoad(peek_ptr, "peek_val");
+  }
 
   bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
   {
-    builder.CreateStore(value, m_out_value);
+    if (!IsOutputBufferingEnabled())
+    {
+      WriteToChannel(builder, 0, value);
+      return true;
+    }
+
+    llvm::Value* output_buffer_pos = builder.CreateLoad(m_output_buffer_pos, "output_buffer_pos");
+    builder.CreateStore(
+      value, builder.CreateGEP(m_output_buffer_var, {builder.getInt32(0), output_buffer_pos}, "output_buffer_ptr"));
+    builder.CreateStore(builder.CreateAdd(output_buffer_pos, builder.getInt32(1)), m_output_buffer_pos);
     return true;
   }
 
 private:
-  llvm::Value* m_in_value;
-  llvm::AllocaInst* m_out_value = nullptr;
+  std::vector<llvm::Value*> m_in_ptrs;
+  std::vector<llvm::Value*> m_out_ptrs;
+  llvm::Value* m_input_buffer_var = nullptr;
+  llvm::Value* m_output_buffer_var = nullptr;
+  llvm::Value* m_output_buffer_pos = nullptr;
+  u32 m_input_buffer_size = 0;
+  u32 m_output_buffer_size = 0;
+  bool m_peek_optimization = false;
 };
 
 CombinationalFilterBuilder::CombinationalFilterBuilder(Frontend::WrappedLLVMContext* context, llvm::Module* mod,
@@ -82,10 +223,22 @@ llvm::Function* CombinationalFilterBuilder::GenerateFunction(AST::FilterWorkBloc
 {
   assert(m_module->getFunction(name.c_str()) == nullptr);
 
-  llvm::Type* ret_type = m_filter_permutation->GetOutputType();
-  llvm::SmallVector<llvm::Type*, 1> params;
+  llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
+  std::vector<llvm::Type*> params;
   if (!m_filter_permutation->GetInputType()->isVoidTy())
-    params.push_back(m_filter_permutation->GetInputType());
+  {
+    llvm::Type* pointer_ty = llvm::PointerType::get(m_filter_permutation->GetInputType(), 0);
+    assert(pointer_ty != nullptr);
+    for (u32 i = 0; i < m_filter_permutation->GetInputChannelWidth(); i++)
+      params.push_back(pointer_ty);
+  }
+  if (!m_filter_permutation->GetOutputType()->isVoidTy())
+  {
+    llvm::Type* pointer_ty = llvm::PointerType::get(m_filter_permutation->GetOutputType(), 0);
+    assert(pointer_ty != nullptr);
+    for (u32 i = 0; i < m_filter_permutation->GetOutputChannelWidth(); i++)
+      params.push_back(pointer_ty);
+  }
 
   llvm::FunctionType* func_type = llvm::FunctionType::get(ret_type, params, false);
   llvm::Constant* func_cons = m_module->getOrInsertFunction(name.c_str(), func_type);
@@ -93,17 +246,10 @@ llvm::Function* CombinationalFilterBuilder::GenerateFunction(AST::FilterWorkBloc
   if (!func)
     return nullptr;
 
-  llvm::Value* in_ptr = nullptr;
-  if (!m_filter_permutation->GetInputType()->isVoidTy())
-  {
-    in_ptr = &(*func->arg_begin());
-    in_ptr->setName("in_value");
-  }
-
   // Start at the entry basic block for the work function.
-  CombinationalFragmentBuilder fragment_builder(in_ptr);
+  CombinationalFragmentBuilder fragment_builder;
   Frontend::FunctionBuilder function_builder(m_context, m_module, &fragment_builder, func);
-  fragment_builder.CreateDeclarations(m_context, function_builder.GetCurrentIRBuilder(), ret_type);
+  fragment_builder.BuildPrologue(&function_builder, m_filter_permutation);
 
   // Add global variable references
   for (const auto& it : m_filter_permutation->GetFilterParameters())
@@ -116,12 +262,8 @@ llvm::Function* CombinationalFilterBuilder::GenerateFunction(AST::FilterWorkBloc
     return nullptr;
 
   // Final return instruction.
-  if (!m_filter_permutation->GetOutputType()->isVoidTy())
-    function_builder.GetCurrentIRBuilder().CreateRet(
-      function_builder.GetCurrentIRBuilder().CreateLoad(fragment_builder.GetOutputValue()));
-  else
-    function_builder.GetCurrentIRBuilder().CreateRetVoid();
-
+  fragment_builder.BuildEpilogue(&function_builder, m_filter_permutation);
+  function_builder.GetCurrentIRBuilder().CreateRetVoid();
   return func;
 }
 

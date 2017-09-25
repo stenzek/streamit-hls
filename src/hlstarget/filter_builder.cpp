@@ -33,9 +33,8 @@ namespace HLSTarget
 //
 struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
-  FragmentBuilder() = default;
-
   bool IsInputBufferingEnabled() const { return (m_input_buffer_var != nullptr); }
+  bool IsOutputBufferingEnabled() const { return (m_output_buffer_var != nullptr); }
 
   llvm::Value* ReadFromChannel(llvm::IRBuilder<>& builder, u32 channel)
   {
@@ -70,7 +69,9 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
         arg_index++;
       }
 
-      BuildInputBuffer(func_builder, filter_perm);
+      // We need to use buffering if we have a wide channel, or peeking.
+      if (!filter_perm->GetInputChannelWidth() > 0 || filter_perm->GetPeekRate() > 0)
+        BuildInputBuffer(func_builder, filter_perm);
     }
     if (!filter_perm->GetOutputType()->isVoidTy())
     {
@@ -83,7 +84,9 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
         arg_index++;
       }
 
-      BuildOutputBuffer(func_builder, filter_perm);
+      // We need to use buffering if we have a wide channel.
+      if (filter_perm->GetOutputChannelWidth() > 0)
+        BuildOutputBuffer(func_builder, filter_perm);
     }
   }
 
@@ -187,6 +190,8 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
   {
     Frontend::WrappedLLVMContext* context = func_builder->GetContext();
     llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+    if (!IsOutputBufferingEnabled())
+      return;
 
     for (u32 i = 0; i < m_output_buffer_size;)
     {
@@ -201,6 +206,9 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 
   llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final
   {
+    if (!IsInputBufferingEnabled())
+      return ReadFromChannel(builder, 0);
+
     // pop_val <- peek_buffer[0]
     llvm::Value* pop_val = builder.CreateLoad(
       builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(0)}, "peek_buffer_ptr"),
@@ -226,6 +234,12 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 
   bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
   {
+    if (!IsOutputBufferingEnabled())
+    {
+      WriteToChannel(builder, 0, value);
+      return true;
+    }
+
     llvm::Value* output_buffer_pos = builder.CreateLoad(m_output_buffer_pos, "output_buffer_pos");
     builder.CreateStore(
       value, builder.CreateGEP(m_output_buffer_var, {builder.getInt32(0), output_buffer_pos}, "output_buffer_ptr"));
@@ -280,8 +294,7 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   assert(m_module->getFunction(name.c_str()) == nullptr);
 
   llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
-  llvm::SmallVector<llvm::Type*, 2> params;
-
+  std::vector<llvm::Type*> params;
   if (!m_filter_permutation->GetInputType()->isVoidTy())
   {
     llvm::Type* pointer_ty = llvm::PointerType::get(m_filter_permutation->GetInputType(), 0);
