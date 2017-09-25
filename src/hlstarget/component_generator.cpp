@@ -416,7 +416,7 @@ bool ComponentGenerator::Visit(StreamGraph::SplitJoin* node)
 void ComponentGenerator::WriteSplitDuplicate(const StreamGraph::Split* node)
 {
   const std::string& name = node->GetName();
-  std::string fifo_name = StringFromFormat("%s_fifo", name.c_str());
+  std::string fifo_name = StringFromFormat("%s_fifo_0", name.c_str());
   u32 data_width = VHDLHelpers::GetBitWidthForType(node->GetInputType());
   u32 fifo_depth = node->GetNetPop() * VHDLHelpers::FIFO_SIZE_MULTIPLIER;
   WriteFIFO(fifo_name, data_width, fifo_depth);
@@ -428,15 +428,16 @@ void ComponentGenerator::WriteSplitDuplicate(const StreamGraph::Split* node)
 
   // Signals are wired directly, this saves creating a register between the incoming and outgoing filters.
   // TODO: Remove the FIFO queue for the split completely.
+  // TODO: Currently, we don't use a wide output channel for duplicates.
   m_body << name << "_write <= (" << fifo_name << "_empty_n";
   for (const std::string& output_name : node->GetOutputChannelNames())
-    m_body << " and " << output_name << "_fifo_full_n";
+    m_body << " and " << output_name << "_fifo_0_full_n";
   m_body << ");\n";
   m_body << fifo_name << "_read <= " << name << "_write;\n";
   for (const std::string& output_name : node->GetOutputChannelNames())
   {
-    m_body << output_name << "_fifo_din <= " << fifo_name << "_dout;\n";
-    m_body << output_name << "_fifo_write <= " << name << "_write;\n";
+    m_body << output_name << "_fifo_0_din <= " << fifo_name << "_dout;\n";
+    m_body << output_name << "_fifo_0_write <= " << name << "_write;\n";
   }
 
   m_body << "\n";
@@ -445,7 +446,7 @@ void ComponentGenerator::WriteSplitDuplicate(const StreamGraph::Split* node)
 void ComponentGenerator::WriteSplitRoundrobin(const StreamGraph::Split* node)
 {
   const std::string& name = node->GetName();
-  std::string fifo_name = StringFromFormat("%s_fifo", name.c_str());
+  std::string fifo_name = StringFromFormat("%s_fifo_0", name.c_str());
   u32 data_width = VHDLHelpers::GetBitWidthForType(node->GetInputType());
   u32 fifo_depth = node->GetNetPop() * VHDLHelpers::FIFO_SIZE_MULTIPLIER;
   WriteFIFO(fifo_name, data_width, fifo_depth);
@@ -485,19 +486,19 @@ void ComponentGenerator::WriteSplitRoundrobin(const StreamGraph::Split* node)
       u32 next_state = last_step ? ((idx % node->GetNumOutputChannels()) + 1) : idx;
       u32 next_step = last_step ? 1 : (step + 1);
       m_body << "        when " << name << "_state_" << idx << "_step_" << step << " =>\n";
-      m_body << "          if (" << fifo_name << "_empty_n = '1' and " << output_name << "_full_n = '1') then\n";
+      m_body << "          if (" << fifo_name << "_empty_n = '1' and " << output_name << "fifo_0_full_n = '1') then\n";
       m_body << "            " << fifo_name << "_read <= '1';\n";
-      m_body << "            " << output_name << "_write <= '1';\n";
+      m_body << "            " << output_name << "fifo_0_write <= '1';\n";
       m_body << "            " << state_signal << " <= " << name << "_state_" << next_state << ";\n";
       m_body << "          else\n";
       m_body << "            " << fifo_name << "_read <= '0';\n";
-      m_body << "            " << output_name << "_write <= '0';\n";
+      m_body << "            " << output_name << "fifo_0_write <= '0';\n";
       m_body << "          end if;\n";
       for (u32 other_idx = 1; other_idx <= node->GetNumOutputChannels(); other_idx++)
       {
         if (other_idx == idx)
           continue;
-        m_body << "          " << node->GetOutputChannelNames().at(other_idx - 1) << "_fifo_read <= '0';\n";
+        m_body << "          " << node->GetOutputChannelNames().at(other_idx - 1) << "_fifo_0_write <= '0';\n";
       }
     }
   }
@@ -525,12 +526,12 @@ bool ComponentGenerator::Visit(StreamGraph::Join* node)
   if (node->GetOutputChannelName().empty())
     output_name = "prog_output";
   else
-    node->GetOutputChannelName() + "_fifo";
+    node->GetOutputChannelName() + "_fifo_0";
 
   // Generate fifos for each input to the join
   for (u32 idx = 1; idx <= node->GetIncomingStreams(); idx++)
   {
-    std::string fifo_name = StringFromFormat("%s_%u_fifo", name.c_str(), idx);
+    std::string fifo_name = StringFromFormat("%s_%u_fifo_0", name.c_str(), idx);
     u32 data_width = VHDLHelpers::GetBitWidthForType(node->GetInputType());
     u32 fifo_depth = node->GetNetPop() * VHDLHelpers::FIFO_SIZE_MULTIPLIER;
     WriteFIFO(fifo_name, data_width, fifo_depth);
@@ -558,7 +559,7 @@ bool ComponentGenerator::Visit(StreamGraph::Join* node)
   m_body << "      case " << state_signal << " is\n";
   for (u32 idx = 1; idx <= node->GetIncomingStreams(); idx++)
   {
-    std::string fifo_name = StringFromFormat("%s_%u_fifo", name.c_str(), idx);
+    std::string fifo_name = StringFromFormat("%s_%u_fifo_0", name.c_str(), idx);
     for (u32 step = 1; step <= node->GetDistribution().at(idx - 1); step++)
     {
       bool last_step = (step == node->GetDistribution().at(idx - 1));
@@ -579,7 +580,7 @@ bool ComponentGenerator::Visit(StreamGraph::Join* node)
       {
         if (other_idx == idx)
           continue;
-        m_body << "          " << name << "_" << other_idx << "_fifo_read <= '0';\n";
+        m_body << "          " << name << "_" << other_idx << "_fifo_0_read <= '0';\n";
       }
     }
   }

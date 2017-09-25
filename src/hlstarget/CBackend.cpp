@@ -1574,6 +1574,7 @@ static void generateCompilerSpecificCode(raw_ostream& Out, const DataLayout* TD)
       << "#endif\n\n";
 
   // Define compatibility macros to help msvc look more like gcc/clang
+  Out << "#define FILTER\n";
   Out << "#define NORETURN __attribute__((noreturn))\n";
   Out << "#define FORCEINLINE __attribute__((always_inline))\n";
 
