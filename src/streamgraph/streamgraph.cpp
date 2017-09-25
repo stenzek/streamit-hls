@@ -28,9 +28,43 @@ StreamGraph::~StreamGraph()
 
 StreamGraph::FilterInstanceList StreamGraph::GetFilterInstanceList() const
 {
-  // TODO
-  assert(0 && "TODO");
-  return {};
+  struct TheVisitor : Visitor
+  {
+    FilterInstanceList& m_list;
+
+    TheVisitor(FilterInstanceList& list_) : m_list(list_) {}
+
+    bool Visit(Filter* node) override final
+    {
+      m_list.push_back(node);
+      return true;
+    }
+
+    virtual bool Visit(Pipeline* node) override
+    {
+      for (Node* child : node->GetChildren())
+        child->Accept(this);
+
+      return true;
+    }
+
+    virtual bool Visit(SplitJoin* node) override
+    {
+      for (Node* child : node->GetChildren())
+        child->Accept(this);
+
+      return true;
+    }
+
+    virtual bool Visit(Split* node) override { return true; }
+
+    virtual bool Visit(Join* node) override { return true; }
+  };
+
+  FilterInstanceList list;
+  TheVisitor visitor(list);
+  m_root_node->Accept(&visitor);
+  return list;
 }
 
 llvm::Type* StreamGraph::GetProgramInputType() const
@@ -46,6 +80,60 @@ llvm::Type* StreamGraph::GetProgramOutputType() const
 void StreamGraph::WidenChannels()
 {
   m_root_node->WidenChannels();
+
+  // Create new filter instances for those which are widened.
+  FilterInstanceList filters = GetFilterInstanceList();
+  for (Filter* filter : filters)
+  {
+    if (filter->GetInputChannelWidth() != filter->GetFilterPermutation()->GetInputChannelWidth() ||
+        filter->GetOutputChannelWidth() != filter->GetFilterPermutation()->GetOutputChannelWidth())
+    {
+      // Find an existing permutation which matches.
+      auto perm = std::find_if(m_filter_permutations.begin(), m_filter_permutations.end(),
+                               [filter](const FilterPermutation* perm) {
+                                 return (perm->GetInputChannelWidth() == filter->GetInputChannelWidth() &&
+                                         perm->GetOutputChannelWidth() == filter->GetOutputChannelWidth());
+                               });
+
+      if (perm != m_filter_permutations.end())
+      {
+        filter->m_filter_permutation = *perm;
+        continue;
+      }
+
+      // Not found? Create a new one.
+      const FilterPermutation* existing_perm = filter->GetFilterPermutation();
+      std::string name = StringFromFormat("%s_%u", existing_perm->GetFilterDeclaration()->GetName().c_str(),
+                                          unsigned(m_filter_permutations.size() + 1));
+      FilterPermutation* new_perm =
+        new FilterPermutation(name, existing_perm->GetFilterDeclaration(), existing_perm->GetFilterParameters(),
+                              existing_perm->GetInputType(), existing_perm->GetOutputType(),
+                              existing_perm->GetPeekRate(), existing_perm->GetPopRate(), existing_perm->GetPushRate(),
+                              filter->GetInputChannelWidth(), filter->GetOutputChannelWidth());
+      filter->m_filter_permutation = new_perm;
+      m_filter_permutations.push_back(new_perm);
+      Log_DevPrintf("Created new permutation of %s with i/o channel widths (%u/%u) -> %s",
+                    existing_perm->GetName().c_str(), filter->GetInputChannelWidth(), filter->GetOutputChannelWidth(),
+                    new_perm->GetName().c_str());
+    }
+  }
+
+  // Remove now-unused filter permutations.
+  for (size_t i = 0; i < m_filter_permutations.size();)
+  {
+    FilterPermutation* perm = m_filter_permutations[i];
+    if (std::none_of(filters.begin(), filters.end(),
+                     [perm](const Filter* filter) { return (filter->GetFilterPermutation() == perm); }))
+    {
+      Log_DevPrintf("Removing unused permutation %s", perm->GetName().c_str());
+      m_filter_permutations.erase(m_filter_permutations.begin() + i);
+      delete perm;
+    }
+    else
+    {
+      i++;
+    }
+  }
 }
 
 void FilterParameters::AddParameter(const AST::ParameterDeclaration* decl, const void* data, size_t data_len,
@@ -78,9 +166,11 @@ bool FilterParameters::operator!=(const FilterParameters& rhs) const
 
 FilterPermutation::FilterPermutation(const std::string& name, const AST::FilterDeclaration* filter_decl,
                                      const FilterParameters& filter_params, llvm::Type* input_type,
-                                     llvm::Type* output_type, int peek_rate, int pop_rate, int push_rate)
+                                     llvm::Type* output_type, int peek_rate, int pop_rate, int push_rate,
+                                     u32 input_channel_width, u32 output_channel_width)
   : m_name(name), m_filter_decl(filter_decl), m_filter_params(filter_params), m_input_type(input_type),
-    m_output_type(output_type), m_peek_rate(peek_rate), m_pop_rate(pop_rate), m_push_rate(push_rate)
+    m_output_type(output_type), m_peek_rate(peek_rate), m_pop_rate(pop_rate), m_push_rate(push_rate),
+    m_input_channel_width(input_channel_width), m_output_channel_width(output_channel_width)
 {
 }
 
@@ -157,6 +247,10 @@ void Filter::WidenChannels()
 
   u32 width = GetPushRate();
   if (width <= 1 || width != m_output_connection->GetPopRate())
+    return;
+
+  // Currently not supported when peeking more than popping.
+  if (m_output_connection->GetPeekRate() > 0 && m_output_connection->GetPeekRate() > m_output_connection->GetPopRate())
     return;
 
   Log_DevPrintf("Widening channel between %s and %s to %u", m_name.c_str(), m_output_connection->GetName().c_str(),

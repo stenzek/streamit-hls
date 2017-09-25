@@ -45,6 +45,9 @@ using namespace llvm;
 
 char CWriter::ID = 0;
 
+constexpr char STREAMIT_FILTER_ATTRIBUTE_NAME[] = "streamit_filter";
+constexpr char STREAMIT_FIFO_ATTRIBUTE_NAME[] = "streamit_fifo";
+
 // extra (invalid) Ops tags for tracking unary ops as a special case of the available binary ops
 enum UnaryOps
 {
@@ -84,6 +87,28 @@ static bool isBuggyHLSMultiply(const Instruction& I)
     printf("Val64 %u\n", (unsigned)val64);
     if (val64 <= 0x3FFFF && (val64 & 0x20000) != 0)
       return true;
+  }
+
+  return false;
+}
+
+static bool IsStreamItFIFOArgument(Value* Operand)
+{
+  // FIFO reads/writes should increment, this way it passes the test bench.
+  if (Argument* A = dyn_cast<Argument>(Operand))
+  {
+    Function* F = A->getParent();
+    unsigned arg_idx = 0;
+    for (Argument& arg : F->args())
+    {
+      if (A == &arg)
+      {
+        // Check for the FIFO attribute.
+        if (F->getAttributes().hasAttribute(arg_idx + 1, STREAMIT_FIFO_ATTRIBUTE_NAME))
+          return true;
+      }
+      arg_idx++;
+    }
   }
 
   return false;
@@ -458,6 +483,9 @@ raw_ostream& CWriter::printFunctionProto(raw_ostream& Out, FunctionType* FTy,
   if (PAL.hasAttribute(AttributeSet::FunctionIndex, Attribute::NoReturn))
     Out << "NORETURN ";
 
+  if (PAL.hasAttribute(AttributeSet::FunctionIndex, STREAMIT_FILTER_ATTRIBUTE_NAME))
+    Out << "FILTER ";
+
   // Should this function actually return a struct by-value?
   bool isStructReturn = PAL.hasAttribute(1, Attribute::StructRet) || PAL.hasAttribute(2, Attribute::StructRet);
   // Get the return type for the function.
@@ -500,6 +528,11 @@ raw_ostream& CWriter::printFunctionProto(raw_ostream& Out, FunctionType* FTy,
     }
     if (PrintedArg)
       Out << ", ";
+
+    // TODO: Is this the right place?
+    if (PAL.hasAttribute(Idx, STREAMIT_FIFO_ATTRIBUTE_NAME))
+      Out << "volatile ";
+
     printTypeNameUnaligned(Out, ArgTy,
                            /*isSigned=*/PAL.hasAttribute(Idx, Attribute::SExt));
     PrintedArg = true;
@@ -1342,6 +1375,7 @@ void CWriter::writeInstComputationInline(Instruction& I)
 void CWriter::writeOperandInternal(Value* Operand, enum OperandContext Context)
 {
   if (Instruction* I = dyn_cast<Instruction>(Operand))
+  {
     // Should we inline this instruction to build a tree?
     if (isInlinableInst(*I) && !isDirectAlloca(I))
     {
@@ -1350,6 +1384,7 @@ void CWriter::writeOperandInternal(Value* Operand, enum OperandContext Context)
       Out << ')';
       return;
     }
+  }
 
   Constant* CPV = dyn_cast<Constant>(Operand);
 
@@ -1357,6 +1392,9 @@ void CWriter::writeOperandInternal(Value* Operand, enum OperandContext Context)
     printConstant(CPV, Context);
   else
     Out << GetValueName(Operand);
+
+  if (IsStreamItFIFOArgument(Operand))
+    Out << "++";
 }
 
 void CWriter::writeOperand(Value* Operand, enum OperandContext Context)

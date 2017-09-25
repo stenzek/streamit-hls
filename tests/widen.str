@@ -1,8 +1,9 @@
 void->int pipeline widen {
     add counter();
     //add InputReader<int>();
-    add stuff();
-    add sink();
+    //add stuff();
+    //add sink();
+    add consumer();
     //add OutputWriter<int>();
 }
 
@@ -10,9 +11,15 @@ void->int filter counter {
     int last = 1;
     work push 2 {
         push(last);
-        last = last + 1;
-        push(last);
-        last = last + 1;
+        push(last + 1);
+        last = last + 2;
+    }
+}
+
+int->void filter consumer {
+    work pop 2 {
+        pop();
+        pop();
     }
 }
 

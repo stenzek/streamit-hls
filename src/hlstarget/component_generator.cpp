@@ -130,20 +130,26 @@ void ComponentGenerator::WriteFilterPermutation(const StreamGraph::FilterPermuta
   m_os << "    ap_rst_n : in std_logic";
   if (!filter->GetInputType()->isVoidTy())
   {
-    m_os << ";\n";
-    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_dout : in "
-         << VHDLHelpers::GetVHDLBitVectorType(filter->GetInputType()) << ";\n";
-    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_empty_n : in std_logic;\n";
-    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_read : out std_logic";
+    for (u32 i = 0; i < filter->GetInputChannelWidth(); i++)
+    {
+      m_os << ";\n";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_dout : in "
+           << VHDLHelpers::GetVHDLBitVectorType(filter->GetInputType()) << ";\n";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_empty_n : in std_logic;\n";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_read : out std_logic";
+    }
   }
 
   if (!filter->GetOutputType()->isVoidTy())
   {
-    m_os << ";\n";
-    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_dout : out "
-         << VHDLHelpers::GetVHDLBitVectorType(filter->GetOutputType()) << ";\n";
-    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_full_n : in std_logic;\n";
-    m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_write : out std_logic";
+    for (u32 i = 0; i < filter->GetOutputChannelWidth(); i++)
+    {
+      m_os << ";\n";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_dout : out "
+           << VHDLHelpers::GetVHDLBitVectorType(filter->GetOutputType()) << ";\n";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_full_n : in std_logic;\n";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_write : out std_logic";
+    }
   }
 
   m_os << "\n";
@@ -213,8 +219,11 @@ void ComponentGenerator::WriteFilterInstance(StreamGraph::Filter* node)
   if (!node->GetInputType()->isVoidTy())
   {
     u32 fifo_depth = std::max(node->GetNetPeek(), node->GetNetPop()) * VHDLHelpers::FIFO_SIZE_MULTIPLIER;
-    WriteFIFO(StringFromFormat("%s_fifo", name.c_str()), VHDLHelpers::GetBitWidthForType(node->GetInputType()),
-              fifo_depth);
+    for (u32 i = 0; i < node->GetInputChannelWidth(); i++)
+    {
+      WriteFIFO(StringFromFormat("%s_fifo_%u", name.c_str(), i), VHDLHelpers::GetBitWidthForType(node->GetInputType()),
+                fifo_depth);
+    }
   }
 
   // m_body << name << " : filter_" << node->GetFilterPermutation()->GetName() << "\n";
@@ -224,28 +233,40 @@ void ComponentGenerator::WriteFilterInstance(StreamGraph::Filter* node)
   m_body << "    ap_rst_n => rst_n";
   if (!node->GetInputType()->isVoidTy())
   {
-    m_body << ",\n";
-    m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_dout => " << name << "_fifo_dout,\n";
-    m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_read => " << name << "_fifo_read,\n";
-    m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_empty_n => " << name << "_fifo_empty_n";
+    for (u32 i = 0; i < node->GetInputChannelWidth(); i++)
+    {
+      m_body << ",\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_dout => " << name << "_fifo_" << i
+             << "_dout,\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_read => " << name << "_fifo_" << i
+             << "_read,\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_empty_n => " << name << "_fifo_" << i
+             << "_empty_n";
+    }
   }
   if (!node->GetOutputType()->isVoidTy())
   {
     const std::string& output_name = node->GetOutputChannelName();
     if (!output_name.empty())
     {
-      m_body << ",\n";
-      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_din => " << output_name << "_fifo_din,\n";
-      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_write => " << output_name << "_fifo_write,\n";
-      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_full_n => " << output_name << "_fifo_full_n";
+      for (u32 i = 0; i < node->GetOutputChannelWidth(); i++)
+      {
+        m_body << ",\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_din => " << output_name << "_fifo_"
+               << i << "_din,\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_write => " << output_name
+               << "_fifo_" << i << "_write,\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_full_n => " << output_name
+               << "_fifo_" << i << "_full_n";
+      }
     }
     else
     {
       // This is the last filter in the program.
       m_body << ",\n";
-      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_din => prog_output_din,\n";
-      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_write => prog_output_write,\n";
-      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_full_n => prog_output_full_n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_0_din => prog_output_din,\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_0_write => prog_output_write,\n";
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_0_full_n => prog_output_full_n";
     }
   }
   m_body << "\n";
@@ -260,26 +281,35 @@ void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* n
   // Combinational filter
   if (!node->GetInputType()->isVoidTy())
   {
-    m_signals << "signal " << name << "_fifo_write : std_logic;\n";
-    m_signals << "signal " << name << "_fifo_full_n : std_logic;\n";
-    m_signals << "signal " << name << "_fifo_din : std_logic_vector("
-              << (VHDLHelpers::GetBitWidthForType(node->GetInputType()) - 1) << " downto 0);\n";
+    for (u32 i = 0; i < node->GetInputChannelWidth(); i++)
+    {
+      m_signals << "signal " << name << "_fifo_" << i << "_write : std_logic;\n";
+      m_signals << "signal " << name << "_fifo_" << i << "_full_n : std_logic;\n";
+      m_signals << "signal " << name << "_fifo_" << i << "_din : std_logic_vector("
+                << (VHDLHelpers::GetBitWidthForType(node->GetInputType()) - 1) << " downto 0);\n";
+    }
   }
 
   m_body << name << " : entity work.filter_" << node->GetFilterPermutation()->GetName() << "(behav)\n";
   m_body << "  port map (\n";
   if (!node->GetInputType()->isVoidTy())
   {
-    m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_value => " << name << "_fifo_din";
-    if (!node->GetOutputType()->isVoidTy())
-      m_body << ",\n";
-    else
-      m_body << "\n";
+    for (u32 i = 0; i < node->GetInputChannelWidth(); i++)
+    {
+      m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_value_" << i << " => " << name << "_fifo_" << i
+             << "_din";
+      if (!node->GetOutputType()->isVoidTy())
+        m_body << ",\n";
+      else
+        m_body << "\n";
+    }
   }
   if (!node->GetOutputType()->isVoidTy())
   {
+    // TODO: fix for multi channel
+    const u32 i = 0;
     if (!node->GetOutputChannelName().empty())
-      m_body << "    ap_return => " << node->GetOutputChannelName() << "_fifo_din\n";
+      m_body << "    ap_return => " << node->GetOutputChannelName() << "_fifo_" << i << "_din\n";
     else
       m_body << "    ap_return => prog_output_din\n";
   }
@@ -291,13 +321,16 @@ void ComponentGenerator::WriteCombinationalFilterInstance(StreamGraph::Filter* n
     const std::string& output_name = node->GetOutputChannelName();
     if (!output_name.empty())
     {
-      m_body << output_name << "_fifo_write <= " << name << "_fifo_write;\n";
-      m_body << name << "_fifo_full_n <= " << output_name << "_fifo_full_n;\n";
+      for (u32 i = 0; i < node->GetOutputChannelWidth(); i++)
+      {
+        m_body << output_name << "_fifo_" << i << "_write <= " << name << "_fifo_" << i << "_write;\n";
+        m_body << name << "_fifo_" << i << "_full_n <= " << output_name << "_fifo_" << i << "_full_n;\n";
+      }
     }
     else
     {
-      m_body << "prog_output_write <= " << name << "_fifo_write;\n";
-      m_body << name << "_fifo_full_n <= " << output_name << "prog_output_full_n;\n";
+      m_body << "prog_output_write <= " << name << "_fifo_0_write;\n";
+      m_body << name << "_fifo_0_full_n <= " << output_name << "prog_output_full_n;\n";
     }
   }
   else if (!node->GetInputType()->isVoidTy())
@@ -312,9 +345,13 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
 {
   if (m_first_filter)
   {
-    m_body << node->GetName() << "_fifo_din <= prog_input_din;\n";
-    m_body << node->GetName() << "_fifo_write <= prog_input_write;\n";
-    m_body << "prog_input_full_n <= " << node->GetName() << "_fifo_full_n;\n";
+    if (!node->GetInputType()->isVoidTy())
+    {
+      m_body << node->GetName() << "_fifo_0_din <= prog_input_din;\n";
+      m_body << node->GetName() << "_fifo_0_write <= prog_input_write;\n";
+      m_body << "prog_input_full_n <= " << node->GetName() << "_fifo_0_full_n;\n";
+      m_body << "\n";
+    }
     m_first_filter = false;
   }
 

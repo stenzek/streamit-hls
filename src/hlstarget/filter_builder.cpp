@@ -10,6 +10,7 @@
 #include "frontend/wrapped_llvm_context.h"
 #include "llvm/ADT/SmallVector.h"
 #include "llvm/IR/Argument.h"
+#include "llvm/IR/Attributes.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
 #include "llvm/IR/Function.h"
@@ -32,49 +33,86 @@ namespace HLSTarget
 //
 struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 {
-  FragmentBuilder(llvm::Value* in_ptr, llvm::Value* out_ptr) : m_in_ptr(in_ptr), m_out_ptr(out_ptr) {}
+  FragmentBuilder() = default;
 
-  void CreateDeclarations(Frontend::FunctionBuilder* func_builder)
+  bool IsInputBufferingEnabled() const { return (m_input_buffer_var != nullptr); }
+
+  llvm::Value* ReadFromChannel(llvm::IRBuilder<>& builder, u32 channel)
   {
-    Frontend::WrappedLLVMContext* context = func_builder->GetContext();
-    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
-    // llvm::BasicBlock* new_entry = llvm::BasicBlock::Create(context->GetLLVMContext(), "new_entry",
-    // func_builder->GetFunction());
-    // llvm::BasicBlock* entry_block = func_builder->GetCurrentBasicBlock();
-    if (m_in_ptr)
-      m_in_index = builder.CreateAlloca(context->GetIntType(), nullptr, "in_index");
-    if (m_out_ptr)
-      m_out_index = builder.CreateAlloca(context->GetIntType(), nullptr, "out_index");
-    if (m_in_ptr)
-      builder.CreateStore(builder.getInt32(0), m_in_index);
-    if (m_out_ptr)
-      builder.CreateStore(builder.getInt32(0), m_out_index);
-    // builder.CreateBr(new_entry);
-    // func_builder->SwitchBasicBlock(new_entry);
+    return builder.CreateLoad(m_in_ptrs[channel], true, "pop_value");
   }
 
-  void BuildBuffer(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm,
-                   u32 peek_rate, u32 pop_rate)
+  void WriteToChannel(llvm::IRBuilder<>& builder, u32 channel, llvm::Value* value)
+  {
+    builder.CreateStore(value, m_out_ptrs[channel], true);
+  }
+
+  void BuildPrologue(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
   {
     Frontend::WrappedLLVMContext* context = func_builder->GetContext();
     llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
     llvm::Function* func = func_builder->GetFunction();
-    m_buffer_size = peek_rate;
-    m_peek_optimization = (peek_rate == pop_rate);
+
+    // Set the "filter" attribute on the function itself.
+    func->addFnAttr(llvm::Attribute::get(context->GetLLVMContext(), "streamit_filter"));
+
+    // Retreive arguments, set names and attributes.
+    auto args_iter = func->arg_begin();
+    u32 arg_index = 0;
+    if (!filter_perm->GetInputType()->isVoidTy())
+    {
+      for (u32 i = 0; i < filter_perm->GetInputChannelWidth(); i++)
+      {
+        llvm::Value* arg = &(*args_iter++);
+        arg->setName(StringFromFormat("in_ptr_%u", i));
+        func->addAttribute(arg_index + 1, llvm::Attribute::get(context->GetLLVMContext(), "streamit_fifo"));
+        m_in_ptrs.push_back(arg);
+        arg_index++;
+      }
+
+      BuildInputBuffer(func_builder, filter_perm);
+    }
+    if (!filter_perm->GetOutputType()->isVoidTy())
+    {
+      for (u32 i = 0; i < filter_perm->GetOutputChannelWidth(); i++)
+      {
+        llvm::Value* arg = &(*args_iter++);
+        arg->setName(StringFromFormat("out_ptr_%u", i));
+        func->addAttribute(arg_index + 1, llvm::Attribute::get(context->GetLLVMContext(), "streamit_fifo"));
+        m_out_ptrs.push_back(arg);
+        arg_index++;
+      }
+
+      BuildOutputBuffer(func_builder, filter_perm);
+    }
+  }
+
+  void BuildInputBuffer(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
+  {
+    Frontend::WrappedLLVMContext* context = func_builder->GetContext();
+    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+
+    m_input_buffer_size = (filter_perm->GetPeekRate() > 0) ? filter_perm->GetPeekRate() : filter_perm->GetPopRate();
+    m_peek_optimization = (filter_perm->GetPeekRate() <= filter_perm->GetPopRate());
+    Log_DevPrintf("%s peek optimization for this filter", m_peek_optimization ? "using" : "not using");
 
     llvm::Type* buffer_element_type = filter_perm->GetInputType();
-    llvm::Type* buffer_array_type = llvm::ArrayType::get(buffer_element_type, m_buffer_size);
+    llvm::Type* buffer_array_type = llvm::ArrayType::get(buffer_element_type, m_input_buffer_size);
 
     // Enable peek optimization for non-readahead peeks.
     if (!m_peek_optimization)
     {
-      m_buffer_var =
+      m_input_buffer_var =
         new llvm::GlobalVariable(*func_builder->GetModule(), buffer_array_type, false,
                                  llvm::GlobalValue::PrivateLinkage, llvm::ConstantAggregateZero::get(buffer_array_type),
                                  StringFromFormat("%s_peek_buffer", filter_perm->GetName().c_str()));
 
-      llvm::BasicBlock* bb_fill = llvm::BasicBlock::Create(context->GetLLVMContext(), "peek_buffer_fill", func);
-      llvm::BasicBlock* no_bb_fill = llvm::BasicBlock::Create(context->GetLLVMContext(), "no_peek_buffer_fill", func);
+      llvm::BasicBlock* bb_fill =
+        llvm::BasicBlock::Create(context->GetLLVMContext(), "peek_buffer_fill", func_builder->GetFunction());
+      llvm::BasicBlock* no_bb_fill =
+        llvm::BasicBlock::Create(context->GetLLVMContext(), "no_peek_buffer_fill", func_builder->GetFunction());
+      llvm::BasicBlock* after_bb_fill =
+        llvm::BasicBlock::Create(context->GetLLVMContext(), "after_peek_buffer_fill", func_builder->GetFunction());
 
       // Create "filled" variable. This is only false for a single iteration.
       llvm::GlobalVariable* buffer_filled =
@@ -86,116 +124,123 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
 
       // Fill the peek buffer once.
       func_builder->SwitchBasicBlock(bb_fill);
-      for (u32 i = 0; i < m_buffer_size; i++)
+      for (u32 i = 0; i < m_input_buffer_size; i++)
       {
-        // fill_value <- pop()
-        llvm::Value* fill_src_index = builder.CreateLoad(m_in_index, "fill_src_index");
-        builder.CreateStore(builder.CreateAdd(fill_src_index, builder.getInt32(1)), m_in_index);
-        llvm::Value* fill_value =
-          builder.CreateLoad(builder.CreateGEP(m_in_ptr, {fill_src_index}, "fill_ptr"), true, "fill_value");
-        // peek_buffer[i] <- fill_value
-        builder.CreateStore(fill_value,
-                            builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
+        // peek_buffer[i] <- pop()
+        builder.CreateStore(ReadFromChannel(builder, 0),
+                            builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
       }
       // peek_buffer_filled <- true
       builder.CreateStore(builder.getInt1(true), buffer_filled);
-      builder.CreateBr(no_bb_fill);
+      builder.CreateBr(after_bb_fill);
+
+      // Fill the peek buffer as many times is needed.
+      // If we wanted this with multi-channel, we'd need a state machine..
+      func_builder->SwitchBasicBlock(no_bb_fill);
+      for (u32 i = 0; i < filter_perm->GetPeekRate() - filter_perm->GetPopRate(); i++)
+      {
+        u32 offset = filter_perm->GetPopRate() + i;
+        builder.CreateStore(
+          ReadFromChannel(builder, 0),
+          builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(offset)}));
+      }
+      builder.CreateBr(after_bb_fill);
 
       // Switch to new "entry" block.
-      func_builder->SwitchBasicBlock(no_bb_fill);
+      func_builder->SwitchBasicBlock(after_bb_fill);
     }
     else
     {
       // Non-readahead peeks. Use a local variable instead of a global, since it doesn't have to be
       // maintained across work function iterations.
-      m_buffer_var = builder.CreateAlloca(buffer_array_type, nullptr, "peek_buffer");
+      m_input_buffer_var = builder.CreateAlloca(buffer_array_type, nullptr, "peek_buffer");
 
       // Fill the peek buffer.
-      for (u32 i = 0; i < m_buffer_size; i++)
+      for (u32 i = 0; i < m_input_buffer_size;)
       {
-        // fill_value <- pop()
-        llvm::Value* fill_src_index = builder.CreateLoad(m_in_index, "fill_src_index");
-        builder.CreateStore(builder.CreateAdd(fill_src_index, builder.getInt32(1)), m_in_index);
-        llvm::Value* fill_value =
-          builder.CreateLoad(builder.CreateGEP(m_in_ptr, {fill_src_index}, "fill_ptr"), true, "fill_value");
-        // peek_buffer[i] <- fill_value
-        builder.CreateStore(fill_value,
-                            builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
+        for (u32 j = 0; j < filter_perm->GetInputChannelWidth(); j++, i++)
+        {
+          // peek_buffer[i] <- pop()
+          builder.CreateStore(
+            ReadFromChannel(builder, j),
+            builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
+        }
       }
     }
   }
 
-  bool IsBufferingEnabled() const { return (m_buffer_var != nullptr); }
+  void BuildOutputBuffer(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
+  {
+    Frontend::WrappedLLVMContext* context = func_builder->GetContext();
+    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+    m_output_buffer_size = filter_perm->GetPushRate();
+
+    llvm::Type* buffer_element_type = filter_perm->GetOutputType();
+    llvm::Type* buffer_array_type = llvm::ArrayType::get(buffer_element_type, m_output_buffer_size);
+
+    m_output_buffer_var = builder.CreateAlloca(buffer_array_type, nullptr, "push_buffer");
+    m_output_buffer_pos = builder.CreateAlloca(context->GetIntType(), nullptr, "push_buffer_pos");
+    builder.CreateStore(builder.getInt32(0), m_output_buffer_pos);
+  }
+
+  void BuildEpilogue(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
+  {
+    Frontend::WrappedLLVMContext* context = func_builder->GetContext();
+    llvm::IRBuilder<>& builder = func_builder->GetCurrentIRBuilder();
+
+    for (u32 i = 0; i < m_output_buffer_size;)
+    {
+      for (u32 j = 0; j < filter_perm->GetOutputChannelWidth(); j++, i++)
+      {
+        llvm::Value* output_buffer_ptr = builder.CreateInBoundsGEP(
+          m_output_buffer_var, {builder.getInt32(0), builder.getInt32(i)}, "output_buffer_ptr");
+        WriteToChannel(builder, j, builder.CreateLoad(output_buffer_ptr, "output_buffer_val"));
+      }
+    }
+  }
 
   llvm::Value* BuildPop(llvm::IRBuilder<>& builder) override final
   {
-    assert(m_in_ptr != nullptr);
-
-    if (!IsBufferingEnabled())
-    {
-      // Direct without buffering.
-      llvm::Value* pop_src_index = builder.CreateLoad(m_in_index, "in_src_index");
-      builder.CreateStore(builder.CreateAdd(pop_src_index, builder.getInt32(1)), m_in_index);
-      return builder.CreateLoad(builder.CreateGEP(m_in_ptr, {pop_src_index}, "in_ptr"), true, "pop");
-    }
-
-    // pop_val <- peek_buffer[buffer_index]
+    // pop_val <- peek_buffer[0]
     llvm::Value* pop_val = builder.CreateLoad(
-      builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(m_buffer_index)}, "in_ptr"),
+      builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(0)}, "peek_buffer_ptr"),
       "pop_val");
 
-    // When using peek optimizations, increment buffer index, instead of wasting time shuffling elements around.
-    if (m_peek_optimization)
-    {
-      m_buffer_index++;
-      return pop_val;
-    }
-
     // peek_buffer[0] = peek_buffer[1], peek_buffer[1] = peek_buffer[2], ...
-    for (u32 i = 0; i < (m_buffer_size - 1); i++)
+    for (u32 i = 0; i < (m_input_buffer_size - 1); i++)
     {
-      builder.CreateStore(
-        builder.CreateLoad(builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(i + 1)})),
-        builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
+      builder.CreateStore(builder.CreateLoad(builder.CreateInBoundsGEP(m_input_buffer_var,
+                                                                       {builder.getInt32(0), builder.getInt32(i + 1)})),
+                          builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(i)}));
     }
-
-    // peek_buffer[n-1] = pop()
-    llvm::Value* pop_src_index = builder.CreateLoad(m_in_index, "in_src_index");
-    builder.CreateStore(builder.CreateAdd(pop_src_index, builder.getInt32(1)), m_in_index);
-    builder.CreateStore(
-      builder.CreateLoad(builder.CreateGEP(m_in_ptr, {pop_src_index}, "pop_ptr"), true, "pop"),
-      builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), builder.getInt32(m_buffer_size - 1)}));
 
     return pop_val;
   }
 
   llvm::Value* BuildPeek(llvm::IRBuilder<>& builder, llvm::Value* idx_value) override final
   {
-    if (!IsBufferingEnabled())
-      return nullptr;
-
     // peek_val <- peek_buffer[idx_value]
-    llvm::Value* peek_ptr = builder.CreateInBoundsGEP(m_buffer_var, {builder.getInt32(0), idx_value}, "peek_ptr");
+    llvm::Value* peek_ptr = builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), idx_value}, "peek_ptr");
     return builder.CreateLoad(peek_ptr, "peek_val");
   }
 
   bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
   {
-    assert(m_out_ptr != nullptr);
-    llvm::Value* push_dst_index = builder.CreateLoad(m_out_index, "push_dst_index");
-    builder.CreateStore(builder.CreateAdd(push_dst_index, builder.getInt32(1)), m_out_index);
-    builder.CreateStore(value, builder.CreateGEP(m_out_ptr, {push_dst_index}, "push_ptr"), true);
+    llvm::Value* output_buffer_pos = builder.CreateLoad(m_output_buffer_pos, "output_buffer_pos");
+    builder.CreateStore(
+      value, builder.CreateGEP(m_output_buffer_var, {builder.getInt32(0), output_buffer_pos}, "output_buffer_ptr"));
+    builder.CreateStore(builder.CreateAdd(output_buffer_pos, builder.getInt32(1)), m_output_buffer_pos);
     return true;
   }
 
 private:
-  llvm::Value* m_in_ptr;
-  llvm::Value* m_out_ptr;
-  llvm::AllocaInst* m_in_index = nullptr;
-  llvm::AllocaInst* m_out_index = nullptr;
-  llvm::Value* m_buffer_var = nullptr;
-  u32 m_buffer_size = 0;
-  u32 m_buffer_index = 0;
+  std::vector<llvm::Value*> m_in_ptrs;
+  std::vector<llvm::Value*> m_out_ptrs;
+  llvm::Value* m_input_buffer_var = nullptr;
+  llvm::Value* m_output_buffer_var = nullptr;
+  llvm::Value* m_output_buffer_pos = nullptr;
+  u32 m_input_buffer_size = 0;
+  u32 m_output_buffer_size = 0;
   bool m_peek_optimization = false;
 };
 
@@ -241,13 +286,15 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   {
     llvm::Type* pointer_ty = llvm::PointerType::get(m_filter_permutation->GetInputType(), 0);
     assert(pointer_ty != nullptr);
-    params.push_back(pointer_ty);
+    for (u32 i = 0; i < m_filter_permutation->GetInputChannelWidth(); i++)
+      params.push_back(pointer_ty);
   }
   if (!m_filter_permutation->GetOutputType()->isVoidTy())
   {
     llvm::Type* pointer_ty = llvm::PointerType::get(m_filter_permutation->GetOutputType(), 0);
     assert(pointer_ty != nullptr);
-    params.push_back(pointer_ty);
+    for (u32 i = 0; i < m_filter_permutation->GetOutputChannelWidth(); i++)
+      params.push_back(pointer_ty);
   }
 
   llvm::FunctionType* func_type = llvm::FunctionType::get(ret_type, params, false);
@@ -256,27 +303,10 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   if (!func)
     return nullptr;
 
-  llvm::Value* in_ptr = nullptr;
-  llvm::Value* out_ptr = nullptr;
-  auto args_iter = func->arg_begin();
-  if (!m_filter_permutation->GetInputType()->isVoidTy())
-  {
-    in_ptr = &(*args_iter++);
-    in_ptr->setName("in_ptr");
-  }
-  if (!m_filter_permutation->GetOutputType()->isVoidTy())
-  {
-    out_ptr = &(*args_iter++);
-    out_ptr->setName("out_ptr");
-  }
-
   // Start at the entry basic block for the work function.
-  FragmentBuilder fragment_builder(in_ptr, out_ptr);
+  FragmentBuilder fragment_builder;
   Frontend::FunctionBuilder function_builder(m_context, m_module, &fragment_builder, func);
-  fragment_builder.CreateDeclarations(&function_builder);
-  if (!m_filter_permutation->GetInputType()->isVoidTy() && m_filter_permutation->GetPeekRate() > 0)
-    fragment_builder.BuildBuffer(&function_builder, m_filter_permutation, m_filter_permutation->GetPeekRate(),
-                                 m_filter_permutation->GetPopRate());
+  fragment_builder.BuildPrologue(&function_builder, m_filter_permutation);
 
   // Add global variable references
   for (const auto& it : m_filter_permutation->GetFilterParameters())
@@ -289,6 +319,7 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
     return nullptr;
 
   // Final return instruction.
+  fragment_builder.BuildEpilogue(&function_builder, m_filter_permutation);
   function_builder.GetCurrentIRBuilder().CreateRetVoid();
   return func;
 }

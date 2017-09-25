@@ -279,7 +279,7 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
     // Create new permutation
     std::string name = StringFromFormat("%s_%u", decl->GetName().c_str(), unsigned(m_filter_permutations.size() + 1));
     filter_perm = new FilterPermutation(name, decl, filter_params, filter_input_type, filter_output_type, peek_rate,
-                                        pop_rate, push_rate);
+                                        pop_rate, push_rate, (pop_rate > 0) ? 1 : 0, (push_rate > 0) ? 1 : 0);
     m_filter_permutations.push_back(filter_perm);
   }
 

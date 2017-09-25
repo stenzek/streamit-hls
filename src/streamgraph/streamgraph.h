@@ -111,7 +111,7 @@ class FilterPermutation
 public:
   FilterPermutation(const std::string& name, const AST::FilterDeclaration* filter_decl,
                     const FilterParameters& filter_params, llvm::Type* input_type, llvm::Type* output_type,
-                    int peek_rate, int pop_rate, int push_rate);
+                    int peek_rate, int pop_rate, int push_rate, u32 input_channel_width, u32 output_channel_width);
   ~FilterPermutation() = default;
 
   const std::string& GetName() const { return m_name; }
@@ -122,6 +122,8 @@ public:
   int GetPeekRate() const { return m_peek_rate; }
   int GetPopRate() const { return m_pop_rate; }
   int GetPushRate() const { return m_push_rate; }
+  u32 GetInputChannelWidth() const { return m_input_channel_width; }
+  u32 GetOutputChannelWidth() const { return m_output_channel_width; }
 
   bool IsBuiltin() const;
   bool IsCombinational() const { return m_combinational; }
@@ -136,6 +138,8 @@ private:
   int m_peek_rate;
   int m_pop_rate;
   int m_push_rate;
+  u32 m_input_channel_width;
+  u32 m_output_channel_width;
   bool m_combinational = false;
 };
 
@@ -187,6 +191,8 @@ protected:
 
 class Filter : public Node
 {
+  friend StreamGraph;
+
 public:
   Filter(const std::string& instance_name, const FilterPermutation* filter);
   ~Filter() = default;
