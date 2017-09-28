@@ -677,8 +677,9 @@ public:
   AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs);
   ~AssignmentExpression() = default;
 
-  Expression* GetLValueExpression() const;
-  Expression* GetInnerExpression() const;
+  Expression* GetLValueExpression() const { return m_lhs; }
+  Expression* GetInnerExpression() const { return m_rhs; }
+  Operator GetOperator() const { return m_op; }
 
   void Dump(ASTPrinter* printer) const override;
   bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;

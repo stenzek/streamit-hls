@@ -53,6 +53,7 @@ llvm::AllocaInst* FunctionBuilder::CreateVariable(const AST::Declaration* var)
 
   llvm::IRBuilder<> builder(m_entry_basic_block, m_entry_basic_block->begin());
   llvm::AllocaInst* ai = builder.CreateAlloca(ty);
+  ai->setName(var->GetName());
   m_vars.emplace(var, ai);
   return ai;
 }

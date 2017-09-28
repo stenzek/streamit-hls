@@ -392,16 +392,53 @@ Expression* CommaExpression::GetRHSExpression() const
 AssignmentExpression::AssignmentExpression(const SourceLocation& sloc, Expression* lhs, Operator op, Expression* rhs)
   : Expression(sloc), m_lhs(lhs), m_rhs(rhs), m_op(op)
 {
-}
+  // Depending on the operator, create a node so that x += y turns into x = x + y.
+  switch (m_op)
+  {
+  case Add:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::Add, rhs);
+    break;
 
-Expression* AssignmentExpression::GetLValueExpression() const
-{
-  return m_lhs;
-}
+  case Subtract:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::Subtract, rhs);
+    break;
 
-Expression* AssignmentExpression::GetInnerExpression() const
-{
-  return m_rhs;
+  case Multiply:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::Multiply, rhs);
+    break;
+
+  case Divide:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::Divide, rhs);
+    break;
+
+  case Modulo:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::Modulo, rhs);
+    break;
+
+  case BitwiseAnd:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::BitwiseAnd, rhs);
+    break;
+
+  case BitwiseOr:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::BitwiseOr, rhs);
+    break;
+
+  case BitwiseXor:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::BitwiseXor, rhs);
+    break;
+
+  case LeftShift:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::LeftShift, rhs);
+    break;
+
+  case RightShift:
+    m_rhs = new BinaryExpression(sloc, lhs, BinaryExpression::RightShift, rhs);
+    break;
+
+  case Assign:
+  default:
+    break;
+  }
 }
 
 IntegerLiteralExpression::IntegerLiteralExpression(const SourceLocation& sloc, int value)

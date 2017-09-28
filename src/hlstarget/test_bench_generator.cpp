@@ -225,6 +225,10 @@ llvm::Function* TestBenchGenerator::GenerateFilterFunction(const StreamGraph::Fi
   Frontend::FunctionBuilder function_builder(m_context, m_module, &fragment_builder, func);
   fragment_builder.CreateTemporaries(function_builder.GetCurrentIRBuilder());
 
+  // Add constants for the filter parameters
+  for (const auto& it : filter_perm->GetFilterParameters())
+    function_builder.AddVariable(it.decl, it.value);
+
   // Visit the state variable declarations, generating LLVM variables for them
   if (filter_perm->GetFilterDeclaration()->HasStateVariables())
   {
