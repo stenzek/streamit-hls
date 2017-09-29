@@ -320,10 +320,12 @@ bool ProjectGenerator::GenerateAXISComponent()
   os << "    s_axis_tdata : in std_logic_vector(" << in_width << "-1 downto 0);\n";
   os << "    s_axis_tvalid : in std_logic;\n";
   os << "    s_axis_tready : out std_logic;\n";
+  os << "    s_axis_tlast : in std_logic;\n";
   os << "    -- axi4 stream master (data output)\n";
   os << "    m_axis_tdata : out std_logic_vector(" << out_width << "-1 downto 0);\n";
   os << "    m_axis_tvalid : out std_logic;\n";
-  os << "    m_axis_tready : in std_logic\n";
+  os << "    m_axis_tready : in std_logic;\n";
+  os << "    m_axis_tlast : out std_logic\n";
   os << "  );\n";
   os << "end entity;\n";
   os << "\n";
@@ -341,6 +343,9 @@ bool ProjectGenerator::GenerateAXISComponent()
   os << "    prog_output_full_n => m_axis_tready,\n";
   os << "    prog_output_write => m_axis_tvalid\n";
   os << "  );\n";
+  os << "\n";
+  os << "m_axis_tlast <= '0';\n";
+  os << "\n";
   os << "end behav;\n";
 
   os.flush();
