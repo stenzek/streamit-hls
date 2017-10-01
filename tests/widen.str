@@ -9,17 +9,18 @@ void->int pipeline widen {
 
 void->int filter counter {
     int last = 1;
-    work push 2 {
-        push(last);
-        push(last + 1);
-        last = last + 2;
+    work push 8 {
+        for (int i = 0; i < 8; i++) {
+            push(last);
+            last++;
+        }
     }
 }
 
 int->void filter consumer {
-    work pop 2 {
-        pop();
-        pop();
+    work pop 8 {
+        for (int i = 0; i < 8; i++)
+            pop();
     }
 }
 

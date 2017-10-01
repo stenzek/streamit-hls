@@ -392,9 +392,9 @@ bool ComponentGenerator::Visit(StreamGraph::SplitJoin* node)
 {
   if (m_first_filter)
   {
-    m_body << node->GetName() << "_fifo_din <= prog_input_din;\n";
-    m_body << node->GetName() << "_fifo_write <= prog_input_write;\n";
-    m_body << "prog_input_full_n <= " << node->GetName() << "_fifo_full_n;\n";
+    m_body << node->GetSplitNode()->GetName() << "_fifo_0_din <= prog_input_din;\n";
+    m_body << node->GetSplitNode()->GetName() << "_fifo_0_write <= prog_input_write;\n";
+    m_body << "prog_input_full_n <= " << node->GetSplitNode()->GetName() << "_fifo_0_full_n;\n";
     m_first_filter = false;
   }
 

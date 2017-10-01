@@ -1,0 +1,20 @@
+int->int pipeline simple7 {
+    add stuff();
+}
+
+int->int stateful filter blah {
+    work pop 1 push 2 {
+        int x = pop();
+        push(x + 1);
+        push(x + 2);
+    }
+}
+
+int->int splitjoin stuff {
+    split duplicate;
+    //split roundrobin;
+    add blah();
+    add blah();
+    join roundrobin;
+}
+
