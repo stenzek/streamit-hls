@@ -347,6 +347,10 @@ bool FilterBuilder::GenerateGlobals()
   if (!m_filter_decl->GetStateVariables()->Accept(&gvb))
     return false;
 
+  // Evaluate init block if present.
+  if (m_filter_decl->HasInitBlock() && !gvb.EvaluateInitBlock(m_filter_permutation))
+    return false;
+
   // And copy the table, ready to insert to the function builders
   m_global_variable_map = gvb.GetVariableMap();
   return true;

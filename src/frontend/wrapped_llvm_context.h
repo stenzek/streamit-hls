@@ -54,8 +54,11 @@ public:
   // void BuildDebugPrintf(llvm::IRBuilder<>& builder, const char* fmt, const std::vector<llvm::Value*>& args);
 
   static std::unique_ptr<WrappedLLVMContext> Create();
+  static llvm::Constant* CreateConstantFromPointer(llvm::Type* ty, const void* ptr);
 
 private:
+  static llvm::Constant* CreateConstantFromPointerInternal(llvm::Type* ty, const char*& ptr);
+
   std::unique_ptr<llvm::LLVMContext> m_llvm_context;
   int m_id_counter = 1;
 };

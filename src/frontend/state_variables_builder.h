@@ -1,4 +1,5 @@
 #pragma once
+#include <memory>
 #include <stack>
 #include <unordered_map>
 #include "llvm/IR/BasicBlock.h"
@@ -8,6 +9,20 @@
 namespace AST
 {
 class VariableDeclaration;
+class FilterWorkBlock;
+}
+
+namespace llvm
+{
+class ExecutionEngine;
+class Function;
+class GlobalVariable;
+class Module;
+}
+
+namespace StreamGraph
+{
+class FilterPermutation;
 }
 
 namespace Frontend
@@ -31,7 +46,15 @@ public:
   bool Visit(AST::Node* node) override;
   bool Visit(AST::VariableDeclaration* node) override;
 
+  // Evaluates variables in init block.
+  bool EvaluateInitBlock(const StreamGraph::FilterPermutation* filter_perm);
+
 private:
+  llvm::Function* CompileInitBlock(const StreamGraph::FilterPermutation* filter_perm, llvm::Module* mod,
+                                   VariableMap& gvm);
+  std::unique_ptr<llvm::ExecutionEngine> ExecuteInitBlock(std::unique_ptr<llvm::Module> mod, llvm::Function* func);
+  bool ReadbackInitBlock(const VariableMap& gvm, llvm::ExecutionEngine* execution_engine, bool stateless);
+
   WrappedLLVMContext* m_context;
   llvm::Module* m_module;
   std::string m_prefix;

@@ -17,6 +17,7 @@
 #include "llvm/IR/Verifier.h"
 #include "llvm/Support/FormattedStream.h"
 #include "parser/ast.h"
+Log_SetChannel(WrappedLLVMContext);
 
 namespace Frontend
 {
@@ -226,4 +227,43 @@ std::unique_ptr<WrappedLLVMContext> WrappedLLVMContext::Create()
 {
   return std::make_unique<WrappedLLVMContext>();
 }
+
+llvm::Constant* WrappedLLVMContext::CreateConstantFromPointer(llvm::Type* ty, const void* ptr)
+{
+  const char* value_ptr = reinterpret_cast<const char*>(ptr);
+
+  // If this is a pointer type, get the inner type first.
+  if (ty->isPointerTy())
+    return CreateConstantFromPointerInternal(ty->getPointerElementType(), value_ptr);
+  else
+    return CreateConstantFromPointerInternal(ty, value_ptr);
+}
+
+llvm::Constant* WrappedLLVMContext::CreateConstantFromPointerInternal(llvm::Type* ty, const char*& ptr)
+{
+  if (ty->isIntegerTy())
+  {
+    uint64_t value = 0;
+    size_t size = (ty->getIntegerBitWidth() + 7) / 8;
+    std::memcpy(&value, ptr, size);
+    ptr += size;
+    Log_DevPrintf("Int value readback: %08X %08X", unsigned(value >> 32), unsigned(value));
+    return llvm::ConstantInt::get(ty, value);
+  }
+
+  if (ty->isArrayTy())
+  {
+    llvm::ArrayType* array_ty = llvm::cast<llvm::ArrayType>(ty);
+    llvm::Type* array_element_ty = array_ty->getArrayElementType();
+    uint64_t num_values = array_ty->getArrayNumElements();
+    std::vector<llvm::Constant*> array_values;
+    for (uint64_t i = 0; i < num_values; i++)
+      array_values.push_back(CreateConstantFromPointerInternal(array_element_ty, ptr));
+    return llvm::ConstantArray::get(array_ty, array_values);
+  }
+
+  assert(0 && "unknown type");
+  return nullptr;
+}
+
 } // namespace Frontend

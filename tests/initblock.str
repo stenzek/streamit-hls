@@ -1,0 +1,32 @@
+int->int pipeline initblock {
+    add producer();
+    add lut();
+    add sink();
+}
+
+void->int stateful filter producer {
+    int last_value = 0;
+    work push 1 {
+        push(last_value);
+        last_value ^= 1;
+    }
+}
+
+int->int filter lut {
+    int[2] lookup;
+    init {
+        lookup[0] = 1 + 2;
+        lookup[1] = lookup[0] * 4;
+    }
+    work pop 1 push 1 {
+        push(lookup[pop()]);
+        //push(pop());
+    }
+}
+
+int->void filter sink {
+    work pop 1 {
+        pop();
+    }
+}
+
