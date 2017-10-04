@@ -89,11 +89,12 @@ void StreamGraph::WidenChannels()
         filter->GetOutputChannelWidth() != filter->GetFilterPermutation()->GetOutputChannelWidth())
     {
       // Find an existing permutation which matches.
-      auto perm = std::find_if(m_filter_permutations.begin(), m_filter_permutations.end(),
-                               [filter](const FilterPermutation* perm) {
-                                 return (perm->GetInputChannelWidth() == filter->GetInputChannelWidth() &&
-                                         perm->GetOutputChannelWidth() == filter->GetOutputChannelWidth());
-                               });
+      auto perm = std::find_if(
+        m_filter_permutations.begin(), m_filter_permutations.end(), [filter](const FilterPermutation* perm) {
+          return (perm->GetFilterDeclaration() == filter->GetFilterPermutation()->GetFilterDeclaration() &&
+                  perm->GetInputChannelWidth() == filter->GetInputChannelWidth() &&
+                  perm->GetOutputChannelWidth() == filter->GetOutputChannelWidth());
+        });
 
       if (perm != m_filter_permutations.end())
       {

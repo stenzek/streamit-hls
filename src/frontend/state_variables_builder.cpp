@@ -144,7 +144,7 @@ std::unique_ptr<llvm::ExecutionEngine> StateVariablesBuilder::ExecuteInitBlock(s
   llvm::InitializeNativeTargetAsmPrinter();
   llvm::InitializeNativeTargetAsmParser();
 
-  //m_context->DumpModule(mod.get());
+  // m_context->DumpModule(mod.get());
   if (!m_context->VerifyModule(mod.get()))
   {
     Log_ErrorPrintf("Init module failed verification");
