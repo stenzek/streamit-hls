@@ -28,12 +28,12 @@ struct CombinationalFragmentBuilder : public Frontend::FunctionBuilder::TargetFr
 
   llvm::Value* ReadFromChannel(llvm::IRBuilder<>& builder, u32 channel)
   {
-    return builder.CreateLoad(m_in_ptrs[channel], "pop_value");
+    return builder.CreateLoad(m_in_ptrs[channel], true, "pop_value");
   }
 
   void WriteToChannel(llvm::IRBuilder<>& builder, u32 channel, llvm::Value* value)
   {
-    builder.CreateStore(value, m_out_ptrs[channel]);
+    builder.CreateStore(value, m_out_ptrs[channel], true);
   }
 
   void BuildPrologue(Frontend::FunctionBuilder* func_builder, const StreamGraph::FilterPermutation* filter_perm)
@@ -47,13 +47,16 @@ struct CombinationalFragmentBuilder : public Frontend::FunctionBuilder::TargetFr
 
     // Retreive arguments, set names and attributes.
     auto args_iter = func->arg_begin();
+    u32 arg_index = 0;
     if (!filter_perm->GetInputType()->isVoidTy())
     {
       for (u32 i = 0; i < filter_perm->GetInputChannelWidth(); i++)
       {
         llvm::Value* arg = &(*args_iter++);
         arg->setName(StringFromFormat("in_ptr_%u", i));
+        func->addAttribute(arg_index + 1, llvm::Attribute::get(context->GetLLVMContext(), "streamit_fifo"));
         m_in_ptrs.push_back(arg);
+        arg_index++;
       }
 
       // We need to use buffering if we have a wide channel, or peeking.
@@ -66,7 +69,9 @@ struct CombinationalFragmentBuilder : public Frontend::FunctionBuilder::TargetFr
       {
         llvm::Value* arg = &(*args_iter++);
         arg->setName(StringFromFormat("out_ptr_%u", i));
+        func->addAttribute(arg_index + 1, llvm::Attribute::get(context->GetLLVMContext(), "streamit_fifo"));
         m_out_ptrs.push_back(arg);
+        arg_index++;
       }
 
       // We need to use buffering if we have a wide channel.
