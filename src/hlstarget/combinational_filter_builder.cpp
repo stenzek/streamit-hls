@@ -53,7 +53,7 @@ struct CombinationalFragmentBuilder : public Frontend::FunctionBuilder::TargetFr
       for (u32 i = 0; i < filter_perm->GetInputChannelWidth(); i++)
       {
         llvm::Value* arg = &(*args_iter++);
-        arg->setName(StringFromFormat("in_ptr_%u", i));
+        arg->setName(StringFromFormat("in_channel_%u", i));
         func->addAttribute(arg_index + 1, llvm::Attribute::get(context->GetLLVMContext(), "streamit_fifo"));
         m_in_ptrs.push_back(arg);
         arg_index++;
@@ -68,7 +68,7 @@ struct CombinationalFragmentBuilder : public Frontend::FunctionBuilder::TargetFr
       for (u32 i = 0; i < filter_perm->GetOutputChannelWidth(); i++)
       {
         llvm::Value* arg = &(*args_iter++);
-        arg->setName(StringFromFormat("out_ptr_%u", i));
+        arg->setName(StringFromFormat("out_channel_%u", i));
         func->addAttribute(arg_index + 1, llvm::Attribute::get(context->GetLLVMContext(), "streamit_fifo"));
         m_out_ptrs.push_back(arg);
         arg_index++;

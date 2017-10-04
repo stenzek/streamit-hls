@@ -1342,7 +1342,7 @@ std::string CWriter::GetValueName(Value* Operand)
       VarName += ch;
   }
 
-  return "llvm_cbe_" + VarName;
+  return VarName;
 }
 
 /// writeInstComputationInline - Emit the computation for the specified

@@ -133,10 +133,10 @@ void ComponentGenerator::WriteFilterPermutation(const StreamGraph::FilterPermuta
     for (u32 i = 0; i < filter->GetInputChannelWidth(); i++)
     {
       m_os << ";\n";
-      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_dout : in "
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_channel_" << i << "_dout : in "
            << VHDLHelpers::GetVHDLBitVectorType(filter->GetInputType()) << ";\n";
-      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_empty_n : in std_logic;\n";
-      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_read : out std_logic";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_channel_" << i << "_empty_n : in std_logic;\n";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_channel_" << i << "_read : out std_logic";
     }
   }
 
@@ -145,10 +145,10 @@ void ComponentGenerator::WriteFilterPermutation(const StreamGraph::FilterPermuta
     for (u32 i = 0; i < filter->GetOutputChannelWidth(); i++)
     {
       m_os << ";\n";
-      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_dout : out "
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_dout : out "
            << VHDLHelpers::GetVHDLBitVectorType(filter->GetOutputType()) << ";\n";
-      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_full_n : in std_logic;\n";
-      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_write : out std_logic";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_full_n : in std_logic;\n";
+      m_os << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_write : out std_logic";
     }
   }
 
@@ -277,16 +277,16 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
 
       if (!combinational)
       {
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_dout => " << name << "_fifo_" << i
-               << "_dout,\n";
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_read => " << name << "_fifo_" << i
-               << "_read,\n";
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << "_empty_n => " << name << "_fifo_"
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_channel_" << i << "_dout => " << name << "_fifo_"
+               << i << "_dout,\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_channel_" << i << "_read => " << name << "_fifo_"
+               << i << "_read,\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_channel_" << i << "_empty_n => " << name << "_fifo_"
                << i << "_empty_n";
       }
       else
       {
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_ptr_" << i << " => " << name << "_fifo_" << i
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "in_channel_" << i << " => " << name << "_fifo_" << i
                << "_din";
       }
     }
@@ -305,17 +305,17 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
 
         if (!combinational)
         {
-          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_din => " << output_name
+          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_din => " << output_name
                  << "_fifo_" << i << "_din,\n";
-          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_write => " << output_name
+          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_write => " << output_name
                  << "_fifo_" << i << "_write,\n";
-          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << "_full_n => " << output_name
+          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_full_n => " << output_name
                  << "_fifo_" << i << "_full_n";
         }
         else
         {
-          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_" << i << " => " << output_name << "_fifo_"
-                 << i << "_din";
+          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << " => " << output_name
+                 << "_fifo_" << i << "_din";
         }
       }
     }
@@ -329,13 +329,13 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
 
       if (!combinational)
       {
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_0_din => prog_output_din,\n";
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_0_write => prog_output_write,\n";
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_0_full_n => prog_output_full_n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_0_din => prog_output_din,\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_0_write => prog_output_write,\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_0_full_n => prog_output_full_n";
       }
       else
       {
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_ptr_0 => prog_output_din";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_0 => prog_output_din";
       }
     }
   }
