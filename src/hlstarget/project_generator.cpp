@@ -6,7 +6,6 @@
 #include "common/log.h"
 #include "common/string_helpers.h"
 #include "frontend/wrapped_llvm_context.h"
-#include "hlstarget/combinational_filter_builder.h"
 #include "hlstarget/component_generator.h"
 #include "hlstarget/component_test_bench_generator.h"
 #include "hlstarget/filter_builder.h"
@@ -152,17 +151,7 @@ bool ProjectGenerator::GenerateFilterFunctions()
     if (fb.CanMakeCombinational())
     {
       Log_WarningPrintf("Making filter %s combinational", filter_perm->GetName().c_str());
-      CombinationalFilterBuilder cfb(m_context, m_module, filter_perm);
-      if (cfb.GenerateCode())
-      {
-        // Replace filter function with combinational function.
-        const_cast<StreamGraph::FilterPermutation*>(filter_perm)->SetCombinational();
-        llvm::Function* comb_func = cfb.GetFunction();
-        filter_func->deleteBody();
-        filter_func->removeFromParent();
-        comb_func->takeName(filter_func);
-        delete filter_func;
-      }
+      const_cast<StreamGraph::FilterPermutation*>(filter_perm)->SetCombinational();
     }
 
     auto res = m_filter_function_map.emplace(filter_perm, filter_func);
