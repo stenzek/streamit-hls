@@ -1,5 +1,5 @@
 void->void pipeline AutoCorInt {
-  add FileReader<int>();
+  add InputReader<int>();
   add Cor1(32, 8);
   add OutputWriter<int>();
 }

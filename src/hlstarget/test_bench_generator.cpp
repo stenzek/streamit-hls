@@ -277,11 +277,11 @@ namespace
 class FilterExecutorVisitor : public StreamGraph::Visitor
 {
 public:
-  FilterExecutorVisitor(Frontend::WrappedLLVMContext* context, llvm::ExecutionEngine* execution_engine,
-                        TestBenchGenerator::FilterDataMap& filter_input_data,
+  FilterExecutorVisitor(Frontend::WrappedLLVMContext* context, StreamGraph::StreamGraph* streamgraph,
+                        llvm::ExecutionEngine* execution_engine, TestBenchGenerator::FilterDataMap& filter_input_data,
                         TestBenchGenerator::FilterDataMap& filter_output_data)
-    : m_context(context), m_execution_engine(execution_engine), m_filter_input_data(filter_input_data),
-      m_filter_output_data(filter_output_data)
+    : m_context(context), m_streamgraph(streamgraph), m_execution_engine(execution_engine),
+      m_filter_input_data(filter_input_data), m_filter_output_data(filter_output_data)
   {
   }
 
@@ -293,6 +293,7 @@ public:
 
 private:
   Frontend::WrappedLLVMContext* m_context;
+  StreamGraph::StreamGraph* m_streamgraph;
   llvm::ExecutionEngine* m_execution_engine;
   TestBenchGenerator::FilterDataMap& m_filter_input_data;
   TestBenchGenerator::FilterDataMap& m_filter_output_data;
@@ -302,41 +303,67 @@ bool FilterExecutorVisitor::Visit(StreamGraph::Filter* node)
 {
   const StreamGraph::FilterPermutation* filter_perm = node->GetFilterPermutation();
 
-  // Copy the last filter execution's output to this execution's input.
-  test_bench_gen_input_buffer_pos = 0;
-  if (!filter_perm->GetInputType()->isVoidTy())
+  bool skip_execution = false;
+  if (filter_perm->IsBuiltin())
   {
-    u32 input_data_size = test_bench_gen_output_buffer_pos;
-    if (input_data_size > 0)
+    if (m_streamgraph->GetProgramInputNode() == node)
     {
-      std::copy_n(test_bench_gen_output_buffer, input_data_size, test_bench_gen_input_buffer);
-      std::fill_n(test_bench_gen_input_buffer + input_data_size, sizeof(test_bench_gen_input_buffer) - input_data_size,
-                  0);
-      Log_DevPrintf("Using %u bytes from previous filter", test_bench_gen_output_buffer_pos);
-    }
-    else
-    {
-      Log_ErrorPrintf("TODO: Add dummy input data.");
-      input_data_size = 1024;
-    }
+      u32 size_per_elem = (filter_perm->GetOutputType()->getPrimitiveSizeInBits() + 7) / 8;
+      u32 input_data_count = node->GetNetPush();
+      assert(size_per_elem > 0 && input_data_count > 0);
 
-    auto& data_vec = m_filter_input_data[filter_perm];
-    data_vec.resize(input_data_size);
-    std::copy_n(test_bench_gen_input_buffer, input_data_size, data_vec.begin());
+      u32 counter = 1;
+      byte* ptr = test_bench_gen_output_buffer;
+      for (u32 i = 0; i < input_data_count; i++)
+      {
+        std::memcpy(ptr, &counter, size_per_elem);
+        ptr += size_per_elem;
+        counter++;
+      }
+
+      test_bench_gen_output_buffer_pos = input_data_count * size_per_elem;
+      Log_DevPrintf("Generated %u byts of input for %s", test_bench_gen_output_buffer_pos, node->GetName().c_str());
+      skip_execution = true;
+    }
+    else if (m_streamgraph->GetProgramOutputNode() == node)
+    {
+      // Do nothing for output nodes.
+      return true;
+    }
   }
 
-  // Ensure remaining data is zeroed out.
-  std::fill_n(test_bench_gen_output_buffer, sizeof(test_bench_gen_output_buffer), 0);
-  test_bench_gen_output_buffer_pos = 0;
+  if (!skip_execution)
+  {
+    // Copy the last filter execution's output to this execution's input.
+    test_bench_gen_input_buffer_pos = 0;
+    if (!filter_perm->GetInputType()->isVoidTy())
+    {
+      u32 input_data_size = test_bench_gen_output_buffer_pos;
+      if (input_data_size > 0)
+      {
+        std::copy_n(test_bench_gen_output_buffer, input_data_size, test_bench_gen_input_buffer);
+        std::fill_n(test_bench_gen_input_buffer + input_data_size,
+                    sizeof(test_bench_gen_input_buffer) - input_data_size, 0);
+        Log_DevPrintf("Using %u bytes from previous filter", test_bench_gen_output_buffer_pos);
+        auto& data_vec = m_filter_input_data[filter_perm];
+        data_vec.resize(input_data_size);
+        std::copy_n(test_bench_gen_input_buffer, input_data_size, data_vec.begin());
+      }
+    }
 
-  // Execute filter
-  std::string function_name = StringFromFormat("%s_work", filter_perm->GetName().c_str());
-  llvm::Function* filter_func = m_execution_engine->FindFunctionNamed(function_name);
-  assert(filter_func && "filter function exists in execution engine");
-  Log_DevPrintf("Executing filter '%s' %u times", function_name.c_str(), node->GetMultiplicity());
-  for (u32 i = 0; i < node->GetMultiplicity(); i++)
-    m_execution_engine->runFunction(filter_func, {});
-  Log_DevPrintf("Exec result %u %u", test_bench_gen_input_buffer_pos, test_bench_gen_output_buffer_pos);
+    // Ensure remaining data is zeroed out.
+    std::fill_n(test_bench_gen_output_buffer, sizeof(test_bench_gen_output_buffer), 0);
+    test_bench_gen_output_buffer_pos = 0;
+
+    // Execute filter
+    std::string function_name = StringFromFormat("%s_work", filter_perm->GetName().c_str());
+    llvm::Function* filter_func = m_execution_engine->FindFunctionNamed(function_name);
+    assert(filter_func && "filter function exists in execution engine");
+    Log_DevPrintf("Executing filter '%s' %u times", function_name.c_str(), node->GetMultiplicity());
+    for (u32 i = 0; i < node->GetMultiplicity(); i++)
+      m_execution_engine->runFunction(filter_func, {});
+    Log_DevPrintf("Exec result %u %u", test_bench_gen_input_buffer_pos, test_bench_gen_output_buffer_pos);
+  }
 
   // Do we have output data?
   if (!filter_perm->GetOutputType()->isVoidTy())
@@ -391,7 +418,8 @@ void TestBenchGenerator::ExecuteFilters()
   test_bench_gen_input_buffer_pos = 0;
   test_bench_gen_output_buffer_pos = 0;
 
-  FilterExecutorVisitor visitor(m_context, m_execution_engine, m_filter_input_data, m_filter_output_data);
+  FilterExecutorVisitor visitor(m_context, m_stream_graph, m_execution_engine, m_filter_input_data,
+                                m_filter_output_data);
   m_stream_graph->GetRootNode()->Accept(&visitor);
 }
 
