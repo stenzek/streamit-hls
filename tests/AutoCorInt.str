@@ -1,16 +1,7 @@
 void->void pipeline AutoCorInt {
-  //add FileReader<int>();
-  add input();
+  add FileReader<int>();
   add Cor1(32, 8);
-  //add FloatPrinter();
-  //add FileWriter<int>("output.stream");
   add OutputWriter<int>();
-}
-
-void->int filter input {
-  work push 1 {
-    push(0x55);
-  }
 }
 
 /* Produce an autocorrelation series for some input.  The input
@@ -32,9 +23,5 @@ int->int splitjoin Cor1(int N, int NLAGS) {
     }
   }
   join roundrobin;
-}
-
-int->void filter FloatPrinter {
-  work pop 1 { println(pop()); }
 }
 
