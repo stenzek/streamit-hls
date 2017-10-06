@@ -409,6 +409,13 @@ bool ProjectGenerator::WriteHLSScript()
   for (const auto& it : m_filter_function_map)
   {
     const StreamGraph::FilterPermutation* filter_perm = it.first;
+    if (!it.second)
+    {
+      // Some filters are only used to imply statements in the VHDL component.
+      // These include InputReader/OutputWriter. Skip synthesis in this case.
+      continue;
+    }
+
     const std::string& filter_name = filter_perm->GetName();
     const std::string function_name = StringFromFormat("filter_%s", filter_name.c_str());
     os << "# filter " << filter_name << "\n"
@@ -440,7 +447,7 @@ bool ProjectGenerator::WriteHLSScript()
       for (u32 i = 0; i < filter_perm->GetInputChannelWidth(); i++)
       {
         os << "set_directive_interface -mode " << param_interface << " -depth " << depth << " \"" << function_name
-           << "\" llvm_cbe_in_ptr_" << i << "\n";
+           << "\" in_channel_" << i << "\n";
       }
     }
 
@@ -451,7 +458,7 @@ bool ProjectGenerator::WriteHLSScript()
       {
         os << "set_directive_interface -mode " << param_interface << " -depth "
            << (filter_perm->GetPushRate() / filter_perm->GetOutputChannelWidth()) << " \"" << function_name
-           << "\" llvm_cbe_out_ptr_" << i << "\n";
+           << "\" out_channel_" << i << "\n";
       }
     }
 
