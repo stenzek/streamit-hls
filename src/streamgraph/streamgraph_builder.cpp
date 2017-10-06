@@ -288,7 +288,7 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
     delete flt;
 
   // Is this the program input?
-  if (decl->IsBuiltin() && std::strncmp(decl->GetName().c_str(), "InputReader__", 13) == 0)
+  if (decl->IsBuiltin() && std::strncmp(decl->GetName().c_str(), "InputReader_", 12) == 0)
   {
     if (m_program_input_node != nullptr)
     {
@@ -300,7 +300,7 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
     m_program_input_node = flt;
   }
 
-  if (decl->IsBuiltin() && std::strncmp(decl->GetName().c_str(), "OutputWriter__", 14) == 0)
+  if (decl->IsBuiltin() && std::strncmp(decl->GetName().c_str(), "OutputWriter_", 13) == 0)
   {
     if (m_program_output_node != nullptr)
     {

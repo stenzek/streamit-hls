@@ -420,7 +420,7 @@ FilterDeclaration* FilterDeclaration::GetBuiltinFilter(ParserState* state, const
     TypeSpecifier* type = dynamic_cast<TypeSpecifier*>(node);
     assert(type != nullptr);
     types.push_back(type);
-    mangled_filter_name += "__";
+    mangled_filter_name += '_';
     mangled_filter_name += type->GetName();
   }
 

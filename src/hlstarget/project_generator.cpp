@@ -494,6 +494,9 @@ bool ProjectGenerator::WriteVivadoScript()
   os << "# Add HLS outputs\n";
   for (const auto& it : m_filter_function_map)
   {
+    if (!it.second)
+      continue;
+
     const StreamGraph::FilterPermutation* filter_perm = it.first;
     const std::string& filter_name = filter_perm->GetName();
     const std::string function_name = StringFromFormat("filter_%s", filter_name.c_str());
