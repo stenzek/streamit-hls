@@ -42,7 +42,8 @@ public:
   using FilterInstanceList = std::vector<Filter*>;
   using FilterPermutationList = std::vector<FilterPermutation*>;
 
-  StreamGraph(Node* root, const FilterPermutationList& filter_permutation_list);
+  StreamGraph(Node* root, const FilterPermutationList& filter_permutation_list, Node* program_input_node,
+              Node* program_output_node);
   ~StreamGraph();
 
   Node* GetRootNode() const { return m_root_node; }
@@ -57,6 +58,8 @@ public:
   // Input/output types of the whole program
   llvm::Type* GetProgramInputType() const;
   llvm::Type* GetProgramOutputType() const;
+  Node* GetProgramInputNode() const { return m_program_input_node; }
+  Node* GetProgramOutputNode() const { return m_program_output_node; }
 
   // Widens channels where possible.
   void WidenChannels();
@@ -64,6 +67,8 @@ public:
 private:
   Node* m_root_node;
   FilterPermutationList m_filter_permutations;
+  Node* m_program_input_node;
+  Node* m_program_output_node;
 };
 
 std::unique_ptr<StreamGraph> BuildStreamGraph(Frontend::WrappedLLVMContext* context, ParserState* parser);

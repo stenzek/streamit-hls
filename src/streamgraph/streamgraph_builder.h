@@ -38,16 +38,15 @@ class Node;
 
 namespace StreamGraph
 {
+class BuilderState;
+
 class Builder
 {
 public:
   Builder(Frontend::WrappedLLVMContext* context, ParserState* state);
   ~Builder();
 
-  Node* GetStartNode() const { return m_start_node; }
-  const std::vector<FilterPermutation*>& GetFilterPermutations() { return m_filter_permutations; }
-
-  bool GenerateGraph();
+  std::unique_ptr<BuilderState> GenerateGraph();
 
 private:
   bool GenerateCode();
@@ -65,9 +64,7 @@ private:
   std::unordered_map<const AST::StreamDeclaration*, llvm::Function*> m_function_map;
   llvm::ExecutionEngine* m_execution_engine = nullptr;
 
-  // Graph building.
-  Node* m_start_node = nullptr;
-  std::vector<FilterPermutation*> m_filter_permutations;
+  std::unique_ptr<BuilderState> m_builder_state;
 };
 
 // Methods called by generated code.
@@ -79,6 +76,8 @@ public:
 
   Node* GetStartNode() const { return m_start_node; }
   const std::vector<FilterPermutation*>& GetFilterPermutations() { return m_filter_permutations; }
+  Node* GetProgramInputNode() const { return m_program_input_node; }
+  Node* GetProgramOutputNode() const { return m_program_output_node; }
 
   void AddFilter(const AST::FilterDeclaration* decl, int peek_rate, int pop_rate, int push_rate, va_list ap);
   void BeginPipeline(const AST::PipelineDeclaration* decl);
@@ -105,6 +104,8 @@ private:
   unsigned int m_name_id = 1;
   std::stack<Node*> m_node_stack;
   Node* m_start_node = nullptr;
+  Node* m_program_input_node = nullptr;
+  Node* m_program_output_node = nullptr;
 
   // Filter permutations
   std::vector<FilterPermutation*> m_filter_permutations;

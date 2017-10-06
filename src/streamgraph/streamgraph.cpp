@@ -16,8 +16,10 @@ static bool IsStream(Node* node)
           dynamic_cast<SplitJoin*>(node) != nullptr);
 }
 
-StreamGraph::StreamGraph(Node* root, const FilterPermutationList& filter_permutation_list)
-  : m_root_node(root), m_filter_permutations(filter_permutation_list)
+StreamGraph::StreamGraph(Node* root, const FilterPermutationList& filter_permutation_list, Node* program_input_node,
+                         Node* program_output_node)
+  : m_root_node(root), m_filter_permutations(filter_permutation_list), m_program_input_node(program_input_node),
+    m_program_output_node(program_output_node)
 {
 }
 
@@ -69,12 +71,12 @@ StreamGraph::FilterInstanceList StreamGraph::GetFilterInstanceList() const
 
 llvm::Type* StreamGraph::GetProgramInputType() const
 {
-  return m_root_node->GetInputType();
+  return m_program_input_node->GetOutputType();
 }
 
 llvm::Type* StreamGraph::GetProgramOutputType() const
 {
-  return m_root_node->GetOutputType();
+  return m_program_output_node->GetInputType();
 }
 
 void StreamGraph::WidenChannels()

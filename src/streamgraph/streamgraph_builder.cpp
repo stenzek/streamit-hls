@@ -20,7 +20,7 @@
 #include "streamgraph/streamgraph.h"
 #include "streamgraph/streamgraph_function_builder.h"
 
-static std::unique_ptr<StreamGraph::BuilderState> s_builder_state;
+static StreamGraph::BuilderState* s_builder_state;
 
 namespace StreamGraph
 {
@@ -33,10 +33,10 @@ Builder::~Builder()
 {
 }
 
-bool Builder::GenerateGraph()
+std::unique_ptr<BuilderState> Builder::GenerateGraph()
 {
   if (!GenerateCode())
-    return false;
+    return nullptr;
 
   if (!m_context->VerifyModule(m_module.get()))
   {
@@ -46,18 +46,18 @@ bool Builder::GenerateGraph()
 
   Log::Info("StreamGraphBuilder", "Creating execution engine");
   if (!CreateExecutionEngine())
-    return false;
+    return nullptr;
 
   Log::Info("StreamGraphBuilder", "Executing main");
   ExecuteMain();
 
-  if (!m_start_node)
+  if (m_builder_state->GetStartNode() == nullptr)
   {
     Log::Error("StreamGraphBuilder", "No root node found.");
-    return false;
+    return nullptr;
   }
 
-  return true;
+  return std::move(m_builder_state);
 }
 
 bool Builder::GenerateCode()
@@ -199,14 +199,13 @@ void Builder::ExecuteMain()
   assert(main_func && "main function exists in execution engine");
 
   // Setup static state.
-  s_builder_state = std::make_unique<BuilderState>(m_context, m_parser_state);
+  m_builder_state = std::make_unique<BuilderState>(m_context, m_parser_state);
+  s_builder_state = m_builder_state.get();
 
   m_execution_engine->runFunction(main_func, {});
 
   // Clear static state.
-  m_start_node = s_builder_state->GetStartNode();
-  m_filter_permutations = s_builder_state->GetFilterPermutations();
-  s_builder_state.reset();
+  s_builder_state = nullptr;
 }
 
 BuilderState::BuilderState(Frontend::WrappedLLVMContext* context, ParserState* state)
@@ -287,6 +286,31 @@ void BuilderState::AddFilter(const AST::FilterDeclaration* decl, int peek_rate, 
   Filter* flt = new Filter(instance_name, filter_perm);
   if (!GetTopNode()->AddChild(this, flt))
     delete flt;
+
+  // Is this the program input?
+  if (decl->IsBuiltin() && std::strncmp(decl->GetName().c_str(), "InputReader__", 13) == 0)
+  {
+    if (m_program_input_node != nullptr)
+    {
+      Error("Program input already defined when adding filter '%s' (previous input was '%s')", instance_name.c_str(),
+            m_program_input_node->GetName().c_str());
+      return;
+    }
+
+    m_program_input_node = flt;
+  }
+
+  if (decl->IsBuiltin() && std::strncmp(decl->GetName().c_str(), "OutputWriter__", 14) == 0)
+  {
+    if (m_program_output_node != nullptr)
+    {
+      Error("Program output already defined when adding filter '%s' (previous output was '%s')", instance_name.c_str(),
+            m_program_output_node->GetName().c_str());
+      return;
+    }
+
+    m_program_output_node = flt;
+  }
 }
 
 void BuilderState::BeginPipeline(const AST::PipelineDeclaration* decl)
@@ -397,12 +421,14 @@ void BuilderState::Error(const char* fmt, ...)
 std::unique_ptr<StreamGraph> BuildStreamGraph(Frontend::WrappedLLVMContext* context, ParserState* parser)
 {
   Builder builder(context, parser);
-  if (!builder.GenerateGraph() || !builder.GetStartNode())
+  auto builder_state = builder.GenerateGraph();
+  if (!builder_state)
     return nullptr;
 
-  Node* start = builder.GetStartNode();
-  start->SteadySchedule();
-  return std::make_unique<StreamGraph>(start, builder.GetFilterPermutations());
+  builder_state->GetStartNode()->SteadySchedule();
+
+  return std::make_unique<StreamGraph>(builder_state->GetStartNode(), builder_state->GetFilterPermutations(),
+                                       builder_state->GetProgramInputNode(), builder_state->GetProgramOutputNode());
 }
 
 } // namespace Frontend
