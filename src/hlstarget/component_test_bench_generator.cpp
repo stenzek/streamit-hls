@@ -79,14 +79,14 @@ void ComponentTestBenchGenerator::WriteWrapperComponent()
   m_body << "  port map (\n";
   m_body << "    clk => clk,\n";
   m_body << "    rst_n => rst_n";
-  if (!m_streamgraph->GetProgramInputType()->isVoidTy())
+  if (m_streamgraph->HasProgramInputNode())
   {
     m_body << ",\n";
     m_body << "    prog_input_din => input_din,\n";
     m_body << "    prog_input_write => input_write,\n";
     m_body << "    prog_input_full_n => input_full_n";
   }
-  if (!m_streamgraph->GetProgramOutputType()->isVoidTy())
+  if (m_streamgraph->HasProgramOutputNode())
   {
     m_body << ",\n";
     m_body << "    prog_output_din => output_fifo_din,\n";
@@ -100,9 +100,10 @@ void ComponentTestBenchGenerator::WriteWrapperComponent()
 
 void ComponentTestBenchGenerator::WriteInputGenerator()
 {
-  const llvm::Type* program_input_type = m_streamgraph->GetProgramInputType();
-  if (program_input_type->isVoidTy())
+  if (!m_streamgraph->HasProgramInputNode())
     return;
+
+  const llvm::Type* program_input_type = m_streamgraph->GetProgramInputType();
 
   m_signals << "-- Input signals\n";
   m_signals << "signal input_din : " << VHDLHelpers::GetVHDLBitVectorType(program_input_type)
@@ -142,9 +143,10 @@ void ComponentTestBenchGenerator::WriteInputGenerator()
 
 void ComponentTestBenchGenerator::WriteOutputConsumer()
 {
-  const llvm::Type* program_output_type = m_streamgraph->GetProgramOutputType();
-  if (program_output_type->isVoidTy())
+  if (!m_streamgraph->HasProgramOutputNode())
     return;
+
+  const llvm::Type* program_output_type = m_streamgraph->GetProgramOutputType();
 
   // output FIFO queue
   m_signals << "-- Output FIFO queue\n";

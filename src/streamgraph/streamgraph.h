@@ -60,6 +60,8 @@ public:
   llvm::Type* GetProgramOutputType() const;
   Node* GetProgramInputNode() const { return m_program_input_node; }
   Node* GetProgramOutputNode() const { return m_program_output_node; }
+  bool HasProgramInputNode() const { return (m_program_input_node != nullptr); }
+  bool HasProgramOutputNode() const { return (m_program_output_node != nullptr); }
 
   // Widens channels where possible.
   void WidenChannels();

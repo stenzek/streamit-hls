@@ -274,7 +274,11 @@ bool FilterBuilder::GenerateCode()
   if (!GenerateGlobals())
     return false;
 
-  if (m_filter_decl->HasWorkBlock())
+  if (m_filter_decl->IsBuiltin())
+  {
+    return GenerateBuiltinFilter();
+  }
+  else if (m_filter_decl->HasWorkBlock())
   {
     std::string name = StringFromFormat("filter_%s", m_filter_permutation->GetName().c_str());
     m_function = GenerateFunction(m_filter_decl->GetWorkBlock(), name);
@@ -353,6 +357,62 @@ bool FilterBuilder::GenerateGlobals()
 
   // And copy the table, ready to insert to the function builders
   m_global_variable_map = gvb.GetVariableMap();
+  return true;
+}
+
+bool FilterBuilder::GenerateBuiltinFilter()
+{
+  if (m_filter_decl->GetName().compare(0, 11, "InputReader", 11) == 0 ||
+      m_filter_decl->GetName().compare(0, 12, "OutputWriter", 12) == 0)
+  {
+    // Done at project generation time.
+    return true;
+  }
+
+  if (m_filter_decl->GetName().compare(0, 8, "Identity", 8) == 0)
+    return GenerateBuiltinFilter_Identity();
+
+  Log_ErrorPrintf("Unknown builtin filter '%s'", m_filter_decl->GetName().c_str());
+  return false;
+}
+
+bool FilterBuilder::GenerateBuiltinFilter_Identity()
+{
+  std::string function_name = StringFromFormat("filter_%s", m_filter_permutation->GetName().c_str());
+
+  llvm::Type* ret_type = llvm::Type::getVoidTy(m_context->GetLLVMContext());
+  std::vector<llvm::Type*> params;
+  if (!m_filter_permutation->GetInputType()->isVoidTy())
+  {
+    llvm::Type* pointer_ty = llvm::PointerType::get(m_filter_permutation->GetInputType(), 0);
+    assert(pointer_ty != nullptr);
+    for (u32 i = 0; i < m_filter_permutation->GetInputChannelWidth(); i++)
+      params.push_back(pointer_ty);
+  }
+  if (!m_filter_permutation->GetOutputType()->isVoidTy())
+  {
+    llvm::Type* pointer_ty = llvm::PointerType::get(m_filter_permutation->GetOutputType(), 0);
+    assert(pointer_ty != nullptr);
+    for (u32 i = 0; i < m_filter_permutation->GetOutputChannelWidth(); i++)
+      params.push_back(pointer_ty);
+  }
+
+  llvm::FunctionType* func_type = llvm::FunctionType::get(ret_type, params, false);
+  m_function = llvm::cast<llvm::Function>(m_module->getOrInsertFunction(function_name, func_type));
+  if (!m_function)
+    return false;
+
+  m_function->setLinkage(llvm::GlobalValue::PrivateLinkage);
+
+  FragmentBuilder fragment_builder;
+  Frontend::FunctionBuilder function_builder(m_context, m_module, &fragment_builder, m_function);
+  fragment_builder.BuildPrologue(&function_builder, m_filter_permutation);
+  llvm::IRBuilder<>& builder = function_builder.GetCurrentIRBuilder();
+  llvm::Value* pop = fragment_builder.BuildPop(builder);
+  fragment_builder.BuildPush(builder, pop);
+  fragment_builder.BuildEpilogue(&function_builder, m_filter_permutation);
+  builder.CreateRetVoid();
+
   return true;
 }
 

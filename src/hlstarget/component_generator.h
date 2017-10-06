@@ -47,6 +47,8 @@ private:
   void WriteFIFO(const std::string& name, u32 data_width, u32 depth);
   void WriteSplitDuplicate(const StreamGraph::Split* node);
   void WriteSplitRoundrobin(const StreamGraph::Split* node);
+  void WriteProgramInput(const StreamGraph::Filter* node);
+  void WriteProgramOutput(const StreamGraph::Filter* node);
 
   // StreamGraph Visitor Interface
   bool Visit(StreamGraph::Filter* node) override;
@@ -62,7 +64,6 @@ private:
   std::stringstream m_signals;
   std::stringstream m_body;
   bool m_use_srl_fifos = true;
-  bool m_first_filter = true;
 };
 
 } // namespace HLSTarget

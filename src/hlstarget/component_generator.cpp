@@ -64,16 +64,16 @@ void ComponentGenerator::WriteHeader()
   m_os << "entity " << m_module_name << " is\n";
   m_os << "  port (\n";
 
-  const llvm::Type* program_input_type = m_streamgraph->GetProgramInputType();
-  const llvm::Type* program_output_type = m_streamgraph->GetProgramOutputType();
-  if (!program_input_type->isVoidTy())
+  if (m_streamgraph->HasProgramInputNode())
   {
+    const llvm::Type* program_input_type = m_streamgraph->GetProgramInputType();
     m_os << "    prog_input_din : in " << VHDLHelpers::GetVHDLBitVectorType(program_input_type) << ";\n";
     m_os << "    prog_input_full_n : out std_logic;\n";
     m_os << "    prog_input_write : in std_logic;\n";
   }
-  if (!program_output_type->isVoidTy())
+  if (m_streamgraph->HasProgramOutputNode())
   {
+    const llvm::Type* program_output_type = m_streamgraph->GetProgramOutputType();
     m_os << "    prog_output_din : out " << VHDLHelpers::GetVHDLBitVectorType(program_output_type) << ";\n";
     m_os << "    prog_output_full_n : in std_logic;\n";
     m_os << "    prog_output_write : out std_logic;\n";
@@ -213,16 +213,15 @@ void ComponentGenerator::WriteFIFO(const std::string& name, u32 data_width, u32 
 
 bool ComponentGenerator::Visit(StreamGraph::Filter* node)
 {
-  if (m_first_filter)
+  if (m_streamgraph->GetProgramInputNode() == node)
   {
-    if (!node->GetInputType()->isVoidTy())
-    {
-      m_body << node->GetName() << "_fifo_0_din <= prog_input_din;\n";
-      m_body << node->GetName() << "_fifo_0_write <= prog_input_write;\n";
-      m_body << "prog_input_full_n <= " << node->GetName() << "_fifo_0_full_n;\n";
-      m_body << "\n";
-    }
-    m_first_filter = false;
+    WriteProgramInput(node);
+    return true;
+  }
+  if (m_streamgraph->GetProgramOutputNode() == node)
+  {
+    WriteProgramOutput(node);
+    return true;
   }
 
   const std::string& name = node->GetName();
@@ -294,34 +293,8 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
   if (!node->GetOutputType()->isVoidTy())
   {
     const std::string& output_name = node->GetOutputChannelName();
-    if (!output_name.empty())
+    for (u32 i = 0; i < node->GetOutputChannelWidth(); i++)
     {
-      for (u32 i = 0; i < node->GetOutputChannelWidth(); i++)
-      {
-        if (!first_port)
-          m_body << ",\n";
-        else
-          first_port = false;
-
-        if (!combinational)
-        {
-          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_din => " << output_name
-                 << "_fifo_" << i << "_din,\n";
-          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_write => " << output_name
-                 << "_fifo_" << i << "_write,\n";
-          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_full_n => " << output_name
-                 << "_fifo_" << i << "_full_n";
-        }
-        else
-        {
-          m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << " => " << output_name
-                 << "_fifo_" << i << "_din";
-        }
-      }
-    }
-    else
-    {
-      // This is the last filter in the program.
       if (!first_port)
         m_body << ",\n";
       else
@@ -329,13 +302,17 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
 
       if (!combinational)
       {
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_0_din => prog_output_din,\n";
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_0_write => prog_output_write,\n";
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_0_full_n => prog_output_full_n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_din => " << output_name
+               << "_fifo_" << i << "_din,\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_write => " << output_name
+               << "_fifo_" << i << "_write,\n";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << "_full_n => " << output_name
+               << "_fifo_" << i << "_full_n";
       }
       else
       {
-        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_0 => prog_output_din";
+        m_body << "    " << VHDLHelpers::HLS_VARIABLE_PREFIX << "out_channel_" << i << " => " << output_name << "_fifo_"
+               << i << "_din";
       }
     }
   }
@@ -348,18 +325,10 @@ bool ComponentGenerator::Visit(StreamGraph::Filter* node)
     if (!node->GetInputType()->isVoidTy() && !node->GetOutputType()->isVoidTy())
     {
       const std::string& output_name = node->GetOutputChannelName();
-      if (!output_name.empty())
+      for (u32 i = 0; i < node->GetOutputChannelWidth(); i++)
       {
-        for (u32 i = 0; i < node->GetOutputChannelWidth(); i++)
-        {
-          m_body << output_name << "_fifo_" << i << "_write <= " << name << "_fifo_" << i << "_write;\n";
-          m_body << name << "_fifo_" << i << "_full_n <= " << output_name << "_fifo_" << i << "_full_n;\n";
-        }
-      }
-      else
-      {
-        m_body << "prog_output_write <= " << name << "_fifo_0_write;\n";
-        m_body << name << "_fifo_0_full_n <= " << output_name << "prog_output_full_n;\n";
+        m_body << output_name << "_fifo_" << i << "_write <= " << name << "_fifo_" << i << "_write;\n";
+        m_body << name << "_fifo_" << i << "_full_n <= " << output_name << "_fifo_" << i << "_full_n;\n";
       }
     }
     else if (!node->GetInputType()->isVoidTy())
@@ -390,14 +359,6 @@ bool ComponentGenerator::Visit(StreamGraph::Pipeline* node)
 
 bool ComponentGenerator::Visit(StreamGraph::SplitJoin* node)
 {
-  if (m_first_filter)
-  {
-    m_body << node->GetSplitNode()->GetName() << "_fifo_0_din <= prog_input_din;\n";
-    m_body << node->GetSplitNode()->GetName() << "_fifo_0_write <= prog_input_write;\n";
-    m_body << "prog_input_full_n <= " << node->GetSplitNode()->GetName() << "_fifo_0_full_n;\n";
-    m_first_filter = false;
-  }
-
   if (!node->GetSplitNode()->Accept(this))
     return false;
 
@@ -509,6 +470,40 @@ void ComponentGenerator::WriteSplitRoundrobin(const StreamGraph::Split* node)
   m_body << "\n";
 }
 
+void ComponentGenerator::WriteProgramInput(const StreamGraph::Filter* node)
+{
+  m_body << "-- Builtin " << node->GetName() << "\n";
+
+  // Wire directly to the output.
+  if (!node->HasOutputConnection())
+    return;
+
+  m_body << node->GetOutputChannelName() << "_fifo_0_din <= prog_input_din;\n";
+  m_body << node->GetOutputChannelName() << "_fifo_0_write <= prog_input_write;\n";
+  m_body << "prog_input_full_n <= " << node->GetOutputChannelName() << "_fifo_0_full_n;\n";
+  m_body << "\n";
+}
+
+void ComponentGenerator::WriteProgramOutput(const StreamGraph::Filter* node)
+{
+  const std::string& name = node->GetName();
+  m_body << "-- Builtin " << name << "\n";
+
+  for (u32 i = 0; i < node->GetInputChannelWidth(); i++)
+  {
+    m_signals << "signal " << name << "_fifo_" << i << "_write : std_logic;\n";
+    m_signals << "signal " << name << "_fifo_" << i << "_full_n : std_logic;\n";
+    m_signals << "signal " << name << "_fifo_" << i << "_din : std_logic_vector("
+              << (VHDLHelpers::GetBitWidthForType(node->GetInputType()) - 1) << " downto 0);\n";
+  }
+
+  // Wire directly to the input, which we declare.
+  m_body << "prog_output_din <= " << name << "_fifo_0_din;\n";
+  m_body << "prog_output_write <= " << name << "_fifo_0_write;\n";
+  m_body << name << "_fifo_0_full_n <= "
+         << "prog_output_full_n;\n";
+}
+
 bool ComponentGenerator::Visit(StreamGraph::Split* node)
 {
   if (node->GetMode() == StreamGraph::Split::Mode::Duplicate)
@@ -522,11 +517,7 @@ bool ComponentGenerator::Visit(StreamGraph::Split* node)
 bool ComponentGenerator::Visit(StreamGraph::Join* node)
 {
   const std::string& name = node->GetName();
-  std::string output_name;
-  if (node->GetOutputChannelName().empty())
-    output_name = "prog_output";
-  else
-    node->GetOutputChannelName() + "_fifo_0";
+  std::string output_name = node->GetOutputChannelName() + "_fifo_0";
 
   // Generate fifos for each input to the join
   for (u32 idx = 1; idx <= node->GetIncomingStreams(); idx++)

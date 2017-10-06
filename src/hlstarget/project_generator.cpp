@@ -278,7 +278,7 @@ bool ProjectGenerator::GenerateComponentTestBench()
 
 bool ProjectGenerator::GenerateAXISComponent()
 {
-  if (m_streamgraph->GetProgramInputType()->isVoidTy() || m_streamgraph->GetProgramOutputType()->isVoidTy())
+  if (!m_streamgraph->HasProgramInputNode() || !m_streamgraph->HasProgramOutputNode())
   {
     Log_WarningPrintf("Not generating AXIS component, missing input or output types.");
     m_has_axis_component = false;
@@ -351,8 +351,8 @@ bool ProjectGenerator::GenerateAXISComponent()
   os << "  m_axis_tlast <= prog_output_last;\n";
   os << "\n";
 
-  u32 root_net_push = m_streamgraph->GetRootNode()->GetNetPush();
-  u32 root_net_pop = m_streamgraph->GetRootNode()->GetNetPop();
+  u32 root_net_push = m_streamgraph->GetProgramInputNode()->GetNetPush();
+  u32 root_net_pop = m_streamgraph->GetProgramOutputNode()->GetNetPop();
   os << "  -- TLAST tracking\n";
   os << "  at_block_end <= (prog_output_write = '1' and (output_counter + 1) = expected_num_outputs);\n";
   os << "  prog_output_last <= '1' when at_block_end else '0';\n";

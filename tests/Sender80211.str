@@ -2,10 +2,12 @@ void->void pipeline Sender80211
 {
     //add input;
 	//add FileReader<int>();
+    add InputReader<int>();
 	add scramble;
 	add diff_encode;
 	add chunk2symbol;
 	add fir_filter;
+    add OutputWriter<int>();
 	//add output;
     //add sink;
 	//add FileWriter<int>("output.stream");
