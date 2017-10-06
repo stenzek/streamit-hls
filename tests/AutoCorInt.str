@@ -2,8 +2,9 @@ void->void pipeline AutoCorInt {
   //add FileReader<int>();
   add input();
   add Cor1(32, 8);
-  add FloatPrinter();
+  //add FloatPrinter();
   //add FileWriter<int>("output.stream");
+  add OutputWriter<int>();
 }
 
 void->int filter input {

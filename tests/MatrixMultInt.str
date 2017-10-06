@@ -1,5 +1,14 @@
 void->void pipeline MatrixMultInt {
+    add IntGenerator();
     add MatrixMultiply(8, 8, 8, 8);
+    add OutputWriter<int>();
+}
+
+void->int stateful filter IntGenerator {
+    int last = 0;
+    work push 1 {
+        push(last++);
+    }
 }
 
 int->int pipeline MatrixMultiply(int x0, int y0, int x1, int y1) {

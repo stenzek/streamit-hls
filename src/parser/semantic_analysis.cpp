@@ -177,6 +177,15 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
   // TODO: Check parameter counts and stuff..
   // TODO: Check return types
 
+  bool anonymous_stream = false;
+  if (!m_type_parameters)
+  {
+    // This is an anonymous stream.
+    m_type_parameters = new NodeList();
+    m_stream_parameters = new NodeList();
+    anonymous_stream = true;
+  }
+
   if (!m_type_parameters->SemanticAnalysis(state, symbol_table))
     return false;
 
@@ -203,12 +212,8 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
 
   if (!state->HasActiveStream(m_stream_declaration))
   {
-    if (!m_stream_parameters)
+    if (anonymous_stream)
     {
-      // This is an anonymous stream/filter.
-      // Copy everything in the symbol table as parameters to the anonymous stream/filter.
-      m_stream_parameters = new NodeList();
-
       // Start at the current scope, and move up until we hit the current stream.
       LexicalScope* current_scope = symbol_table;
       while (current_scope != nullptr)
@@ -228,7 +233,10 @@ bool AddStatement::SemanticAnalysis(ParserState* state, LexicalScope* symbol_tab
           m_stream_declaration->GetParameters()->push_back(param_decl);
 
           // Add reference to add parameters.
-          m_stream_parameters->AddNode(new IdentifierExpression(m_sloc, it.first.c_str()));
+          IdentifierExpression* param_expr = new IdentifierExpression(m_sloc, it.first.c_str());
+          if (!param_expr->SemanticAnalysis(state, symbol_table))
+            return false;
+          m_stream_parameters->AddNode(param_expr);
         }
 
         if (current_scope == state->current_stream_scope)

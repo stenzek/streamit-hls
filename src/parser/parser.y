@@ -369,8 +369,8 @@ AddStatement
   | TK_ADD Identifier '<' TypeNameList '>' ';' { $$ = new AddStatement(@1, $2, $4, new NodeList()); }
   | TK_ADD Identifier '<' TypeNameList '>' '(' ')' ';' { $$ = new AddStatement(@1, $2, $4, new NodeList()); }
   | TK_ADD Identifier '<' TypeNameList '>' '(' ArgumentExpressionList ')' ';' { $$ = new AddStatement(@1, $2, $4, $7); }
-  | TK_ADD AnonymousFilterDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList(), new NodeList()); }
-  | TK_ADD AnonymousStreamDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), new NodeList(), new NodeList()); }
+  | TK_ADD AnonymousFilterDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), nullptr, nullptr); }
+  | TK_ADD AnonymousStreamDeclaration { $$ = new AddStatement(@1, $2->GetName().c_str(), nullptr, nullptr); }
   ;
 
 SplitStatement
