@@ -296,6 +296,9 @@ bool ProjectGenerator::GenerateAXISComponent()
   u32 in_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramInputType());
   u32 out_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramOutputType());
 
+  // Seems we can use a maximum of around 2048 doublewords/8192 bytes before the DMA engine gets stuck..
+  u32 out_block_size = 8192 / ((out_width + 7) / 8);
+
   os << "library ieee;\n"
      << "use ieee.std_logic_1164.all;\n"
      << "use ieee.std_logic_unsigned.all;\n"
@@ -321,14 +324,13 @@ bool ProjectGenerator::GenerateAXISComponent()
   os << "\n";
 
   os << "architecture behav of axis_" << m_module_name << " is\n";
+  os << "  constant OUTPUT_BLOCK_SIZE : positive := " << out_block_size << ";\n";
   os << "  signal prog_output_din : std_logic_vector(" << out_width << "-1 downto 0);\n";
   os << "  signal prog_output_full_n : std_logic;\n";
   os << "  signal prog_output_write : std_logic;\n";
-  os << "  signal input_counter : std_logic_vector(31 downto 0);\n";
-  os << "  signal expected_num_outputs : std_logic_vector(31 downto 0);\n";
-  os << "  signal output_counter : std_logic_vector(31 downto 0);\n";
-  os << "  signal at_block_end : boolean;\n";
   os << "  signal prog_output_last : std_logic;\n";
+  os << "  signal output_counter : positive range 0 to OUTPUT_BLOCK_SIZE;\n";
+  os << "  signal output_last : boolean;\n";
   os << "begin\n";
   os << "\n";
   os << "  -- Instantiate wrapper component\n";
@@ -351,31 +353,19 @@ bool ProjectGenerator::GenerateAXISComponent()
   os << "  m_axis_tlast <= prog_output_last;\n";
   os << "\n";
 
-  u32 root_net_push = m_streamgraph->GetProgramInputNode()->GetNetPush();
-  u32 root_net_pop = m_streamgraph->GetProgramOutputNode()->GetNetPop();
   os << "  -- TLAST tracking\n";
-  os << "  at_block_end <= (prog_output_write = '1' and (output_counter + 1) = expected_num_outputs);\n";
-  os << "  prog_output_last <= '1' when at_block_end else '0';\n";
+  os << "  output_last <= (prog_output_write = '1' and (output_counter + 1) = OUTPUT_BLOCK_SIZE);\n";
+  os << "  prog_output_last <= '1' when output_last else '0';\n";
   os << "\n";
   os << "  last_process : process(aclk)\n";
   os << "  begin\n";
   os << "    if (rising_edge(aclk)) then\n";
   os << "      if (aresetn = '0') then\n";
-  os << "        input_counter <= (others => '0');\n";
-  os << "        expected_num_outputs <= (others => '1');\n";
-  os << "        output_counter <= (others => '0');\n";
+  os << "        output_counter <= 0;\n";
   os << "      else\n";
-  os << "        if (s_axis_tvalid = '1') then\n";
-  os << "          if (s_axis_tlast = '1') then\n";
-  os << "            expected_num_outputs <= input_counter + " << (root_net_push / root_net_pop) << ";\n";
-  os << "            input_counter <= (others => '0');\n";
-  os << "          else\n";
-  os << "            input_counter <= input_counter + " << (root_net_push / root_net_pop) << ";\n";
-  os << "          end if;\n";
-  os << "        end if;\n";
   os << "        if (prog_output_write = '1') then\n";
-  os << "          if ((output_counter + 1) = expected_num_outputs) then\n";
-  os << "            output_counter <= (others => '0');\n";
+  os << "          if ((output_counter + 1) = OUTPUT_BLOCK_SIZE) then\n";
+  os << "            output_counter <= 0;\n";
   os << "          else\n";
   os << "            output_counter <= output_counter + 1;\n";
   os << "          end if;\n";
@@ -384,6 +374,7 @@ bool ProjectGenerator::GenerateAXISComponent()
   os << "    end if;\n";
   os << "  end process;\n";
   os << "\n";
+  
   os << "end behav;\n";
 
   os.flush();
