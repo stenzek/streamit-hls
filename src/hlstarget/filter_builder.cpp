@@ -70,7 +70,7 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       }
 
       // We need to use buffering if we have a wide channel, or peeking.
-      if (!filter_perm->GetInputChannelWidth() > 0 || filter_perm->GetPeekRate() > 0)
+      if (filter_perm->GetInputChannelWidth() > 0 || filter_perm->GetPeekRate() > 0)
         BuildInputBuffer(func_builder, filter_perm);
     }
     if (!filter_perm->GetOutputType()->isVoidTy())
