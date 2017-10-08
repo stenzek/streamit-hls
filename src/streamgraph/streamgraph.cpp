@@ -295,7 +295,8 @@ Node::Node(const std::string& name, llvm::Type* input_type, llvm::Type* output_t
 }
 
 Filter::Filter(const std::string& instance_name, const FilterPermutation* filter)
-  : Node(instance_name, filter->GetInputType(), filter->GetOutputType()), m_filter_permutation(filter)
+  : Node(instance_name, filter->GetInputType(), filter->GetOutputType()), m_filter_permutation(filter),
+    m_input_channel_width(filter->GetInputChannelWidth()), m_output_channel_width(filter->GetOutputChannelWidth())
 {
   m_peek_rate = static_cast<u32>(m_filter_permutation->GetPeekRate());
   m_pop_rate = static_cast<u32>(m_filter_permutation->GetPopRate());

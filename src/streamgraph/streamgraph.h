@@ -238,8 +238,8 @@ protected:
   const FilterPermutation* m_filter_permutation;
   Node* m_output_connection = nullptr;
   std::string m_output_channel_name;
-  u32 m_input_channel_width = 1;
-  u32 m_output_channel_width = 1;
+  u32 m_input_channel_width;
+  u32 m_output_channel_width;
 };
 
 class Pipeline : public Node
