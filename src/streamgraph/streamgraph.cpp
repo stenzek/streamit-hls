@@ -79,8 +79,115 @@ llvm::Type* StreamGraph::GetProgramOutputType() const
   return m_program_output_node->GetInputType();
 }
 
+Node* StreamGraph::GetSinglePredecessor(Node* node) const
+{
+  NodeList predecessors = GetPredecessors(node);
+  if (predecessors.size() != 1)
+    return nullptr;
+
+  return predecessors[0];
+}
+
+NodeList StreamGraph::GetPredecessors(Node* node) const
+{
+  struct TheVisitor : Visitor
+  {
+    Node* search_node;
+    NodeList predecessors;
+
+    TheVisitor(Node* search_node_) : search_node(search_node_) {}
+
+    bool Visit(Filter* node) override final
+    {
+      if (node->GetOutputConnection() == search_node)
+        predecessors.push_back(node);
+
+      return true;
+    }
+
+    bool Visit(Pipeline* node) override
+    {
+      for (Node* child : node->GetChildren())
+        child->Accept(this);
+
+      return true;
+    }
+
+    bool Visit(SplitJoin* node) override
+    {
+      node->GetSplitNode()->Accept(this);
+
+      for (Node* child : node->GetChildren())
+        child->Accept(this);
+
+      node->GetJoinNode()->Accept(this);
+      return true;
+    }
+
+    bool Visit(Split* node) override
+    {
+      for (Node* split_output : node->GetOutputs())
+      {
+        if (split_output == search_node)
+        {
+          predecessors.push_back(node);
+          break;
+        }
+      }
+
+      return true;
+    }
+
+    bool Visit(Join* node) override
+    {
+      if (node->GetOutputConnection() == search_node)
+        predecessors.push_back(node);
+
+      return true;
+    }
+  };
+
+  TheVisitor visitor(node);
+  m_root_node->Accept(&visitor);
+  return visitor.predecessors;
+}
+
+void StreamGraph::WidenInput()
+{
+  if (!m_program_input_node)
+    return;
+
+  // Align the input reader with the output's pop rate.
+  Filter* input_filter = dynamic_cast<Filter*>(m_program_input_node);
+  Node* input_next = input_filter->GetOutputConnection();
+  if (input_next != nullptr && input_next->m_pop_rate > 1)
+  {
+    m_program_input_node->m_push_rate = input_next->m_pop_rate;
+    Log_DevPrintf("Widen program input to %u elements", m_program_input_node->m_push_rate);
+  }
+}
+
+void StreamGraph::WidenOutput()
+{
+  if (!m_program_output_node)
+    return;
+
+  // Align the output writer with the predecessor's push rate.
+  Node* output_predecessor = GetSinglePredecessor(m_program_output_node);
+  if (output_predecessor != nullptr && output_predecessor->m_push_rate > 1)
+  {
+    m_program_output_node->m_pop_rate *= output_predecessor->m_push_rate;
+    m_program_output_node->m_multiplicity /= output_predecessor->m_push_rate;
+    Log_DevPrintf("Widen program output to %u elements", m_program_output_node->m_pop_rate);
+  }
+}
+
 void StreamGraph::WidenChannels()
 {
+  WidenInput();
+  WidenOutput();
+
+  // Recursively widen any channels where possible.
   m_root_node->WidenChannels();
 
   // Create new filter instances for those which are widened.

@@ -4,7 +4,7 @@ void->int pipeline widen {
     //add stuff();
     //add sink();
     add consumer();
-    //add OutputWriter<int>();
+    add OutputWriter<int>();
 }
 
 void->int filter counter {
@@ -17,10 +17,12 @@ void->int filter counter {
     }
 }
 
-int->void filter consumer {
-    work pop 8 {
+int->int filter consumer {
+    work push 1 pop 8 {
+        int sum = 0;
         for (int i = 0; i < 8; i++)
-            pop();
+            sum += pop();
+        push(sum);
     }
 }
 

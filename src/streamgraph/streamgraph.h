@@ -63,10 +63,17 @@ public:
   bool HasProgramInputNode() const { return (m_program_input_node != nullptr); }
   bool HasProgramOutputNode() const { return (m_program_output_node != nullptr); }
 
+  // Finds the predecessor, or node which outputs to the specified node.
+  Node* GetSinglePredecessor(Node* node) const;
+  NodeList GetPredecessors(Node* node) const;
+
   // Widens channels where possible.
   void WidenChannels();
 
 private:
+  void WidenInput();
+  void WidenOutput();
+
   Node* m_root_node;
   FilterPermutationList m_filter_permutations;
   Node* m_program_input_node;
@@ -152,6 +159,8 @@ private:
 
 class Node
 {
+  friend StreamGraph;
+
 public:
   Node(const std::string& name, llvm::Type* input_type, llvm::Type* output_type);
   virtual ~Node() = default;

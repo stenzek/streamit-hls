@@ -374,7 +374,7 @@ bool ProjectGenerator::GenerateAXISComponent()
   os << "    end if;\n";
   os << "  end process;\n";
   os << "\n";
-  
+
   os << "end behav;\n";
 
   os.flush();
