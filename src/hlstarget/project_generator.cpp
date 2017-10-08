@@ -293,8 +293,8 @@ bool ProjectGenerator::GenerateAXISComponent()
   if (ec || os.has_error())
     return false;
 
-  u32 in_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramInputType());
-  u32 out_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramOutputType());
+  u32 in_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramInputType()) * m_streamgraph->GetProgramInputWidth();
+  u32 out_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramOutputType()) * m_streamgraph->GetProgramOutputWidth();
 
   // Seems we can use a maximum of around 2048 doublewords/8192 bytes before the DMA engine gets stuck..
   u32 out_block_size = 8192 / ((out_width + 7) / 8);

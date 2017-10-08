@@ -17,9 +17,9 @@ u32 VHDLHelpers::GetBitWidthForType(const llvm::Type* type)
   return 1;
 }
 
-std::string VHDLHelpers::GetVHDLBitVectorType(const llvm::Type* type)
+std::string VHDLHelpers::GetVHDLBitVectorType(const llvm::Type* type, u32 width)
 {
-  return StringFromFormat("std_logic_vector(%u downto 0)", GetBitWidthForType(type) - 1);
+  return StringFromFormat("std_logic_vector(%u downto 0)", (GetBitWidthForType(type) * width) - 1);
 }
 
 } // namespace HLSTarget

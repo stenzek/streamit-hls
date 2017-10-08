@@ -47,6 +47,8 @@ private:
   void WriteFIFO(const std::string& name, u32 data_width, u32 depth);
   void WriteSplitDuplicate(const StreamGraph::Split* node);
   void WriteSplitRoundrobin(const StreamGraph::Split* node);
+  void WriteJoinStateMachine(const StreamGraph::Join* node);
+  void WriteJoinWired(const StreamGraph::Join* node);
   void WriteProgramInput(const StreamGraph::Filter* node);
   void WriteProgramOutput(const StreamGraph::Filter* node);
 

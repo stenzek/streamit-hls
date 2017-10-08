@@ -56,12 +56,14 @@ public:
   const FilterPermutationList& GetFilterPermutationList() const { return m_filter_permutations; }
 
   // Input/output types of the whole program
-  llvm::Type* GetProgramInputType() const;
-  llvm::Type* GetProgramOutputType() const;
   Node* GetProgramInputNode() const { return m_program_input_node; }
   Node* GetProgramOutputNode() const { return m_program_output_node; }
   bool HasProgramInputNode() const { return (m_program_input_node != nullptr); }
   bool HasProgramOutputNode() const { return (m_program_output_node != nullptr); }
+  llvm::Type* GetProgramInputType() const;
+  llvm::Type* GetProgramOutputType() const;
+  u32 GetProgramInputWidth() const;
+  u32 GetProgramOutputWidth() const;
 
   // Finds the predecessor, or node which outputs to the specified node.
   Node* GetSinglePredecessor(Node* node) const;
@@ -322,6 +324,7 @@ public:
   std::vector<int>& GetDistribution() { return m_distribution; }
   u32 GetInputChannelWidth() const { return m_input_channel_width; }
   void SetDataType(llvm::Type* type);
+  u32 GetDistributionSum() const;
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* node) override;
@@ -362,6 +365,7 @@ public:
   u32 GetIncomingStreams() const { return m_incoming_streams; }
   void AddIncomingStream();
   void SetDataType(llvm::Type* type);
+  u32 GetDistributionSum() const;
 
   bool Accept(Visitor* visitor) override;
   bool AddChild(BuilderState* state, Node* node) override;

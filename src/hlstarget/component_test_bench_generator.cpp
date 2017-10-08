@@ -147,6 +147,7 @@ void ComponentTestBenchGenerator::WriteOutputConsumer()
     return;
 
   const llvm::Type* program_output_type = m_streamgraph->GetProgramOutputType();
+  u32 program_output_width = m_streamgraph->GetProgramOutputWidth();
 
   // output FIFO queue
   m_signals << "-- Output FIFO queue\n";
@@ -154,14 +155,23 @@ void ComponentTestBenchGenerator::WriteOutputConsumer()
   m_signals << "signal output_fifo_write : std_logic;\n";
   m_signals << "signal output_fifo_empty_n : std_logic;\n";
   m_signals << "signal output_fifo_full_n : std_logic;\n";
-  m_signals << "signal output_fifo_dout : " << VHDLHelpers::GetVHDLBitVectorType(program_output_type) << ";\n";
-  m_signals << "signal output_fifo_din : " << VHDLHelpers::GetVHDLBitVectorType(program_output_type) << ";\n";
+  m_signals << "signal output_fifo_dout : "
+            << VHDLHelpers::GetVHDLBitVectorType(program_output_type, program_output_width) << ";\n";
+  m_signals << "signal output_fifo_din : "
+            << VHDLHelpers::GetVHDLBitVectorType(program_output_type, program_output_width) << ";\n";
+  if (program_output_width > 1)
+  {
+    for (u32 i = 0; i < program_output_width; i++)
+      m_signals << "signal output_fifo_dout_" << i << " : " << VHDLHelpers::GetVHDLBitVectorType(program_output_type)
+                << ";\n";
+  }
   m_signals << "\n";
 
   m_body << "-- Output FIFO queue\n";
   m_body << "output_fifo : entity work." << VHDLHelpers::FIFO_COMPONENT_NAME << "(behav)\n";
   m_body << "  generic map (\n";
-  m_body << "    DATA_WIDTH => " << VHDLHelpers::GetBitWidthForType(program_output_type) << ",\n";
+  m_body << "    DATA_WIDTH => " << (VHDLHelpers::GetBitWidthForType(program_output_type) * program_output_width)
+         << ",\n";
   m_body << "    SIZE => 16\n";
   m_body << "  )\n";
   m_body << "  port map (\n";
@@ -175,6 +185,18 @@ void ComponentTestBenchGenerator::WriteOutputConsumer()
   m_body << "    din => output_fifo_din\n";
   m_body << "  );\n";
   m_body << "\n";
+  if (program_output_width > 1)
+  {
+    u32 output_width = VHDLHelpers::GetBitWidthForType(program_output_type);
+    u32 output_pos = 0;
+    for (u32 i = 0; i < program_output_width; i++)
+    {
+      m_body << "output_fifo_dout_" << i << " <= output_fifo_dout(" << (output_pos + output_width - 1) << " downto "
+             << output_pos << ");\n";
+      output_pos += output_width;
+    }
+    m_body << "\n";
+  }
 
   m_body << "-- Output FIFO queue consume process\n";
   m_body << "output_fifo_consume : process(clk)\n";
@@ -185,7 +207,16 @@ void ComponentTestBenchGenerator::WriteOutputConsumer()
   m_body << "        output_fifo_read <= '1';\n";
   m_body << "      else\n";
   m_body << "        -- This is behind the if because it seems to print the last value, not the current value\n";
-  m_body << "        report \"Program output \" & integer'image(to_integer(signed(output_fifo_dout)));\n";
+  if (program_output_width > 1)
+  {
+    for (u32 i = 0; i < program_output_width; i++)
+      m_body << "        report \"Program output \" & integer'image(to_integer(signed(output_fifo_dout_" << i
+             << ")));\n";
+  }
+  else
+  {
+    m_body << "        report \"Program output \" & integer'image(to_integer(signed(output_fifo_dout)));\n";
+  }
   m_body << "      end if;\n";
   m_body << "    else\n";
   m_body << "      output_fifo_read <= '0';\n";

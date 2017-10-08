@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <cassert>
 #include <cstring>
+#include <numeric>
 #include "common/log.h"
 #include "common/string_helpers.h"
 #include "parser/ast.h"
@@ -77,6 +78,18 @@ llvm::Type* StreamGraph::GetProgramInputType() const
 llvm::Type* StreamGraph::GetProgramOutputType() const
 {
   return m_program_output_node->GetInputType();
+}
+
+u32 StreamGraph::GetProgramInputWidth() const
+{
+  Filter* filter = dynamic_cast<Filter*>(m_program_input_node);
+  return filter ? filter->GetOutputChannelWidth() : 0;
+}
+
+u32 StreamGraph::GetProgramOutputWidth() const
+{
+  Filter* filter = dynamic_cast<Filter*>(m_program_output_node);
+  return filter ? filter->GetInputChannelWidth() : 0;
 }
 
 Node* StreamGraph::GetSinglePredecessor(Node* node) const
@@ -846,6 +859,11 @@ void Split::SetDataType(llvm::Type* type)
   m_output_type = type;
 }
 
+u32 Split::GetDistributionSum() const
+{
+  return static_cast<u32>(std::accumulate(m_distribution.begin(), m_distribution.end(), 0));
+}
+
 bool Split::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
@@ -917,6 +935,11 @@ Node* Join::GetInputNode()
 std::string Join::GetInputChannelName()
 {
   return StringFromFormat("%s_%u", m_name.c_str(), m_incoming_streams);
+}
+
+u32 Join::GetDistributionSum() const
+{
+  return static_cast<u32>(std::accumulate(m_distribution.begin(), m_distribution.end(), 0));
 }
 
 void Join::AddIncomingStream()
