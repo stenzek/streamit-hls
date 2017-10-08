@@ -421,6 +421,11 @@ bool ProjectGenerator::WriteHLSScript()
 
     os << "# directives\n";
 
+    // The default max name length is 20, which results in conflicts when creating
+    // multiple multiply cores for example across multiple filters. 80 should be more
+    // than sufficient, if not overkill.
+    os << "config_compile -name_max_length 80\n";
+
     // Since all our static variables are "state", they must be initialized at reset.
     // We don't use statics for any data storage, except for the FIFO peek buffer.
     // TODO: We can optimize this by setting them specifically instead of globally,
