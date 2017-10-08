@@ -100,6 +100,9 @@ void ComponentTestBenchGenerator::WriteWrapperComponent()
 
 void ComponentTestBenchGenerator::WriteInputGenerator()
 {
+  // Number of inputs that we generate, multiplied by multiplicity.
+  constexpr u32 NUM_BASE_INPUTS = 10;
+
   if (!m_streamgraph->HasProgramInputNode())
     return;
 
@@ -122,7 +125,9 @@ void ComponentTestBenchGenerator::WriteInputGenerator()
   m_body << "    input_din <= std_logic_vector(to_unsigned(0, " << input_width << "));\n";
   m_body << "    wait until rst_n = '1';\n";
 
-  for (u32 i = 1; i <= 10; i++)
+  u32 value_count = NUM_BASE_INPUTS * m_streamgraph->GetProgramInputNode()->GetNetPush();
+  Log_DevPrintf("Generating %u inputs in component test bench", value_count);
+  for (u32 i = 1; i <= value_count; i++)
   {
     // wait for requires an event, or change in signal. so we wrap it in an if.
     m_body << "    if (input_full_n = '0') then\n";
