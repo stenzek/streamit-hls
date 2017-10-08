@@ -22,7 +22,7 @@ static size_t s_benchmark_bytes_written = 0;
 static std::chrono::time_point<std::chrono::steady_clock> s_last_benchmark_time;
 static FILE* s_input_file = nullptr;
 static FILE* s_output_file = nullptr;
-static uint64_t s_benchmark_input_counter = 1;
+static uint64_t s_benchmark_input_counter = 0;
 
 static bool InBenchmarkMode()
 {
