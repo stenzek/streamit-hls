@@ -1,6 +1,7 @@
 #include "hlstarget/project_generator.h"
 #include <algorithm>
 #include <cassert>
+#include <limits>
 #include <map>
 #include <vector>
 #include "common/log.h"
@@ -175,11 +176,11 @@ void ProjectGenerator::OptimizeModule()
   builder.DisableUnrollLoops = true;
 
   // Add loop unrolling passes afterwards with more aggressive parameters.
-  builder.addExtension(llvm::PassManagerBuilder::EP_LoopOptimizerEnd,
-                       [](const llvm::PassManagerBuilder& builder, llvm::legacy::PassManagerBase& pm) {
-                         pm.add(llvm::createLoopUnrollPass(-1 /* threshold */, -1 /* count */, -1 /* allowpartial */,
-                                                           -1 /* runtime */, -1 /* upperbound */));
-                       });
+  builder.addExtension(llvm::PassManagerBuilder::EP_LoopOptimizerEnd, [](const llvm::PassManagerBuilder& builder,
+                                                                         llvm::legacy::PassManagerBase& pm) {
+    pm.add(llvm::createLoopUnrollPass(std::numeric_limits<int>::max() /* threshold */, -1 /* count */,
+                                      -1 /* allowpartial */, -1 /* runtime */, 0 /* upperbound */));
+  });
 
   builder.populateFunctionPassManager(fpm);
   builder.populateModulePassManager(mpm);
@@ -293,8 +294,10 @@ bool ProjectGenerator::GenerateAXISComponent()
   if (ec || os.has_error())
     return false;
 
-  u32 in_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramInputType()) * m_streamgraph->GetProgramInputWidth();
-  u32 out_width = VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramOutputType()) * m_streamgraph->GetProgramOutputWidth();
+  u32 in_width =
+    VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramInputType()) * m_streamgraph->GetProgramInputWidth();
+  u32 out_width =
+    VHDLHelpers::GetBitWidthForType(m_streamgraph->GetProgramOutputType()) * m_streamgraph->GetProgramOutputWidth();
 
   // Seems we can use a maximum of around 2048 doublewords/8192 bytes before the DMA engine gets stuck..
   u32 out_block_size = 8192 / ((out_width + 7) / 8);
