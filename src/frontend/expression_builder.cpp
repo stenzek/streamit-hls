@@ -316,7 +316,7 @@ bool ExpressionBuilder::Visit(AST::LogicalExpression* node)
   // Create a new block for the right-hand side of the expression
   llvm::BasicBlock* lhs_end_bb = m_func_builder->NewBasicBlock();
   ExpressionBuilder eb_rhs(m_func_builder);
-  if (!node->GetLHSExpression()->Accept(&eb_rhs) || !eb_rhs.IsValid())
+  if (!node->GetRHSExpression()->Accept(&eb_rhs) || !eb_rhs.IsValid())
     return false;
 
   llvm::BasicBlock* rhs_end_bb = m_func_builder->NewBasicBlock();
