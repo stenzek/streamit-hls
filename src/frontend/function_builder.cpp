@@ -125,10 +125,13 @@ bool FunctionBuilder::Visit(AST::Node* node)
 
 bool FunctionBuilder::Visit(AST::VariableDeclaration* node)
 {
+  m_context->PushVariableMap(&m_vars);
+
   auto var = CreateVariable(node);
   if (!var)
   {
     assert(0 && "failed creating variable");
+    m_context->PopVariableMap();
     return false;
   }
 
@@ -140,19 +143,24 @@ bool FunctionBuilder::Visit(AST::VariableDeclaration* node)
     if (!node->GetInitializer()->Accept(&eb) || !eb.IsValid())
     {
       assert(0 && "failed creating variable initializer");
+      m_context->PopVariableMap();
       return false;
     }
 
     m_current_ir_builder.CreateStore(eb.GetResultValue(), GetVariable(node));
   }
 
+  m_context->PopVariableMap();
   return true;
 }
 
 bool FunctionBuilder::Visit(AST::Statement* node)
 {
   StatementBuilder stmt_builder(this);
-  return node->Accept(&stmt_builder);
+  m_context->PushVariableMap(&m_vars);
+  bool res = node->Accept(&stmt_builder);
+  m_context->PopVariableMap();
+  return res;
 }
 
 llvm::FunctionType* FunctionBuilder::GetFunctionType(WrappedLLVMContext* context,

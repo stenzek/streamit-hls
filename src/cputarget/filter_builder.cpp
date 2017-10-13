@@ -47,7 +47,10 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       return nullptr;
     }
 
-    return builder.CreateCall(m_peek_function, {idx_value});
+    llvm::Value* value = builder.CreateCall(m_peek_function, {idx_value});
+    // BuildDebugPrintf(m_context, builder, StringFromFormat("%s peek(%%d) %%d", m_filter_name.c_str()).c_str(),
+    // {idx_value, value});
+    return value;
   }
 
   bool BuildPush(llvm::IRBuilder<>& builder, llvm::Value* value) override final
@@ -346,6 +349,7 @@ bool FilterBuilder::GenerateBuiltinFilter_OutputWriter()
     u32 value_size = (m_filter_permutation->GetInputType()->getPrimitiveSizeInBits() + 7) / 8;
 
     // Call write function
+    // BuildDebugPrintf(m_context, builder, "OutputWriter push %d", {builder.CreateLoad(value_copy)});
     llvm::Constant* write_func =
       m_module->getOrInsertFunction("streamit_write_output_file", m_context->GetVoidType(), m_context->GetPointerType(),
                                     m_context->GetIntType(), m_context->GetIntType(), nullptr);

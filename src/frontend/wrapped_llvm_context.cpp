@@ -266,4 +266,23 @@ llvm::Constant* WrappedLLVMContext::CreateConstantFromPointerInternal(llvm::Type
   return nullptr;
 }
 
+WrappedLLVMContext::VariableMap* WrappedLLVMContext::GetTopVariableMap() const
+{
+  if (m_variable_map_stack.empty())
+    return nullptr;
+
+  return m_variable_map_stack.top();
+}
+
+void WrappedLLVMContext::PushVariableMap(VariableMap* vm)
+{
+  m_variable_map_stack.push(vm);
+}
+
+void WrappedLLVMContext::PopVariableMap()
+{
+  assert(!m_variable_map_stack.empty());
+  m_variable_map_stack.pop();
+}
+
 } // namespace Frontend

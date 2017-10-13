@@ -24,6 +24,7 @@ public:
   bool Visit(AST::UnaryExpression* node) override;
   bool Visit(AST::BinaryExpression* node) override;
   bool Visit(AST::CastExpression* node) override;
+  bool Visit(AST::IdentifierExpression* node) override;
 
 private:
   WrappedLLVMContext* m_context;

@@ -175,4 +175,30 @@ bool ConstantExpressionBuilder::Visit(AST::CastExpression* node)
   assert(0 && "Unhandled cast");
   return false;
 }
+
+bool ConstantExpressionBuilder::Visit(AST::IdentifierExpression* node)
+{
+  WrappedLLVMContext::VariableMap* vm = m_context->GetTopVariableMap();
+  if (!vm)
+  {
+    assert(0 && "identifier expression without variable map");
+    return false;
+  }
+
+  auto iter = vm->find(node->GetReferencedDeclaration());
+  if (iter == vm->end())
+  {
+    assert(0 && "unknown identifier");
+    return false;
+  }
+
+  m_result_value = llvm::dyn_cast<llvm::Constant>(iter->second);
+  if (!m_result_value)
+  {
+    assert(0 && "referenced variable is not a constant");
+    return false;
+  }
+
+  return true;
+}
 }

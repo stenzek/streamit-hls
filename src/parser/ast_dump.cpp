@@ -1,6 +1,6 @@
-#include "parser/ast.h"
 #include <array>
 #include <cassert>
+#include "parser/ast.h"
 #include "parser/ast_printer.h"
 
 namespace AST
@@ -420,7 +420,7 @@ void ForStatement::Dump(ASTPrinter* printer) const
   if (m_inner)
   {
     printer->Write("inner: ");
-    m_init->Dump(printer);
+    m_inner->Dump(printer);
   }
   printer->EndBlock();
 }

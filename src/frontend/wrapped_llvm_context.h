@@ -1,5 +1,6 @@
 #pragma once
 #include <memory>
+#include <stack>
 #include <unordered_map>
 #include <vector>
 
@@ -14,6 +15,7 @@ class Value;
 namespace AST
 {
 class TypeSpecifier;
+class Declaration;
 }
 
 namespace Frontend
@@ -21,6 +23,8 @@ namespace Frontend
 class WrappedLLVMContext
 {
 public:
+  using VariableMap = std::unordered_map<const AST::Declaration*, llvm::Value*>;
+
   WrappedLLVMContext();
   ~WrappedLLVMContext();
 
@@ -56,10 +60,16 @@ public:
   static std::unique_ptr<WrappedLLVMContext> Create();
   static llvm::Constant* CreateConstantFromPointer(llvm::Type* ty, const void* ptr);
 
+  VariableMap* GetTopVariableMap() const;
+  void PushVariableMap(VariableMap* vm);
+  void PopVariableMap();
+
 private:
   static llvm::Constant* CreateConstantFromPointerInternal(llvm::Type* ty, const char*& ptr);
 
   std::unique_ptr<llvm::LLVMContext> m_llvm_context;
   int m_id_counter = 1;
+
+  std::stack<VariableMap*> m_variable_map_stack;
 };
 } // namespace Frontend
