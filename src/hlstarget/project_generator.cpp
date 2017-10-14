@@ -489,6 +489,7 @@ bool ProjectGenerator::WriteVivadoScript()
   os << "\n";
 
   // Add HLS output files.
+  // Generate IP cores for floating-point units.
   // There can be more than one VHDL file per HLS solution.
   os << "# Add HLS outputs\n";
   for (const auto& it : m_filter_function_map)
@@ -500,6 +501,8 @@ bool ProjectGenerator::WriteVivadoScript()
     const std::string& filter_name = filter_perm->GetName();
     const std::string function_name = StringFromFormat("filter_%s", filter_name.c_str());
     os << "add_files -norecurse [glob ./_autogen_hls/" << m_module_name << "/" << function_name << "/syn/vhdl/*.vhd]\n";
+    os << "foreach tclfile [glob -nocomplain ./_autogen_hls/" << m_module_name << "/" << function_name
+       << "/syn/vhdl/*.tcl] { source $tclfile }\n";
   }
   os << "\n";
 
