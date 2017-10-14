@@ -4,6 +4,7 @@
 #include "frontend/wrapped_llvm_context.h"
 #include "llvm/IR/Constants.h"
 #include "llvm/IR/DerivedTypes.h"
+#include "llvm/IR/InstrTypes.h"
 #include "llvm/IR/Module.h"
 #include "parser/ast.h"
 
@@ -74,6 +75,15 @@ bool ExpressionBuilder::Visit(AST::BooleanLiteralExpression* node)
   assert(llvm_type);
 
   m_result_value = llvm::ConstantInt::get(llvm_type, node->GetValue() ? 1 : 0);
+  return IsValid();
+}
+
+bool ExpressionBuilder::Visit(AST::FloatLiteralExpression* node)
+{
+  llvm::Type* llvm_type = GetContext()->GetLLVMType(node->GetType());
+  assert(llvm_type);
+
+  m_result_value = llvm::ConstantFP::get(llvm_type, double(node->GetValue()));
   return IsValid();
 }
 
@@ -190,6 +200,11 @@ bool ExpressionBuilder::Visit(AST::UnaryExpression* node)
     }
   }
 
+  if (node->GetType()->IsFloat())
+  {
+    assert(0 && "implement me");
+  }
+
   return IsValid();
 }
 
@@ -251,6 +266,37 @@ bool ExpressionBuilder::Visit(AST::BinaryExpression* node)
     }
   }
 
+  if (node->GetType()->IsFloat())
+  {
+    // TODO: Type conversion where LHS type != RHS type
+    assert(*node->GetLHSExpression()->GetType() == *node->GetType() &&
+           *node->GetRHSExpression()->GetType() == *node->GetType());
+
+    llvm::Value* lhs_val = eb_lhs.GetResultValue();
+    llvm::Value* rhs_val = eb_rhs.GetResultValue();
+    switch (node->GetOperator())
+    {
+    case AST::BinaryExpression::Add:
+      m_result_value = GetIRBuilder().CreateFAdd(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::Subtract:
+      m_result_value = GetIRBuilder().CreateFSub(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::Multiply:
+      m_result_value = GetIRBuilder().CreateFMul(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::Divide:
+      m_result_value = GetIRBuilder().CreateFDiv(lhs_val, rhs_val);
+      break;
+    case AST::BinaryExpression::Modulo:
+      m_result_value = GetIRBuilder().CreateFRem(lhs_val, rhs_val);
+      break;
+    default:
+      assert(0 && "not reachable");
+      break;
+    }
+  }
+
   return IsValid();
 }
 
@@ -293,6 +339,42 @@ bool ExpressionBuilder::Visit(AST::RelationalExpression* node)
       break;
     case AST::RelationalExpression::NotEqual:
       m_result_value = GetIRBuilder().CreateICmpNE(lhs_val, rhs_val);
+      break;
+    default:
+      assert(0 && "not reachable");
+      break;
+    }
+  }
+
+  if (node->GetIntermediateType()->IsFloat())
+  {
+    // TODO: Type conversion where LHS type != RHS type
+    assert(*node->GetLHSExpression()->GetType() == *node->GetIntermediateType() &&
+           *node->GetRHSExpression()->GetType() == *node->GetIntermediateType());
+
+    // ordered = check for NaN, unordered = no check
+    // C uses ordered, so we'll follow these semantics.
+    llvm::Value* lhs_val = eb_lhs.GetResultValue();
+    llvm::Value* rhs_val = eb_rhs.GetResultValue();
+    switch (node->GetOperator())
+    {
+    case AST::RelationalExpression::Less:
+      m_result_value = GetIRBuilder().CreateFCmpOLT(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::LessEqual:
+      m_result_value = GetIRBuilder().CreateFCmpOLE(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::Greater:
+      m_result_value = GetIRBuilder().CreateFCmpOGT(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::GreaterEqual:
+      m_result_value = GetIRBuilder().CreateFCmpOGE(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::Equal:
+      m_result_value = GetIRBuilder().CreateFCmpOEQ(lhs_val, rhs_val);
+      break;
+    case AST::RelationalExpression::NotEqual:
+      m_result_value = GetIRBuilder().CreateFCmpONE(lhs_val, rhs_val);
       break;
     default:
       assert(0 && "not reachable");
@@ -442,6 +524,21 @@ bool ExpressionBuilder::Visit(AST::CastExpression* node)
     // Otherwise, truncate.
     bool is_bit_type = (static_cast<llvm::IntegerType*>(expr_type)->getBitWidth() == 1);
     m_result_value = GetIRBuilder().CreateIntCast(expr_value, to_type, !is_bit_type);
+    return IsValid();
+  }
+
+  // Int<->float
+  if ((expr_type->isIntegerTy() || expr_type->isFloatTy()) && (to_type->isIntegerTy() || to_type->isFloatTy()))
+  {
+    // Our integer types are always signed.
+    bool src_signed = expr_type->isIntegerTy();
+    bool dst_signed = to_type->isIntegerTy();
+
+    // Work out the cast opcode.
+    llvm::Instruction::CastOps opcode = llvm::CastInst::getCastOpcode(expr_value, src_signed, to_type, dst_signed);
+
+    // Create cast instruction.
+    m_result_value = GetIRBuilder().CreateCast(opcode, expr_value, to_type);
     return IsValid();
   }
 

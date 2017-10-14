@@ -131,6 +131,7 @@ using namespace AST;
 %type <integer_literal> IntegerLiteral TK_INTEGER_LITERAL
 %type <boolean_literal> BooleanLiteral TK_BOOLEAN_LITERAL
 %type <integer_literal> TK_APINT
+%type <float_literal> FloatLiteral TK_FLOAT_LITERAL
 %type <type_specifier> TypeSpecifier
 %type <type_specifier> TypeName
 %type <node_list> TypeNameList
@@ -145,6 +146,7 @@ empty : ;
 Identifier : TK_IDENTIFIER ;
 IntegerLiteral : TK_INTEGER_LITERAL ;
 BooleanLiteral : TK_BOOLEAN_LITERAL ;
+FloatLiteral : TK_FLOAT_LITERAL;
 
 Program
   : ProgramStatement
@@ -401,6 +403,7 @@ PrimaryExpression
   : Identifier { $$ = new IdentifierExpression(@1, $1); }
   | IntegerLiteral { $$ = new IntegerLiteralExpression(@1, $1); }
   | BooleanLiteral { $$ = new BooleanLiteralExpression(@1, $1); }
+  | FloatLiteral { $$ = new FloatLiteralExpression(@1, $1); }
   | '(' Expression ')' { $$ = $2; }
   ;
 

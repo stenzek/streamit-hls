@@ -119,6 +119,11 @@ bool Visitor::Visit(IntegerLiteralExpression* node)
   return Visit(static_cast<Expression*>(node));
 }
 
+bool Visitor::Visit(FloatLiteralExpression* node)
+{
+  return Visit(static_cast<Expression*>(node));
+}
+
 bool Visitor::Visit(FilterWorkBlock* node)
 {
   return true;
@@ -265,6 +270,11 @@ bool IntegerLiteralExpression::Accept(Visitor* visitor)
 }
 
 bool BooleanLiteralExpression::Accept(Visitor* visitor)
+{
+  return visitor->Visit(this);
+}
+
+bool FloatLiteralExpression::Accept(Visitor* visitor)
 {
   return visitor->Visit(this);
 }

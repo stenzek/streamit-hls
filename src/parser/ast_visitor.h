@@ -22,6 +22,7 @@ class FilterDeclaration;
 class FilterWorkBlock;
 class IntegerLiteralExpression;
 class BooleanLiteralExpression;
+class FloatLiteralExpression;
 class IdentifierExpression;
 class IndexExpression;
 class UnaryExpression;
@@ -65,6 +66,7 @@ public:
   virtual bool Visit(FilterWorkBlock* node);
   virtual bool Visit(BooleanLiteralExpression* node);
   virtual bool Visit(IntegerLiteralExpression* node);
+  virtual bool Visit(FloatLiteralExpression* node);
   virtual bool Visit(IdentifierExpression* node);
   virtual bool Visit(IndexExpression* node);
   virtual bool Visit(UnaryExpression* node);

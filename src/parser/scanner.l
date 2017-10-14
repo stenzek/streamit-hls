@@ -1,6 +1,22 @@
 %option noc++
 %option yylineno
 
+O   [0-7]
+D   [0-9]
+NZ  [1-9]
+L   [a-zA-Z_]
+A   [a-zA-Z_0-9]
+H   [a-fA-F0-9]
+HP  (0[xX])
+E   ([Ee][+-]?{D}+)
+P   ([Pp][+-]?{D}+)
+FS  (f|F|l|L)
+IS  (((u|U)(l|L|ll|LL)?)|((l|L|ll|LL)(u|U)?))
+CP  (u|U|L)
+SP  (u8|u|U|L)
+ES  (\\(['"\?\\abfnrtv]|[0-7]{1,3}|x[a-fA-F0-9]+))
+WS  [ \t\v\n\f]
+
 %{
 #include "parser/scanner_helpers.h"
 #include "parser/ast.h"
@@ -88,6 +104,14 @@ false { yylval.boolean_literal = false; return TK_BOOLEAN_LITERAL; }
  /* Integer literal */
 0x[0-9A-Fa-f]+ { yylval.integer_literal = ScannerHelpers::ParseIntegerLiteral(yytext, 16); return TK_INTEGER_LITERAL; }
 [0-9]+ { yylval.integer_literal = ScannerHelpers::ParseIntegerLiteral(yytext, 10); return TK_INTEGER_LITERAL; }
+
+ /* Floating-point literal */
+{D}+{E}{FS}? { yylval.float_literal = ScannerHelpers::ParseFloatLiteral(yytext); return TK_FLOAT_LITERAL; }
+{D}*"."{D}+{E}?{FS}? { yylval.float_literal = ScannerHelpers::ParseFloatLiteral(yytext); return TK_FLOAT_LITERAL; }
+{D}+"."{E}?{FS}? { yylval.float_literal = ScannerHelpers::ParseFloatLiteral(yytext); return TK_FLOAT_LITERAL; }
+{HP}{H}+{P}{FS}? { yylval.float_literal = ScannerHelpers::ParseFloatLiteral(yytext); return TK_FLOAT_LITERAL; }
+{HP}{H}*"."{H}+{P}{FS}? { yylval.float_literal = ScannerHelpers::ParseFloatLiteral(yytext); return TK_FLOAT_LITERAL; }
+{HP}{H}+"."{P}{FS}? { yylval.float_literal = ScannerHelpers::ParseFloatLiteral(yytext); return TK_FLOAT_LITERAL; }
 
  /* Identifier */
 [a-zA-Z][a-zA-Z0-9_]* { yylval.identifier = strdup(yytext); return TK_IDENTIFIER; }

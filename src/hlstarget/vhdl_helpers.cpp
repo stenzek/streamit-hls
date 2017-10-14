@@ -12,6 +12,8 @@ u32 VHDLHelpers::GetBitWidthForType(const llvm::Type* type)
 {
   if (type->isIntegerTy())
     return static_cast<const llvm::IntegerType*>(type)->getBitWidth();
+  if (type->isFloatingPointTy())
+    return type->getPrimitiveSizeInBits();
 
   Log_ErrorPrintf("Unknown type for bit width %p", type);
   return 1;

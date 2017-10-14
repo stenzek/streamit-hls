@@ -129,12 +129,20 @@ void ComponentTestBenchGenerator::WriteInputGenerator()
   Log_DevPrintf("Generating %u inputs in component test bench", value_count);
   for (u32 i = 1; i <= value_count; i++)
   {
+    u32 value = i;
+    if (program_input_type->isFloatTy())
+    {
+      // Get the floating-point representation instead.
+      float fval = float(value);
+      std::memcpy(&value, &fval, sizeof(value));
+    }
+
     // wait for requires an event, or change in signal. so we wrap it in an if.
     m_body << "    if (input_full_n = '0') then\n";
     m_body << "      wait until input_full_n = '1';\n";
     m_body << "    end if;\n";
     m_body << "    input_write <= '1';\n";
-    m_body << "    input_din <= std_logic_vector(to_unsigned(" << i << ", " << input_width << "));\n";
+    m_body << "    input_din <= std_logic_vector(to_unsigned(" << value << ", " << input_width << "));\n";
     m_body << "    wait for CLK_PERIOD;\n";
     m_body << "    input_write <= '0';\n";
   }

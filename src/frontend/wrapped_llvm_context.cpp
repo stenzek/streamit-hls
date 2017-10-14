@@ -167,7 +167,7 @@ llvm::Type* WrappedLLVMContext::GetLLVMType(const AST::TypeSpecifier* type_speci
       break;
 
     case AST::TypeSpecifier::TypeId::Float:
-      llvm_ty = llvm::Type::getDoubleTy(*m_llvm_context);
+      llvm_ty = llvm::Type::getFloatTy(*m_llvm_context);
       break;
 
     case AST::TypeSpecifier::TypeId::APInt:
@@ -249,6 +249,15 @@ llvm::Constant* WrappedLLVMContext::CreateConstantFromPointerInternal(llvm::Type
     ptr += size;
     Log_DevPrintf("Int value readback: %08X %08X", unsigned(value >> 32), unsigned(value));
     return llvm::ConstantInt::get(ty, value);
+  }
+
+  if (ty->isFloatTy())
+  {
+    float value;
+    std::memcpy(&value, ptr, sizeof(value));
+    ptr += sizeof(value);
+    Log_DevPrintf("Float value readback: %f", value);
+    return llvm::ConstantFP::get(ty, double(value));
   }
 
   if (ty->isArrayTy())

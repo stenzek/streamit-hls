@@ -1,0 +1,22 @@
+float->float pipeline simple7float {
+  add InputReader<float>();
+  add stuff();
+  add OutputWriter<float>();
+}
+
+float->float stateful filter blah {
+    work pop 1 push 2 {
+        float x = pop();
+        push(x + 1.0f);
+        push(x + 2.0f);
+    }
+}
+
+float->float splitjoin stuff {
+    split duplicate;
+    //split roundrobin;
+    add blah();
+    add blah();
+    join roundrobin;
+}
+

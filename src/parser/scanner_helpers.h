@@ -13,7 +13,7 @@ char* AllocateSubStringCopy(const char* str, size_t start, size_t count);
 char* AppendStrings(const char* str1, const char* str2);
 
 int ParseIntegerLiteral(const char* str, int base);
-double ParseDecimalLiteral(const char* str);
+double ParseFloatLiteral(const char* str);
 
 int yyparse();
 } // namespace ScannerHelpers

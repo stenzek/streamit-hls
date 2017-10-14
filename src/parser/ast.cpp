@@ -441,16 +441,6 @@ AssignmentExpression::AssignmentExpression(const SourceLocation& sloc, Expressio
   }
 }
 
-IntegerLiteralExpression::IntegerLiteralExpression(const SourceLocation& sloc, int value)
-  : Expression(sloc), m_value(value)
-{
-}
-
-BooleanLiteralExpression::BooleanLiteralExpression(const SourceLocation& sloc, bool value)
-  : Expression(sloc), m_value(value)
-{
-}
-
 PeekExpression::PeekExpression(const SourceLocation& sloc, Expression* expr) : Expression(sloc), m_expr(expr)
 {
 }

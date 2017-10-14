@@ -525,7 +525,17 @@ bool UnaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_
   result &= m_rhs->SemanticAnalysis(state, symbol_table);
 
   // Same as the rhs in most cases?
-  m_type = m_rhs->GetType();
+  if (result)
+    m_type = m_rhs->GetType();
+  else
+    m_type = state->GetErrorType();
+
+  if (!m_rhs->GetType()->IsIntOrAPInt() && ((m_op >= PreIncrement && m_op <= PostDecrement) || m_op == BitwiseNot))
+  {
+    state->LogError(m_sloc, "Operators only valid on integer types");
+    return false;
+  }
+
   return m_type->IsValid();
 }
 
@@ -536,6 +546,14 @@ bool BinaryExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol
   // Resolve any identifiers
   if (!(m_lhs->SemanticAnalysis(state, symbol_table) & m_rhs->SemanticAnalysis(state, symbol_table)))
     return false;
+
+  // Bitwise operators are not valid on floats
+  if (m_op >= BitwiseAnd && m_op <= RightShift &&
+      (!m_lhs->GetType()->IsIntOrAPInt() && !m_rhs->GetType()->IsIntOrAPInt()))
+  {
+    state->LogError(m_sloc, "Bitwise operators are only valid on integer types");
+    return false;
+  }
 
   // Calculate type of expression
   m_type = state->GetResultType(m_lhs->GetType(), m_rhs->GetType());
@@ -636,6 +654,12 @@ bool IntegerLiteralExpression::SemanticAnalysis(ParserState* state, LexicalScope
 bool BooleanLiteralExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
 {
   m_type = state->GetBooleanType();
+  return true;
+}
+
+bool FloatLiteralExpression::SemanticAnalysis(ParserState* state, LexicalScope* symbol_table)
+{
+  m_type = state->GetFloatType();
   return true;
 }
 

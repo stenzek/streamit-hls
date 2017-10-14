@@ -232,6 +232,11 @@ void BooleanLiteralExpression::Dump(ASTPrinter* printer) const
   printer->WriteLine("BooleanLiteralExpression(%s)", m_value ? "true" : "false");
 }
 
+void FloatLiteralExpression::Dump(ASTPrinter* printer) const
+{
+  printer->WriteLine("FloatLiteralExpression(%f)", m_value);
+}
+
 void PeekExpression::Dump(ASTPrinter* printer) const
 {
   printer->Write("PeekExpression[index=");

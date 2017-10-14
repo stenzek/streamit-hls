@@ -50,7 +50,7 @@ int ParseIntegerLiteral(const char* str, int base)
   return static_cast<int>(std::strtol(str, nullptr, base));
 }
 
-double ParseDecimalLiteral(const char* str)
+double ParseFloatLiteral(const char* str)
 {
   return std::atof(str);
 }

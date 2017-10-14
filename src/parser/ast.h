@@ -157,6 +157,7 @@ public:
   bool IsInt() const { return (m_type_id == TypeId::Int); }
   bool IsFloat() const { return (m_type_id == TypeId::Float); }
   bool IsAPInt() const { return (m_type_id == TypeId::APInt); }
+  bool IsIntOrAPInt() const { return (IsInt() || IsAPInt()); }
 
   // Validity -> error
   bool IsValid() const { return !IsErrorType(); }
@@ -442,7 +443,7 @@ private:
 class IntegerLiteralExpression : public Expression
 {
 public:
-  IntegerLiteralExpression(const SourceLocation& sloc, int value);
+  IntegerLiteralExpression(const SourceLocation& sloc, int value) : Expression(sloc), m_value(value) {}
   ~IntegerLiteralExpression() = default;
 
   bool IsConstant() const override { return true; }
@@ -461,7 +462,7 @@ private:
 class BooleanLiteralExpression : public Expression
 {
 public:
-  BooleanLiteralExpression(const SourceLocation& sloc, bool value);
+  BooleanLiteralExpression(const SourceLocation& sloc, bool value) : Expression(sloc), m_value(value) {}
   ~BooleanLiteralExpression() = default;
 
   bool IsConstant() const override { return true; }
@@ -475,6 +476,25 @@ public:
 
 private:
   bool m_value;
+};
+
+class FloatLiteralExpression : public Expression
+{
+public:
+  FloatLiteralExpression(const SourceLocation& sloc, float value) : Expression(sloc), m_value(value) {}
+  ~FloatLiteralExpression() = default;
+
+  bool IsConstant() const override { return true; }
+  float GetConstantFloat() const override { return m_value; }
+
+  void Dump(ASTPrinter* printer) const override;
+  bool SemanticAnalysis(ParserState* state, LexicalScope* symbol_table) override;
+  bool Accept(Visitor* visitor) override;
+
+  float GetValue() const { return m_value; }
+
+private:
+  float m_value;
 };
 
 class IdentifierExpression : public Expression

@@ -452,7 +452,8 @@ void ComponentGenerator::WriteSplitRoundrobin(const StreamGraph::Split* node)
       m_body << "          if (" << fifo_name << "_empty_n = '1' and " << output_name << "_fifo_0_full_n = '1') then\n";
       m_body << "            " << fifo_name << "_read <= '1';\n";
       m_body << "            " << output_name << "_fifo_0_write <= '1';\n";
-      m_body << "            " << state_signal << " <= " << name << "_state_" << next_state << "_step_" << next_step << ";\n";
+      m_body << "            " << state_signal << " <= " << name << "_state_" << next_state << "_step_" << next_step
+             << ";\n";
       m_body << "          else\n";
       m_body << "            " << fifo_name << "_read <= '0';\n";
       m_body << "            " << output_name << "_fifo_0_write <= '0';\n";

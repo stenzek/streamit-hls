@@ -25,6 +25,7 @@ public:
   bool Visit(AST::Node* node) override;
   bool Visit(AST::IntegerLiteralExpression* node) override;
   bool Visit(AST::BooleanLiteralExpression* node) override;
+  bool Visit(AST::FloatLiteralExpression* node) override;
   bool Visit(AST::IdentifierExpression* node) override;
   bool Visit(AST::IndexExpression* node) override;
   bool Visit(AST::CommaExpression* node) override;
