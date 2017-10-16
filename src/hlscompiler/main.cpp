@@ -42,7 +42,7 @@ static void usage(const char* progname)
   fprintf(stderr, "  -a: Dump abstract syntax tree.\n");
   fprintf(stderr, "  -s: Dump stream graph.\n");
   fprintf(stderr, "  -i: Dump LLVM IR.\n");
-  fprintf(stderr, "  -o: Optimize LLVM IR.\n");
+  fprintf(stderr, "  -W: Widen communication channels.\n");
   fprintf(stderr, "  -h: Print this help message.\n");
   fprintf(stderr, "\n");
   std::exit(EXIT_FAILURE);
@@ -58,12 +58,12 @@ int main(int argc, char* argv[])
   bool dump_ast = false;
   bool dump_stream_graph = false;
   bool dump_llvm_ir = false;
-  bool optimize_llvm_ir = false;
   bool write_project = false;
+  bool widen_streams = false;
 
   int c;
 
-  while ((c = getopt(argc, argv, "dasioehw:")) != -1)
+  while ((c = getopt(argc, argv, "dasiWehw:")) != -1)
   {
     switch (c)
     {
@@ -88,8 +88,8 @@ int main(int argc, char* argv[])
       dump_llvm_ir = true;
       break;
 
-    case 'o':
-      optimize_llvm_ir = true;
+    case 'W':
+      widen_streams = true;
       break;
 
     case 'h':
@@ -128,9 +128,11 @@ int main(int argc, char* argv[])
   if (!streamgraph)
     return EXIT_FAILURE;
 
-  // TODO: Option for this
-  Log::Info("HLSCompiler", "Widening channels...");
-  streamgraph->WidenChannels();
+  if (widen_streams)
+  {
+    Log::Info("HLSCompiler", "Widening channels...");
+    streamgraph->WidenChannels();
+  }
 
   if (dump_stream_graph)
     DumpStreamGraph(streamgraph.get());
