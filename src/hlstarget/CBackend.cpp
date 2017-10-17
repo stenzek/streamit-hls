@@ -1096,6 +1096,10 @@ void CWriter::printConstant(Constant* CPV, enum OperandContext Context)
         Num = ftostr(FPC->getValueAPF());
 #endif
         Out << Num;
+
+        // .f suffix is needed for Vivado HLS otherwise it uses double precision.
+        if (FPC->getType() == Type::getFloatTy(CPV->getContext()))
+          Out << "f";
       }
     }
     break;
@@ -1941,42 +1945,40 @@ void CWriter::generateHeader(Module& M)
 
   Out << "\n\n/* LLVM Intrinsic Builtin Function Bodies */\n";
 
-#if 0
   // Currently not used due to no floating-point support
   // Emit some helper functions for dealing with FCMP instruction's predicates
-  Out << "FORCEINLINE int llvm_fcmp_ord(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ord(float X, float Y) { ";
   Out << "return X == X && Y == Y; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_uno(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_uno(float X, float Y) { ";
   Out << "return X != X || Y != Y; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_ueq(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ueq(float X, float Y) { ";
   Out << "return X == Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "FORCEINLINE int llvm_fcmp_une(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_une(float X, float Y) { ";
   Out << "return X != Y; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_ult(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ult(float X, float Y) { ";
   Out << "return X <  Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "FORCEINLINE int llvm_fcmp_ugt(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ugt(float X, float Y) { ";
   Out << "return X >  Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "FORCEINLINE int llvm_fcmp_ule(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ule(float X, float Y) { ";
   Out << "return X <= Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "FORCEINLINE int llvm_fcmp_uge(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_uge(float X, float Y) { ";
   Out << "return X >= Y || llvm_fcmp_uno(X, Y); }\n";
-  Out << "FORCEINLINE int llvm_fcmp_oeq(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_oeq(float X, float Y) { ";
   Out << "return X == Y ; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_one(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_one(float X, float Y) { ";
   Out << "return X != Y && llvm_fcmp_ord(X, Y); }\n";
-  Out << "FORCEINLINE int llvm_fcmp_olt(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_olt(float X, float Y) { ";
   Out << "return X <  Y ; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_ogt(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ogt(float X, float Y) { ";
   Out << "return X >  Y ; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_ole(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_ole(float X, float Y) { ";
   Out << "return X <= Y ; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_oge(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_oge(float X, float Y) { ";
   Out << "return X >= Y ; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_0(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_0(float X, float Y) { ";
   Out << "return 0; }\n";
-  Out << "FORCEINLINE int llvm_fcmp_1(double X, double Y) { ";
+  Out << "FORCEINLINE int llvm_fcmp_1(float X, float Y) { ";
   Out << "return 1; }\n";
-#endif
 
   // Loop over all select operations
   for (std::set<Type*>::iterator it = SelectDeclTypes.begin(), end = SelectDeclTypes.end(); it != end; ++it)
@@ -2768,8 +2770,7 @@ void CWriter::visitBinaryOperator(BinaryOperator& I)
 
   // We must cast the results of binary operations which might be promoted.
   bool needsCast = false;
-  if ((I.getType() == Type::getInt8Ty(I.getContext())) || (I.getType() == Type::getInt16Ty(I.getContext())) ||
-      (I.getType() == Type::getFloatTy(I.getContext())))
+  if ((I.getType() == Type::getInt8Ty(I.getContext())) || (I.getType() == Type::getInt16Ty(I.getContext())))
   {
     // types too small to work with directly
     needsCast = true;
