@@ -13,7 +13,7 @@ float->float splitjoin Cor1(int N, int NLAGS) {
   for (int lag = 0; lag < NLAGS; lag++) {
     // Calculate a single autocorrelation for lag:
     add float->float filter {
-      work pop N push 1 {
+      work peek N pop N push 1 {
         float sum = 0.0;
         for (int i = 0; i < N-lag; i++)
           sum += peek(i) * peek(i+lag);

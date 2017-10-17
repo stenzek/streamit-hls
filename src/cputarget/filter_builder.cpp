@@ -296,8 +296,18 @@ bool FilterBuilder::GenerateBuiltinFilter_InputReader()
     u32 value_size = (m_filter_permutation->GetOutputType()->getPrimitiveSizeInBits() + 7) / 8;
 
     // Call write function
+    std::string func_name;
+    if (m_filter_permutation->GetOutputType()->isIntegerTy())
+      func_name = "streamit_read_input_file_int";
+    else if (m_filter_permutation->GetOutputType()->isFloatingPointTy())
+      func_name = "streamit_read_input_file_float";
+    else
+    {
+      Log_ErrorPrintf("Unknown output type");
+      return false;
+    }
     llvm::Constant* read_func =
-      m_module->getOrInsertFunction("streamit_read_input_file", m_context->GetVoidType(), m_context->GetPointerType(),
+      m_module->getOrInsertFunction(func_name, m_context->GetVoidType(), m_context->GetPointerType(),
                                     m_context->GetIntType(), m_context->GetIntType(), nullptr);
     builder.CreateCall(read_func, {value_copy_ptr_type, builder.getInt32(value_size), builder.getInt32(1)});
     fragment_builder.BuildPush(builder, builder.CreateLoad(value_copy));
@@ -350,8 +360,18 @@ bool FilterBuilder::GenerateBuiltinFilter_OutputWriter()
 
     // Call write function
     // BuildDebugPrintf(m_context, builder, "OutputWriter push %d", {builder.CreateLoad(value_copy)});
+    std::string func_name;
+    if (m_filter_permutation->GetInputType()->isIntegerTy())
+      func_name = "streamit_write_output_file_int";
+    else if (m_filter_permutation->GetInputType()->isFloatingPointTy())
+      func_name = "streamit_write_output_file_float";
+    else
+    {
+      Log_ErrorPrintf("Unknown output type");
+      return false;
+    }
     llvm::Constant* write_func =
-      m_module->getOrInsertFunction("streamit_write_output_file", m_context->GetVoidType(), m_context->GetPointerType(),
+      m_module->getOrInsertFunction(func_name, m_context->GetVoidType(), m_context->GetPointerType(),
                                     m_context->GetIntType(), m_context->GetIntType(), nullptr);
     builder.CreateCall(write_func, {value_copy_ptr_type, builder.getInt32(value_size), builder.getInt32(1)});
     builder.CreateRetVoid();
