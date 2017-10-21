@@ -48,7 +48,7 @@ int->int splitjoin MultiplyAccumulateParallel(int x, int n) {
 }
 
 int->int filter MultiplyAccumulate(int rowLength) {
-    work pop rowLength*2 push 1 {
+    work peek rowLength*2 pop rowLength*2 push 1 {
         int result = 0;
         for (int x = 0; x < rowLength; x++) {
             result += (peek(0) * peek(1));
