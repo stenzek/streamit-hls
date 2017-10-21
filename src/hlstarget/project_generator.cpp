@@ -178,7 +178,7 @@ void ProjectGenerator::OptimizeModule()
   // Add loop unrolling passes afterwards with more aggressive parameters.
   builder.addExtension(llvm::PassManagerBuilder::EP_LoopOptimizerEnd, [](const llvm::PassManagerBuilder& builder,
                                                                          llvm::legacy::PassManagerBase& pm) {
-    pm.add(llvm::createLoopUnrollPass(std::numeric_limits<int>::max() /* threshold */, -1 /* count */,
+    pm.add(llvm::createLoopUnrollPass(/*std::numeric_limits<int>::max()*/ -1 /* threshold */, -1 /* count */,
                                       -1 /* allowpartial */, -1 /* runtime */, 0 /* upperbound */));
   });
 

@@ -326,8 +326,6 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
   fragment_builder.BuildPrologue(&function_builder, m_filter_permutation);
 
   // Add global variable references
-  for (const auto& it : m_filter_permutation->GetFilterParameters())
-    function_builder.AddVariable(it.decl, it.value);
   for (const auto& it : m_global_variable_map)
     function_builder.AddVariable(it.first, it.second);
 
@@ -343,20 +341,34 @@ llvm::Function* FilterBuilder::GenerateFunction(AST::FilterWorkBlock* block, con
 
 bool FilterBuilder::GenerateGlobals()
 {
+  // Add filter parameters to the global variable map.
+  for (const auto& it : m_filter_permutation->GetFilterParameters())
+    m_global_variable_map.emplace(it.decl, it.value);
+
+  // Skip if there are no variables in this filter.
   if (!m_filter_decl->HasStateVariables())
     return true;
+
+  m_context->PushVariableMap(&m_global_variable_map);
 
   // Visit the state variable declarations, generating LLVM variables for them
   Frontend::StateVariablesBuilder gvb(m_context, m_module, m_filter_permutation->GetName());
   if (!m_filter_decl->GetStateVariables()->Accept(&gvb))
+  {
+    m_context->PopVariableMap();
     return false;
+  }
+
+  m_context->PopVariableMap();
 
   // Evaluate init block if present.
   if (m_filter_decl->HasInitBlock() && !gvb.EvaluateInitBlock(m_filter_permutation))
     return false;
 
   // And copy the table, ready to insert to the function builders
-  m_global_variable_map = gvb.GetVariableMap();
+  for (const auto& it : gvb.GetVariableMap())
+    m_global_variable_map.emplace(it.first, it.second);
+
   return true;
 }
 

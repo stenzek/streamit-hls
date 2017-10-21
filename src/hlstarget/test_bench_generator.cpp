@@ -232,9 +232,19 @@ llvm::Function* TestBenchGenerator::GenerateFilterFunction(const StreamGraph::Fi
   // Visit the state variable declarations, generating LLVM variables for them
   if (filter_perm->GetFilterDeclaration()->HasStateVariables())
   {
+    Frontend::WrappedLLVMContext::VariableMap vm;
+    for (const auto& it : filter_perm->GetFilterParameters())
+      vm.emplace(it.decl, it.value);
+    m_context->PushVariableMap(&vm);
+
     Frontend::StateVariablesBuilder gvb(m_context, m_module, filter_perm->GetName());
     if (!filter_perm->GetFilterDeclaration()->GetStateVariables()->Accept(&gvb))
+    {
+      m_context->PopVariableMap();
       return nullptr;
+    }
+
+    m_context->PopVariableMap();
 
     for (const auto& it : gvb.GetVariableMap())
       function_builder.AddVariable(it.first, it.second);

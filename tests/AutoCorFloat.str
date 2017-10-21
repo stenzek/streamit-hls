@@ -1,6 +1,6 @@
 void->void pipeline AutoCorFloat {
   add InputReader<float>();
-  add Cor1(32, 8);
+  add Cor1(32, 4);
   add OutputWriter<float>();
   //add FloatPrinter();
 }

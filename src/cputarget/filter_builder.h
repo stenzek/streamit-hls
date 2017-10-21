@@ -8,10 +8,12 @@ class Function;
 class GlobalVariable;
 class Module;
 class Type;
+class Value;
 }
 
 namespace AST
 {
+class Declaration;
 class FilterDeclaration;
 class FilterWorkBlock;
 class VariableDeclaration;
@@ -63,7 +65,7 @@ private:
   const AST::FilterDeclaration* m_filter_decl = nullptr;
   std::string m_instance_name;
   std::string m_output_channel_name;
-  std::unordered_map<const AST::VariableDeclaration*, llvm::GlobalVariable*> m_global_variable_map;
+  std::unordered_map<const AST::Declaration*, llvm::Value*> m_global_variable_map;
 
   llvm::Function* m_init_function = nullptr;
   llvm::Function* m_prework_function = nullptr;

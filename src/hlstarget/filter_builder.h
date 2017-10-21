@@ -8,10 +8,12 @@ class Function;
 class GlobalVariable;
 class Module;
 class Type;
+class Value;
 }
 
 namespace AST
 {
+class Declaration;
 class FilterDeclaration;
 class FilterWorkBlock;
 class VariableDeclaration;
@@ -53,7 +55,7 @@ private:
   llvm::Module* m_module;
   const StreamGraph::FilterPermutation* m_filter_permutation = nullptr;
   const AST::FilterDeclaration* m_filter_decl = nullptr;
-  std::unordered_map<const AST::VariableDeclaration*, llvm::GlobalVariable*> m_global_variable_map;
+  std::unordered_map<const AST::Declaration*, llvm::Value*> m_global_variable_map;
 
   llvm::Function* m_function = nullptr;
 };
