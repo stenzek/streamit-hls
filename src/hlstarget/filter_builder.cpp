@@ -140,9 +140,10 @@ struct FragmentBuilder : public Frontend::FunctionBuilder::TargetFragmentBuilder
       // Fill the peek buffer as many times is needed.
       // If we wanted this with multi-channel, we'd need a state machine..
       func_builder->SwitchBasicBlock(no_bb_fill);
-      for (u32 i = 0; i < filter_perm->GetPeekRate() - filter_perm->GetPopRate(); i++)
+      for (u32 i = 0; i < filter_perm->GetPopRate(); i++)
       {
-        u32 offset = filter_perm->GetPopRate() + i;
+        u32 base_offset = filter_perm->GetPeekRate() - filter_perm->GetPopRate();
+        u32 offset = base_offset + i;
         builder.CreateStore(
           ReadFromChannel(builder, 0),
           builder.CreateInBoundsGEP(m_input_buffer_var, {builder.getInt32(0), builder.getInt32(offset)}));
