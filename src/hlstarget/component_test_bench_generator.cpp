@@ -212,27 +212,21 @@ void ComponentTestBenchGenerator::WriteOutputConsumer()
   }
 
   m_body << "-- Output FIFO queue consume process\n";
+  m_body << "output_fifo_read <= output_fifo_empty_n;\n";
   m_body << "output_fifo_consume : process(clk)\n";
   m_body << "begin\n";
   m_body << "  if (rising_edge(clk)) then\n";
   m_body << "    if (output_fifo_empty_n = '1') then\n";
-  m_body << "      if (output_fifo_read = '0') then\n";
-  m_body << "        output_fifo_read <= '1';\n";
-  m_body << "      else\n";
-  m_body << "        -- This is behind the if because it seems to print the last value, not the current value\n";
+  m_body << "      -- This is behind the if because it seems to print the last value, not the current value\n";
   if (program_output_width > 1)
   {
     for (u32 i = 0; i < program_output_width; i++)
-      m_body << "        report \"Program output \" & integer'image(to_integer(signed(output_fifo_dout_" << i
-             << ")));\n";
+      m_body << "      report \"Program output \" & integer'image(to_integer(signed(output_fifo_dout_" << i << ")));\n";
   }
   else
   {
     m_body << "        report \"Program output \" & integer'image(to_integer(signed(output_fifo_dout)));\n";
   }
-  m_body << "      end if;\n";
-  m_body << "    else\n";
-  m_body << "      output_fifo_read <= '0';\n";
   m_body << "    end if;\n";
   m_body << "  end if;\n";
   m_body << "end process;\n";
