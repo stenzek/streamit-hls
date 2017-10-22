@@ -2521,6 +2521,10 @@ void CWriter::printLoop(Loop* L)
   Out << CurrentLoopHeaderBlock->getName() << ": do { /* Begin loop with " << (L->getLoopDepth() - 1)
       << " nested loops */;\n";
 
+  // Try to pipeline with a rate of 1 new input per iteration. If this fails, it'll automatically
+  // attempt to use the next largest input, and so on.
+  Out << "#pragma HLS PIPELINE II=1\n";
+
   for (unsigned i = 0, e = L->getBlocks().size(); i != e; ++i)
   {
     BasicBlock* BB = L->getBlocks()[i];
