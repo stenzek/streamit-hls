@@ -476,7 +476,7 @@ void Pipeline::SteadySchedule()
   {
     Node* child = m_children[i];
     u32 prev_send = prev_child->GetNetPush();
-    u32 next_recv = child->GetNetPop();
+    u32 next_recv = std::max(child->GetNetPeek(), child->GetNetPop());
     if (prev_send != next_recv)
     {
       u32 gcd1 = gcd(prev_send, next_recv);
@@ -557,7 +557,7 @@ void SplitJoin::SteadySchedule()
   {
     Node* next = m_children[i];
     u32 prev_send = m_split_node->GetNetPush() * u32(m_split_node->GetDistribution().at(i));
-    u32 next_recv = next->GetNetPop();
+    u32 next_recv = std::max(next->GetNetPeek(), next->GetNetPop());
     if (prev_send != next_recv)
     {
       u32 gcd1 = gcd(prev_send, next_recv);
