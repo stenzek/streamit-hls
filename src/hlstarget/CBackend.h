@@ -86,11 +86,15 @@ class CWriter : public FunctionPass, public InstVisitor<CWriter>
   // will only be expanded on first use
   std::vector<Function*> prototypesToGen;
 
+  // Current loop header block.
+  BasicBlock* CurrentLoopHeaderBlock;
+
 public:
   static char ID;
   explicit CWriter(raw_pwrite_stream& o)
     : FunctionPass(ID), Out(_Out), FileOut(o), IL(0), LI(0), TheModule(0), TAsm(0), MRI(0), MOFI(0), TCtx(0), TD(0),
-      OpaqueCounter(0), NextAnonValueNumber(0), NextAnonStructNumber(0), NextFunctionNumber(0)
+      OpaqueCounter(0), NextAnonValueNumber(0), NextAnonStructNumber(0), NextFunctionNumber(0),
+      CurrentLoopHeaderBlock(nullptr)
   {
     FPCounter = 0;
   }

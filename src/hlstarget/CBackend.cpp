@@ -2515,7 +2515,12 @@ void CWriter::printFunction(Function& F)
 
 void CWriter::printLoop(Loop* L)
 {
-  Out << "  do {     /* Syntactic loop '" << L->getHeader()->getName() << "' to make GCC happy */\n";
+  BasicBlock* PreviousLoopHeaderBlock = CurrentLoopHeaderBlock;
+  CurrentLoopHeaderBlock = L->getHeader();
+
+  Out << CurrentLoopHeaderBlock->getName() << ": do { /* Begin loop with " << (L->getLoopDepth() - 1)
+      << " nested loops */;\n";
+
   for (unsigned i = 0, e = L->getBlocks().size(); i != e; ++i)
   {
     BasicBlock* BB = L->getBlocks()[i];
@@ -2525,7 +2530,10 @@ void CWriter::printLoop(Loop* L)
     else if (BB == BBLoop->getHeader() && BBLoop->getParentLoop() == L)
       printLoop(BBLoop);
   }
-  Out << "  } while (1); /* end of syntactic loop '" << L->getHeader()->getName() << "' */\n";
+
+  Out << "  } while (1); /* End of loop '" << CurrentLoopHeaderBlock->getName() << "' */\n";
+
+  CurrentLoopHeaderBlock = PreviousLoopHeaderBlock;
 }
 
 void CWriter::printBasicBlock(BasicBlock* BB)
@@ -2538,11 +2546,17 @@ void CWriter::printBasicBlock(BasicBlock* BB)
   //
   bool NeedsLabel = false;
   for (pred_iterator PI = pred_begin(BB), E = pred_end(BB); PI != E; ++PI)
+  {
     if (isGotoCodeNecessary(*PI, BB))
     {
       NeedsLabel = true;
       break;
     }
+  }
+
+  // The loop header's label is already defined in printLoop.
+  if (CurrentLoopHeaderBlock == BB)
+    NeedsLabel = false;
 
   if (NeedsLabel)
     Out << GetValueName(BB) << ":\n";
