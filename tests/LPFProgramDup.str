@@ -1,0 +1,52 @@
+int->int filter LowPassFilter(int rate, int cutoff, 
+                              int taps, int decimation) {
+
+// all values in 0,32 Bit Fixed Point to substitute the initial calculations below
+int[taps] coeff = { 2749, 2827, 3062, 3451, 3990, 4674, 5495, 6447, 
+					7518, 8700, 9979, 11344, 12780, 14273, 15810, 17373, 
+					18948, 20520, 22071, 23588, 25055, 26457, 27781, 29013, 
+					30140, 31153, 32041, 32795, 33407, 33871, 34183, 34340, 
+					34340, 34183, 33871, 33407, 32795, 32041, 31153, 30140,
+					29013, 27781, 26457, 25055, 23588, 22071, 20520, 18948,
+					17373, 15810, 14273, 12780, 11344, 9979, 8700, 7518,
+					6447, 5495, 4674, 3990, 3451, 3062, 2827, 2749 };
+
+/* 
+	init {
+    int i;
+    int m = taps - 1;
+    int w = 2 * pi * cutoff / rate;
+    for (i = 0; i < taps; i++) {
+      if (i - m/2 == 0)
+        coeff[i] = w/pi;
+      else
+        coeff[i] = sin(w*(i-m/2)) / pi / (i-m/2) *
+          (0.54 - 0.46 * cos(2*pi*i/m));
+    }
+  }
+*/
+
+  work pop 1+decimation push 1 peek taps {
+    int sum = 0;
+    for (int i = 0; i < taps; i++)
+      sum += peek(i) * coeff[i] / 16; // divided by 16 to get value in 8,24 fixed point presentation. has to be adapted when the sum is rising in different cases
+    push(sum);
+    for (int i=0; i<decimation; i++)
+      pop();
+    pop();
+  }
+}
+
+int->int splitjoin LPFProgramSplitJoin(int N) {
+  split duplicate;
+  for (int i = 0; i < N; i++)
+    add LowPassFilter(250000000, 1000, 64, 2);
+  join roundrobin;
+}
+
+void->void pipeline LPFProgramDup {
+  add InputReader<int>();
+  add LPFProgramSplitJoin(4);
+  add OutputWriter<int>();
+}
+
