@@ -2518,8 +2518,8 @@ void CWriter::printLoop(Loop* L)
   BasicBlock* PreviousLoopHeaderBlock = CurrentLoopHeaderBlock;
   CurrentLoopHeaderBlock = L->getHeader();
 
-  Out << CurrentLoopHeaderBlock->getName() << ": do { /* Begin loop with " << (L->getLoopDepth() - 1)
-      << " nested loops */;\n";
+  Out << GetValueName(CurrentLoopHeaderBlock) << ": do { /* Begin loop with " << (L->getLoopDepth() - 1)
+      << " nested loops */\n";
 
   // Try to pipeline with a rate of 1 new input per iteration. If this fails, it'll automatically
   // attempt to use the next largest input, and so on.
@@ -2535,7 +2535,7 @@ void CWriter::printLoop(Loop* L)
       printLoop(BBLoop);
   }
 
-  Out << "  } while (1); /* End of loop '" << CurrentLoopHeaderBlock->getName() << "' */\n";
+  Out << "  } while (1); /* End of loop '" << GetValueName(CurrentLoopHeaderBlock) << "' */\n";
 
   CurrentLoopHeaderBlock = PreviousLoopHeaderBlock;
 }
